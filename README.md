@@ -33,7 +33,7 @@ Every claim in the resume traces back to a file in your profile. A verification 
 |---|---|
 | App | Next.js (App Router) + TypeScript, Tailwind CSS + shadcn/ui |
 | AI | [Ollama](https://ollama.com) on the host. Default model `qwen3.5:27b` |
-| PDF | HTML/CSS rendered by headless Chromium (same view as the in-app preview) |
+| PDF | The in-app HTML/CSS preview, printed from the browser (one-click Chromium PDF later) |
 | Storage | Markdown files with YAML frontmatter. No database |
 | Runtime | Docker Compose (app only; Ollama runs on the host for GPU speed) |
 | Tests | Vitest |
@@ -130,11 +130,15 @@ Put your guide at `templates/ireland/guide.md`. It defines the sections, their o
 
 ## Roadmap
 
-- **v1:** profiles, Markdown editor, CV import, job input (URL + paste), fit/gap analysis, tailored resume (MD + PDF), verification, application history.
+- **M0, the first usable version:** pick a profile and paste a posting to get a fit/gap analysis and a tailored resume. You approve any implied skills, every claim is checked against your profile, and you print it to PDF.
+- **Backlog:** URL fetch, a history screen, one-click PDF, a profile editor, CV import, and more, built in the order real usage suggests.
 - **v2:** a guided AI interview that builds your profile by asking questions.
 - **Later, not decided:** web deployment (Netlify or AWS) with authentication, cover letters, application status tracking.
+
+The full feature list is in [`ROADMAP.md`](ROADMAP.md).
 
 ## Project documents
 
 - [`constitution.md`](constitution.md): every rule of the project; it wins over everything else.
+- [`ROADMAP.md`](ROADMAP.md): the feature list, the M0 scope, and the backlog.
 - [`CLAUDE.md`](CLAUDE.md): instructions for Claude Code.

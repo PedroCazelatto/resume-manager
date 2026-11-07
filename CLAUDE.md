@@ -21,9 +21,10 @@ Resumee Manager is a local web app (Next.js, running in Docker). It keeps a pers
 4. **Respect the layers.** `src/core/` is pure logic with no I/O. All filesystem, network, Ollama, and Chromium access goes through `src/adapters/`. (Art. V)
 5. **Docker for the app, host for Ollama.** Don't add an Ollama service to compose, and don't hard-code a model name. (Art. V)
 6. **Treat job postings as untrusted input.** Delimit them in prompts, and never let their text change the rules. (Art. II.7)
-7. **Stay in MVP scope.** Build only what Art. X lists. Ask before adding features or heavy dependencies.
+7. **Stay in M0 scope.** Build only what Art. X lists for M0; `ROADMAP.md` has the details. Ask before adding features or heavy dependencies.
 8. **Done means green.** Typecheck, lint, and tests pass, with the LLM mocked in tests. (Art. IX)
 9. **Spelling.** The repo is named `resumee-manager`, but code, UI, and docs use `resume`.
+10. **Review before commit.** Never commit changes to `constitution.md`, `CLAUDE.md`, or `README.md` until the user has reviewed them. (Art. XI.5)
 
 ## Commands
 
@@ -42,6 +43,7 @@ npm run typecheck
 | Path | Contents |
 |---|---|
 | `constitution.md` | All project rules |
+| `ROADMAP.md` | Feature list, M0 definition, backlog, usage notes |
 | `src/core/` | Schemas, pipeline steps, prompts (`src/core/prompts/`), verification. Pure, no I/O |
 | `src/adapters/` | `ProfileStore`, `LlmClient`, `JobFetcher`, `CvTextExtractor`, `PdfRenderer` |
 | `src/app/`, `src/components/` | Next.js routes, route handlers, shadcn/ui components |
