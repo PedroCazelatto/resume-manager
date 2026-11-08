@@ -8,17 +8,6 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Used by `npm run dev` (compose.dev.yaml): the source is bind-mounted read-only.
-FROM base AS dev
-ENV HOSTNAME=0.0.0.0 \
-    PORT=3000
-COPY --from=deps --chown=node:node /app/node_modules ./node_modules
-COPY --chown=node:node . .
-RUN chown node:node /app
-USER node
-EXPOSE 3000
-CMD ["npm", "run", "container:dev"]
-
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

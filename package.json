@@ -6,10 +6,9 @@
     "node": ">=26"
   },
   "scripts": {
-    "dev": "docker compose -f compose.yaml -f compose.dev.yaml up --build",
-    "start": "docker compose up --build",
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev",
     "build": "NEXT_TELEMETRY_DISABLED=1 next build",
-    "container:dev": "NEXT_TELEMETRY_DISABLED=1 next dev -H 0.0.0.0",
+    "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
