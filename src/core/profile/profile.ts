@@ -22,7 +22,12 @@ export interface Profile {
 
 export type AssembleProfileResult = { ok: true; profile: Profile } | { ok: false; errors: ProfileFileError[] };
 
-export const REQUIRED_PROFILE_FILES = ["personal.md", "summary.md", "skills.md", "languages.md"] as const;
+/** Profile folder names are lowercase ASCII kebab-case (Art. IV.4). */
+export function isProfileSlug(name: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name);
+}
+
+export const REQUIRED_PROFILE_FILES =["personal.md", "summary.md", "skills.md", "languages.md"] as const;
 
 // Folders in a profile that are not profile items (Art. IV.3).
 const NON_ITEM_FOLDERS = new Set(["imports", "applications"]);
