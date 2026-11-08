@@ -1,6 +1,11 @@
+# `npm run start` runs this file; `npm run dev` adds compose.dev.yaml.
+# The app always runs in this container, so it can only reach the files mounted
+# below: the data folder and the read-only templates.
 services:
   app:
-    build: .
+    build:
+      context: .
+      target: runner
     env_file: .env
     environment:
       DATA_DIR: /app/data

@@ -1,0 +1,12 @@
+# Overrides for `npm run dev`: hot reload inside the container, with the fictional
+# profile as the data folder (constitution Art. III.5). Only the files the dev
+# server needs are mounted, read-only.
+services:
+  app:
+    build:
+      target: dev
+    volumes:
+      - ./data.example:/app/data
+      - ./src:/app/src:ro
+      - ./next.config.ts:/app/next.config.ts:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
