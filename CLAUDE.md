@@ -28,12 +28,14 @@ Resumee Manager is a local web app (Next.js, running in Docker). It keeps a pers
 
 ## Commands
 
-> Planned. Update this section once the project is scaffolded.
+Copy `.env.example` to `.env` first. Host runs listen on 127.0.0.1 only and read overrides from `.env.local` (see `.env.example`).
 
 ```bash
-docker compose up --build   # run the app at http://localhost:3000
-npm run dev                 # dev server outside Docker
-npm test                    # Vitest unit tests
+npm run dev                     # dev server on the host at http://localhost:3000, always using data.example/
+npm run build && npm run start  # production server on the host, using DATA_DIR from .env.local
+docker compose up --build       # the app in Docker at http://localhost:3000, using ./data
+npm test                        # Vitest unit tests (data.example only)
+npm run test:watch
 npm run lint
 npm run typecheck
 ```
