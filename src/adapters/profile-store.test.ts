@@ -4,10 +4,10 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFsProfileStore } from "./profile-store";
 
-const EXAMPLE_DATA = path.resolve("data.example");
+const EXAMPLE_PROFILES = path.resolve("example-profiles");
 
-describe("createFsProfileStore with data.example", () => {
-  const store = createFsProfileStore(EXAMPLE_DATA);
+describe("createFsProfileStore with example-profiles", () => {
+  const store = createFsProfileStore(EXAMPLE_PROFILES);
 
   it("lists the example profile", async () => {
     expect(await store.listProfiles()).toEqual({ slugs: ["jane-doe"], invalidNames: [] });
@@ -28,38 +28,38 @@ describe("createFsProfileStore with data.example", () => {
 });
 
 describe("createFsProfileStore in a scratch folder", () => {
-  let dataDir: string;
+  let profilesDir: string;
   let profileDir: string;
 
   beforeEach(async () => {
-    dataDir = await mkdtemp(path.join(tmpdir(), "resume-store-"));
-    profileDir = path.join(dataDir, "profiles", "jane-doe");
-    await cp(path.join(EXAMPLE_DATA, "profiles", "jane-doe"), profileDir, { recursive: true });
+    profilesDir = await mkdtemp(path.join(tmpdir(), "resume-store-"));
+    profileDir = path.join(profilesDir, "jane-doe");
+    await cp(path.join(EXAMPLE_PROFILES, "jane-doe"), profileDir, { recursive: true });
   });
 
   afterEach(async () => {
-    await rm(dataDir, { recursive: true, force: true });
+    await rm(profilesDir, { recursive: true, force: true });
   });
 
-  it("returns no profiles when profiles/ does not exist", async () => {
-    const store = createFsProfileStore(path.join(dataDir, "missing"));
+  it("returns no profiles when the profiles folder does not exist", async () => {
+    const store = createFsProfileStore(path.join(profilesDir, "missing"));
 
     expect(await store.listProfiles()).toEqual({ slugs: [], invalidNames: [] });
   });
 
   it("separates folders whose name is not kebab-case and skips hidden ones", async () => {
-    await mkdir(path.join(dataDir, "profiles", "John Smith"));
-    await mkdir(path.join(dataDir, "profiles", ".trash"));
-    await writeFile(path.join(dataDir, "profiles", "notes.md"), "");
+    await mkdir(path.join(profilesDir, "John Smith"));
+    await mkdir(path.join(profilesDir, ".trash"));
+    await writeFile(path.join(profilesDir, "notes.md"), "");
 
-    expect(await createFsProfileStore(dataDir).listProfiles()).toEqual({
+    expect(await createFsProfileStore(profilesDir).listProfiles()).toEqual({
       slugs: ["jane-doe"],
       invalidNames: ["John Smith"],
     });
   });
 
   it.each(["../jane-doe", "Jane-Doe", "jane/doe", ""])("refuses the profile name %j", async (slug) => {
-    await expect(createFsProfileStore(dataDir).loadProfile(slug)).rejects.toThrow("Invalid profile name");
+    await expect(createFsProfileStore(profilesDir).loadProfile(slug)).rejects.toThrow("Invalid profile name");
   });
 
   it("skips imports and applications", async () => {
@@ -68,14 +68,14 @@ describe("createFsProfileStore in a scratch folder", () => {
     await mkdir(path.join(profileDir, "applications", "2026-11-05-globex-dev"), { recursive: true });
     await writeFile(path.join(profileDir, "applications", "2026-11-05-globex-dev", "job.md"), "not frontmatter");
 
-    expect((await createFsProfileStore(dataDir).loadProfile("jane-doe")).ok).toBe(true);
+    expect((await createFsProfileStore(profilesDir).loadProfile("jane-doe")).ok).toBe(true);
   });
 
   it("reports invalid files and symlinks with their paths", async () => {
     await writeFile(path.join(profileDir, "experience", "2020-01-x.md"), "---\nrole: Dev\n---\n");
     await symlink(path.join(profileDir, "personal.md"), path.join(profileDir, "extras", "link.md"));
 
-    expect(await createFsProfileStore(dataDir).loadProfile("jane-doe")).toEqual({
+    expect(await createFsProfileStore(profilesDir).loadProfile("jane-doe")).toEqual({
       ok: false,
       errors: [
         {

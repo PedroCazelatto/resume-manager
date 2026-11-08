@@ -22,8 +22,8 @@ async function ProfileSection() {
   if (slugs.length === 0) {
     return (
       <p className="text-sm">
-        No profiles found in <code className="font-mono">data/profiles/</code>. Copy{" "}
-        <code className="font-mono">data.example/profiles/jane-doe</code> there, rename the folder and edit the files.
+        No profiles found in <code className="font-mono">profiles/</code>. Copy{" "}
+        <code className="font-mono">example-profiles/jane-doe</code> there, rename the folder and edit the files.
       </p>
     );
   }

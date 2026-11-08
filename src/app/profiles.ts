@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { dataDir } from "@/adapters/config";
+import { profilesDir } from "@/adapters/config";
 import { createFsProfileStore } from "@/adapters/profile-store";
 
 // The selected profile lives in a cookie, not in the URL (F03).
@@ -7,7 +7,7 @@ const PROFILE_COOKIE = "profile";
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 export function profileStore() {
-  return createFsProfileStore(dataDir());
+  return createFsProfileStore(profilesDir());
 }
 
 /** The selected profile, if the cookie names one that still exists. */

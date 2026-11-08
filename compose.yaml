@@ -3,7 +3,7 @@ services:
     build: .
     env_file: .env
     environment:
-      DATA_DIR: /app/data
+      PROFILES_DIR: /app/profiles
     # Localhost only: the app has no authentication (constitution Art. III.6).
     ports:
       - "127.0.0.1:${PORT:-3000}:${PORT:-3000}"
@@ -11,5 +11,5 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./data:/app/data
+      - ./profiles:/app/profiles
       - ./templates:/app/templates:ro

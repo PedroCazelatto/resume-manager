@@ -11,7 +11,7 @@ import type { ProfileFileError } from "@/core/profile/validate";
 
 export interface ProfileList {
   slugs: string[];
-  /** Folders under profiles/ that are not used because their name isn't kebab-case. */
+  /** Folders in the profiles folder that are not used because their name isn't kebab-case. */
   invalidNames: string[];
 }
 
@@ -21,11 +21,7 @@ export interface ProfileStore {
   loadProfile(slug: string): Promise<AssembleProfileResult>;
 }
 
-export function createFsProfileStore(dataDir: string): ProfileStore {
-  // The data folder is only known at runtime. turbopackIgnore stops the build from
-  // tracing these paths and copying data/ into the output (Art. III.3).
-  const profilesDir = path.join(/* turbopackIgnore: true */ dataDir, "profiles");
-
+export function createFsProfileStore(profilesDir: string): ProfileStore {
   return {
     async listProfiles() {
       const entries = await readdir(profilesDir, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
@@ -44,6 +40,8 @@ export function createFsProfileStore(dataDir: string): ProfileStore {
 
     async loadProfile(slug) {
       if (!isProfileSlug(slug)) throw new Error("Invalid profile name");
+      // The profiles folder is only known at runtime. turbopackIgnore stops the build from
+      // tracing these paths and copying profiles/ into the output (Art. III.3).
       const root = path.join(/* turbopackIgnore: true */ profilesDir, slug);
       const { sources, unsupported } = await readProfileFolder(root);
       const result = assembleProfile(sources);

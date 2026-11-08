@@ -1,6 +1,6 @@
 # Personal data never goes into the image (constitution Art. III.3).
-data/
-data.example/
+profiles/
+example-profiles/
 # Bind-mounted read-only at runtime.
 templates/
 
