@@ -1,0 +1,15 @@
+# Personal data never goes into the image (constitution Art. III.3).
+data/
+data.example/
+# Bind-mounted read-only at runtime.
+templates/
+
+.env
+.env.*
+.git/
+.claude/
+.next/
+node_modules/
+coverage/
+*.log
+.DS_Store
