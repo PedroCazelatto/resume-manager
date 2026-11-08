@@ -22,7 +22,9 @@ export interface ProfileStore {
 }
 
 export function createFsProfileStore(dataDir: string): ProfileStore {
-  const profilesDir = path.join(dataDir, "profiles");
+  // The data folder is only known at runtime. turbopackIgnore stops the build from
+  // tracing these paths and copying data/ into the output (Art. III.3).
+  const profilesDir = path.join(/* turbopackIgnore: true */ dataDir, "profiles");
 
   return {
     async listProfiles() {
@@ -42,7 +44,7 @@ export function createFsProfileStore(dataDir: string): ProfileStore {
 
     async loadProfile(slug) {
       if (!isProfileSlug(slug)) throw new Error("Invalid profile name");
-      const root = path.join(profilesDir, slug);
+      const root = path.join(/* turbopackIgnore: true */ profilesDir, slug);
       const { sources, unsupported } = await readProfileFolder(root);
       const result = assembleProfile(sources);
       if (unsupported.length === 0) return result;
@@ -64,7 +66,7 @@ async function readProfileFolder(root: string): Promise<{ sources: SourceFile[];
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const file = prefix + entry.name;
       if (isSkippedProfilePath(file)) continue;
-      const full = path.join(dir, entry.name);
+      const full = path.join(/* turbopackIgnore: true */ dir, entry.name);
       if (entry.isDirectory()) await walk(full, `${file}/`);
       // Symlinks are not followed: they could point into another profile (Art. III.7).
       else if (entry.isFile()) sources.push({ file, source: await readFile(full, "utf8") });
