@@ -27,3 +27,7 @@ export function withCollisionSuffix(base: string, attempt: number): string {
 export function isApplicationId(id: string): boolean {
   return /^\d{4}-\d{2}-\d{2}(?:-[a-z0-9]+)+$/.test(id);
 }
+
+/** The files a run writes in its application folder (Art. IV.3). */
+export const APPLICATION_FILES = ["job.md", "analysis.md", "resume.md"] as const;
+export type ApplicationFile = (typeof APPLICATION_FILES)[number];

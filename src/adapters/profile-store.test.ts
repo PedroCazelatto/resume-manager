@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -84,6 +84,57 @@ describe("createFsProfileStore in a scratch folder", () => {
         },
         { file: "extras/link.md", problems: ["only regular files and folders are supported"] },
       ],
+    });
+  });
+
+  describe("applications", () => {
+    const files = { "job.md": "---\nsource: paste\n---\nPosting\n", "analysis.md": "---\nmodel: m\n---\n" };
+
+    it("creates the folder with its files and returns its name", async () => {
+      const store = createFsProfileStore(profilesDir);
+
+      const id = await store.createApplication("jane-doe", "2026-11-09-globex-backend-engineer", files);
+
+      expect(id).toBe("2026-11-09-globex-backend-engineer");
+      const folder = path.join(profileDir, "applications", id);
+      expect((await readdir(folder)).sort()).toEqual(["analysis.md", "job.md"]);
+      expect(await readFile(path.join(folder, "job.md"), "utf8")).toBe(files["job.md"]);
+    });
+
+    it("adds -2, -3 instead of overwriting an existing run", async () => {
+      const store = createFsProfileStore(profilesDir);
+      const base = "2026-11-09-globex-dev";
+
+      const ids = [
+        await store.createApplication("jane-doe", base, files),
+        await store.createApplication("jane-doe", base, files),
+        await store.createApplication("jane-doe", base, files),
+      ];
+
+      expect(ids).toEqual([base, `${base}-2`, `${base}-3`]);
+    });
+
+    it("leaves the profile itself valid", async () => {
+      const store = createFsProfileStore(profilesDir);
+      await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+
+      expect((await store.loadProfile("jane-doe")).ok).toBe(true);
+    });
+
+    it("reads a file back, or null when it doesn't exist", async () => {
+      const store = createFsProfileStore(profilesDir);
+      const id = await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+
+      expect(await store.readApplicationFile("jane-doe", id, "job.md")).toBe(files["job.md"]);
+      expect(await store.readApplicationFile("jane-doe", id, "resume.md")).toBeNull();
+      expect(await store.readApplicationFile("jane-doe", "2026-01-01-nothing-here", "job.md")).toBeNull();
+    });
+
+    it.each(["../../other/x", "2026-11-09-Globex", "jane-doe"])("refuses the application name %j", async (id) => {
+      const store = createFsProfileStore(profilesDir);
+
+      await expect(store.readApplicationFile("jane-doe", id, "job.md")).rejects.toThrow("Invalid application name");
+      await expect(store.createApplication("jane-doe", id, files)).rejects.toThrow("Invalid application name");
     });
   });
 });
