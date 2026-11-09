@@ -1,6 +1,9 @@
 # Personal data — never commit (constitution Art. III.3)
 /profiles/
 
+# Runs generated in development against the fictional profile
+/example-profiles/*/applications/
+
 # Environment
 .env
 .env.*
