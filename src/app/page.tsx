@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { ProfilePicker } from "@/components/profile-picker";
-import { ProfileProblems } from "@/components/profile-problems";
+import { FileProblems } from "@/components/file-problems";
+import { NewApplicationForm } from "@/components/new-application-form";
 import { profileStore, readSelectedProfile } from "./profiles";
 
 export default function Home() {
@@ -38,11 +39,20 @@ async function ProfileSection() {
           Ignored folders (names must be lowercase kebab-case): {invalidNames.join(", ")}
         </p>
       )}
-      {result && !result.ok && <ProfileProblems errors={result.errors} />}
+      {result && !result.ok && (
+        <FileProblems
+          title="This profile has problems"
+          hint="Fix these files in your editor, then reload. Generation is blocked until the profile is valid."
+          errors={result.errors}
+        />
+      )}
       {result?.ok && (
-        <p className="text-sm">
-          Profile of <strong>{result.profile.personal.data.name}</strong> is valid.
-        </p>
+        <>
+          <p className="text-sm">
+            Profile of <strong>{result.profile.personal.data.name}</strong> is valid.
+          </p>
+          <NewApplicationForm />
+        </>
       )}
     </div>
   );
