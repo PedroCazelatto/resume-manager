@@ -1,4 +1,4 @@
-import { parseDocument } from "yaml";
+import { parseDocument, stringify } from "yaml";
 
 export type FrontmatterResult =
   | { ok: true; data: Record<string, unknown>; body: string }
@@ -42,4 +42,10 @@ export function parseFrontmatter(source: string): FrontmatterResult {
   }
 
   return { ok: true, data: data as Record<string, unknown>, body };
+}
+
+/** Writes fields and body back into a Markdown file that parseFrontmatter reads. */
+export function stringifyFrontmatter(data: Record<string, unknown>, body = ""): string {
+  const yaml = Object.keys(data).length > 0 ? stringify(data, { lineWidth: 0 }) : "";
+  return `---\n${yaml}---\n${body}`;
 }

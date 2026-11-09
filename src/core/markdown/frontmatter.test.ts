@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFrontmatter } from "./frontmatter";
+import { parseFrontmatter, stringifyFrontmatter } from "./frontmatter";
 
 describe("parseFrontmatter", () => {
   it("splits frontmatter fields from the body", () => {
@@ -67,5 +67,30 @@ describe("parseFrontmatter", () => {
       ok: false,
       problem: "frontmatter must be a list of `field: value` lines",
     });
+  });
+});
+
+describe("stringifyFrontmatter", () => {
+  it("round-trips fields and body through parseFrontmatter", () => {
+    const data = {
+      generated_at: "2026-11-09T14:02:11Z",
+      start: "2023-01",
+      end: "present",
+      answer: "no",
+      requirements: [{ text: "TypeScript: 3+ years", sources: ["experience/2023-01-acme.md"] }],
+    };
+    const file = stringifyFrontmatter(data, "Body text\n");
+
+    expect(parseFrontmatter(file)).toEqual({ ok: true, data, body: "Body text\n" });
+  });
+
+  it("writes an empty block when there are no fields", () => {
+    expect(stringifyFrontmatter({}, "Body\n")).toBe("---\n---\nBody\n");
+  });
+
+  it("does not fold long lines", () => {
+    const text = "word ".repeat(40).trim();
+
+    expect(stringifyFrontmatter({ text })).toBe(`---\ntext: ${text}\n---\n`);
   });
 });
