@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last updated 2026-11-07.** The binding scope is [`constitution.md`, Article X](constitution.md#article-x--scope). This file lists every feature and the order we build them in.
+**Last updated 2026-11-09.** The binding scope is [`constitution.md`, Article X](constitution.md#article-x--scope). This file lists every feature and the order we build them in.
 
 ## How we prioritise
 
@@ -27,7 +27,7 @@ All of this runs in the Docker app, and every step is saved in the application f
 ```
 Choose profile ─▶ Paste posting (+ optional language) ─▶ Generate
    ├─ [1] Analyse posting + fit/gap            (LLM)
-   ├─ [2] Tailor resume to the Ireland guide   (LLM)
+   ├─ [2] Tailor resume to the Ireland template (LLM)
    ├─ [3] Check names, dates, numbers          (code)
    └─ [4] Review every claim against sources   (LLM)
 ─▶ Your review: fit/gap, warnings, approve/reject implied skills, edit Markdown
@@ -38,31 +38,31 @@ Three model calls run per resume. Quality comes first, so a run that takes sever
 
 ### Before M0 can run, you provide
 
-- `templates/ireland/guide.md`, the Ireland resume model.
-- Your profile in `data/profiles/<you>/`, written by hand in any editor by copying the fictional example in `data.example/`.
+- `templates/ireland.html`, the Ireland template: layout, writing rules for the model, and parameters such as `max-pages` (constitution Art. VII).
+- Your profile in `profiles/<you>/`, written by hand in any editor by copying the fictional example in `example-profiles/`.
 
 ### M0 features
 
 | ID | Feature |
 |---|---|
 | F01 | Profile schemas and validation, with errors that name the file and the problem |
-| F02 | Fictional example profile in `data.example/` |
-| F03 | Profile picker (lists the folders under `data/profiles/`) |
+| F02 | Fictional example profile in `example-profiles/` |
+| F03 | Profile picker (lists the folders under `profiles/`) |
 | F09 | Paste job posting text |
-| F11 | Load the Ireland guide; stop with a clear message if it's missing |
+| F11 | Load the Ireland template (layout, rules, parameters); stop with a clear message if it's missing |
 | F12 | Analyse the posting and run fit/gap in one call: detect the language; mark each requirement matched, partial, or missing, with sources |
-| F13 | Tailor the resume per the guide in the target language, storing the sources of every line |
+| F13 | Tailor the resume per the template's rules and structure in the target language (headings included), storing the sources of every line |
 | F14 | Override the resume language per generation |
 | F15 | Deterministic verification: every employer, institution, date, and number in the resume exists in the profile |
 | F16 | Implied skills in the resume, each flagged with its sources; you approve or reject each one before printing |
 | F17 | Model-based review: checks every claim against its sources and lists any it can't support |
 | F19 | Resume a failed run: steps whose output file already exists are skipped |
-| F20 | HTML preview styled to the guide, with print CSS |
-| F21 | Edit `resume.md` in a text area, with a live preview |
+| F20 | HTML preview rendered from the country template, with print CSS and a page-count warning above the template's `max-pages` |
+| F21 | Edit the content fields of `resume.md` in a text area, with a live preview |
 | F22 | Save as PDF through the browser's print dialog |
 | F24 | `draft`/`ready` status: Print is disabled while verification fails or implied skills are pending |
 | F25 | Save every run in `applications/<date>-<company>-<role>/` (with a `-2` suffix on collision, so nothing is overwritten) |
-| F28 | Docker Compose: one app service on `127.0.0.1`, Ollama on the host, `data/` bind-mounted |
+| F28 | Docker Compose: one app service on `127.0.0.1`, Ollama on the host, `profiles/` bind-mounted |
 | F29 | Ollama client: structured output, schema validation, configurable timeout |
 | F30 | Step-by-step progress in the UI |
 
@@ -108,7 +108,7 @@ Size: **S** = small, **M** = medium, **L** = large.
 
 | ID | Feature | Size | When |
 |---|---|---|---|
-| F11 | Ireland guide loader | S | M0 |
+| F11 | Ireland template loader | S | M0 |
 | F12 | Posting analysis + fit/gap (one call) | M | M0 |
 | F13 | Tailored resume with per-line sources | M | M0 |
 | F14 | Language override | S | M0 |
@@ -122,7 +122,7 @@ Size: **S** = small, **M** = medium, **L** = large.
 
 | ID | Feature | Size | When |
 |---|---|---|---|
-| F20 | HTML preview with print CSS | M | M0 |
+| F20 | HTML preview from the template, with print CSS and page-limit warning | M | M0 |
 | F21 | Edit `resume.md` with live preview | S | M0 |
 | F22 | PDF via browser print | S | M0 |
 | F23 | One-click PDF via headless Chromium, saved as `resume.pdf` | M | Backlog |
