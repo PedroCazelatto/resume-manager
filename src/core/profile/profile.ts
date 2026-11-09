@@ -27,10 +27,18 @@ export function isProfileSlug(name: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name);
 }
 
-export const REQUIRED_PROFILE_FILES =["personal.md", "summary.md", "skills.md", "languages.md"] as const;
+export const REQUIRED_PROFILE_FILES = ["personal.md", "summary.md", "skills.md", "languages.md"] as const;
 
 // Folders in a profile that are not profile items (Art. IV.3).
 const NON_ITEM_FOLDERS = new Set(["imports", "applications"]);
+
+/** Every file of a profile, in path order. */
+export function listProfileFiles(profile: Profile): ProfileFile[] {
+  const { personal, summary, skills, languages, experience, education, projects, certifications, extras } = profile;
+  return [personal, summary, skills, languages, ...experience, ...education, ...projects, ...certifications, ...extras].sort(
+    (a, b) => a.file.localeCompare(b.file),
+  );
+}
 
 /** True for paths that are not part of the profile's content: hidden files, imports/ and applications/. */
 export function isSkippedProfilePath(file: string): boolean {
