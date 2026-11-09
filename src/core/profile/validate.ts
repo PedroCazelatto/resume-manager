@@ -9,6 +9,8 @@ export type ProfileFile = {
     file: string;
     data: z.infer<(typeof profileFileSchemas)[K]>;
     body: string;
+    /** The file exactly as written, for prompts. */
+    source: string;
   };
 }[ProfileFileKind];
 
@@ -71,5 +73,5 @@ export function parseProfileFile(kind: ProfileFileKind, file: string, source: st
     return { ok: false, error: { file, problems } };
   }
 
-  return { ok: true, value: { kind, file, data: result.data, body: parsed.body } as ProfileFile };
+  return { ok: true, value: { kind, file, data: result.data, body: parsed.body, source } as ProfileFile };
 }

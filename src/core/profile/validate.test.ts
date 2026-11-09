@@ -50,6 +50,7 @@ describe("parseProfileFile", () => {
           tags: ["typescript", "aws"],
         },
         body: "\n- Led the billing migration.\n",
+        source,
       },
     });
   });
