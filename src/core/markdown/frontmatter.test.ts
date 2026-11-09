@@ -31,7 +31,7 @@ describe("parseFrontmatter", () => {
   });
 
   it("handles CRLF line endings and a byte-order mark", () => {
-    const result = parseFrontmatter("﻿---\r\nname: X\r\n---\r\nBody\r\n");
+    const result = parseFrontmatter("\uFEFF---\r\nname: X\r\n---\r\nBody\r\n");
 
     expect(result).toEqual({ ok: true, data: { name: "X" }, body: "Body\r\n" });
   });

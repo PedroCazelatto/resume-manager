@@ -12,7 +12,7 @@ const CLOSING = /^---[ \t]*(?:\r?\n|$)/m;
  * The file must start with a `---` line and the frontmatter must be a mapping.
  */
 export function parseFrontmatter(source: string): FrontmatterResult {
-  const text = source.startsWith("﻿") ? source.slice(1) : source;
+  const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
 
   const opening = OPENING.exec(text);
   if (!opening) {
