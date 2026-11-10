@@ -101,3 +101,21 @@ describe("isCountryName", () => {
     expect(isCountryName(name)).toBe(false),
   );
 });
+
+describe("parseTemplate escaping", () => {
+  it("rejects output that skips HTML escaping", () => {
+    const result = parseTemplate(
+      "ireland",
+      "templates/ireland.html",
+      '<script type="text/markdown" id="rules">r</script>\n<h1>{{{name}}}</h1>\n<p>{{& summary}}</p>',
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        file: "templates/ireland.html",
+        problems: ["uses unescaped output ({{{ }}} or {{& }}) on line 2, 3; content is always escaped (Art. V.9)"],
+      },
+    });
+  });
+});

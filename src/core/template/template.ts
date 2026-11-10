@@ -60,7 +60,10 @@ export function parseTemplate(country: string, file: string, html: string): Pars
     return a.type === "text/markdown" && a.id === "rules" ? "\n".repeat(block.split("\n").length - 1) : block;
   });
   try {
-    Handlebars.parse(layout);
+    const lines = unescapedLines(Handlebars.parse(layout));
+    if (lines.length > 0) {
+      problems.push(`uses unescaped output ({{{ }}} or {{& }}) on line ${lines.join(", ")}; content is always escaped (Art. V.9)`);
+    }
   } catch (error) {
     const lines = (error instanceof Error ? error.message : String(error)).split("\n");
     const detail = lines.length > 1 ? `${lines[0]} ${lines[lines.length - 1]}` : lines[0];
@@ -69,4 +72,25 @@ export function parseTemplate(country: string, file: string, html: string): Pars
 
   if (problems.length > 0) return { ok: false, error: { file, problems } };
   return { ok: true, template: { country, layout, rules, ...(maxPages ? { maxPages } : {}) } };
+}
+
+interface HandlebarsNode {
+  type: string;
+  escaped?: boolean;
+  loc?: { start: { line: number } };
+  body?: HandlebarsNode[];
+  program?: HandlebarsNode;
+  inverse?: HandlebarsNode;
+}
+
+/** Lines with {{{ }}} or {{& }}, which would insert content without HTML escaping. */
+function unescapedLines(node: HandlebarsNode | undefined): number[] {
+  if (!node) return [];
+  const own = node.type === "MustacheStatement" && node.escaped === false && node.loc ? [node.loc.start.line] : [];
+  return [
+    ...own,
+    ...(node.body ?? []).flatMap(unescapedLines),
+    ...unescapedLines(node.program),
+    ...unescapedLines(node.inverse),
+  ];
 }

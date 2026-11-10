@@ -16,7 +16,7 @@ Resumee Manager is a local web app (Next.js, running on the host or in Docker). 
 ## Basic rules
 
 1. **Never invent facts.** Generated resumes contain only what the profile files say. Implied skills are flagged and need the user's approval. (Art. II)
-2. **Keep personal data private.** Don't read, print, or commit `profiles/`; use `example-profiles/` for development and tests. No hosted AI APIs and no telemetry. (Art. III)
+2. **Keep personal data private.** Don't read, print, or commit `profiles/`; use `example-profiles/` for tests and your own test runs (`PROFILES_DIR=./example-profiles`). No hosted AI APIs and no telemetry. (Art. III)
 3. **Markdown is the database.** User data lives in `.md` files with YAML frontmatter, one file per item. Never delete or overwrite user files without confirmation. (Art. IV)
 4. **Respect the layers.** `src/core/` is pure logic with no I/O. All filesystem, network, Ollama, and Chromium access goes through `src/adapters/`. (Art. V)
 5. **Ollama on the host; sandbox model file access.** Don't add an Ollama service to compose, and don't hard-code a model name. If the model ever chooses file paths, that access runs in a Docker sandbox limited to the selected profile. (Art. III.8, V)
@@ -31,8 +31,8 @@ Resumee Manager is a local web app (Next.js, running on the host or in Docker). 
 Copy `.env.example` to `.env` first. Host runs listen on 127.0.0.1 only and read overrides from `.env.local` (see `.env.example`).
 
 ```bash
-npm run dev                     # dev server on the host at http://localhost:3000, always using example-profiles/
-npm run build && npm run start  # production server on the host, using PROFILES_DIR from .env.local
+npm run dev                     # host server with hot reload at http://localhost:3000, using PROFILES_DIR from .env.local
+npm run build && npm run start  # host server without hot reload, using PROFILES_DIR from .env.local
 docker compose up --build       # the app in Docker at http://localhost:3000, using ./profiles
 npm test                        # Vitest unit tests (example-profiles only)
 npm run test:watch
@@ -51,4 +51,4 @@ npm run typecheck
 | `src/app/`, `src/components/` | Next.js routes, route handlers, shadcn/ui components |
 | `templates/<country>.html` | Country resume templates: layout, model rules, parameters (provided by the user; read-only for Claude) |
 | `profiles/` | Real user profiles. Gitignored. Don't read it unless asked |
-| `example-profiles/` | Fictional profile for development and tests |
+| `example-profiles/` | Fictional profile for tests and your test runs |
