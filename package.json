@@ -6,7 +6,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "dev": "NEXT_TELEMETRY_DISABLED=1 PROFILES_DIR=./example-profiles next dev -H 127.0.0.1",
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev -H 127.0.0.1",
     "build": "NEXT_TELEMETRY_DISABLED=1 next build",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
     "lint": "eslint",
