@@ -1,23 +1,27 @@
 import { applicationFolderName } from "@/core/application/folder";
+import { isLanguageCode } from "@/core/application/languages";
 import { LlmError } from "@/core/llm";
 import { stringifyFrontmatter } from "@/core/markdown/frontmatter";
 import { analysePosting } from "@/core/pipeline/analyse-posting";
+import { tailorResume } from "@/core/pipeline/tailor-resume";
 import { llmClient } from "@/app/llm";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import type { RunEvent } from "@/app/run-events";
+import { M0_TEMPLATE, templateStore } from "@/app/templates";
 
 const MAX_POSTING_CHARS = 50_000;
 
-/** Starts a run for the selected profile and streams its progress (F09, F12, F25, F30). */
+/** Runs the pipeline for the selected profile and streams its progress (F09, F12–F14, F25, F30). */
 export async function POST(request: Request): Promise<Response> {
-  const body: unknown = await request.json().catch(() => null);
-  const posting =
-    typeof body === "object" && body !== null && "posting" in body && typeof body.posting === "string"
-      ? body.posting.trim()
-      : "";
+  const body = (await request.json().catch(() => null)) as { posting?: unknown; language?: unknown } | null;
+  const posting = typeof body?.posting === "string" ? body.posting.trim() : "";
+  const language = typeof body?.language === "string" && body.language !== "" ? body.language : null;
   if (posting === "") return Response.json({ error: "Paste the job posting first." }, { status: 400 });
   if (posting.length > MAX_POSTING_CHARS) {
     return Response.json({ error: `The posting is longer than ${MAX_POSTING_CHARS} characters.` }, { status: 400 });
+  }
+  if (language !== null && !isLanguageCode(language)) {
+    return Response.json({ error: "Unknown resume language." }, { status: 400 });
   }
 
   const store = profileStore();
@@ -31,13 +35,11 @@ export async function POST(request: Request): Promise<Response> {
     async start(controller) {
       const send = (event: RunEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       try {
+        const llm = llmClient();
+        const now = () => new Date();
+
         send({ type: "step", step: "analyse", status: "running" });
-        const { job, analysis } = await analysePosting({
-          llm: llmClient(),
-          profile: loaded.profile,
-          posting,
-          now: () => new Date(),
-        });
+        const { job, analysis } = await analysePosting({ llm, profile: loaded.profile, posting, now });
         send({ type: "step", step: "analyse", status: "done" });
 
         send({ type: "step", step: "save", status: "running" });
@@ -46,6 +48,25 @@ export async function POST(request: Request): Promise<Response> {
           "analysis.md": stringifyFrontmatter(analysis),
         });
         send({ type: "step", step: "save", status: "done" });
+        send({ type: "saved", id });
+
+        send({ type: "step", step: "tailor", status: "running" });
+        // Without a usable template the run stops here; the analysis stays saved (Art. VII.4).
+        const template = await templateStore().loadTemplate(M0_TEMPLATE);
+        if (!template.ok) {
+          throw new Error(`${template.error.file} isn't ready: ${template.error.problems.join("; ")}`);
+        }
+        const resume = await tailorResume({
+          llm,
+          profile: loaded.profile,
+          posting,
+          analysis,
+          template: template.template,
+          language: language ?? job.language,
+          now,
+        });
+        await store.addApplicationFile(slug, id, "resume.md", stringifyFrontmatter(resume));
+        send({ type: "step", step: "tailor", status: "done" });
         send({ type: "done", id });
       } catch (error) {
         send({ type: "error", message: errorMessage(error) });

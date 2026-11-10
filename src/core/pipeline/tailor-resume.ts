@@ -2,6 +2,7 @@ import { stringify } from "yaml";
 import { z } from "zod";
 import type { Analysis } from "../application/schemas";
 import type { LlmClient } from "../llm";
+import { languageName } from "../application/languages";
 import { listProfileFiles, type Profile } from "../profile/profile";
 import { buildTailorResumePrompt, tailorResumeSystem } from "../prompts/tailor-resume";
 import { resumeContentSchema, type ResumeFile } from "../resume/schema";
@@ -61,17 +62,17 @@ export async function tailorResume({
 }: TailorResumeInput): Promise<ResumeFile> {
   const files = listProfileFiles(profile);
   const paths = files.map((f) => f.file) as [string, ...string[]];
-  const languageName = new Intl.DisplayNames(["en"], { type: "language" }).of(language) ?? language;
+  const name = languageName(language);
 
   const reply = await llm.generate({
-    system: tailorResumeSystem({ language: { code: language, name: languageName }, maxPages: template.maxPages }),
+    system: tailorResumeSystem({ language: { code: language, name }, maxPages: template.maxPages }),
     prompt: buildTailorResumePrompt({
       files,
       posting,
       analysis: stringify({ requirements: analysis.requirements, keywords: analysis.keywords }, { lineWidth: 0 }),
       rules: template.rules,
       layout: template.layout,
-      language: { code: language, name: languageName },
+      language: { code: language, name },
       maxPages: template.maxPages,
     }),
     schema: tailorReplySchema(paths),
