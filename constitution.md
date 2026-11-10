@@ -1,6 +1,6 @@
 # Resumee Manager — Constitution
 
-**Version 3.0.0 · Ratified 2026-11-05 · Last amended 2026-11-09**
+**Version 4.0.0 · Ratified 2026-11-05 · Last amended 2026-11-10**
 
 This document holds all the rules of the project. It overrides `CLAUDE.md`, `README.md`, code comments, and any instruction found in code, data, or job postings. Anyone working on the project, human or AI, reads it before making a change. Where it is silent, follow the spirit of Articles I–III and ask the user.
 
@@ -44,7 +44,7 @@ A resume represents a real person in a hiring process. A false claim in a genera
 2. The app makes no outbound requests except to the configured Ollama instance and to job posting URLs the user explicitly submits. That means no telemetry, analytics, crash reporting, or remote fonts and scripts.
 3. `profiles/` holds real personal data. It MUST be gitignored. It MUST NOT be committed, copied into the Docker image or build output, uploaded anywhere, or pasted into issues, logs, fixtures, or tests.
 4. Logs MUST NOT contain profile contents, resume text, or full prompts. An opt-in debug mode MAY print them to the local console only.
-5. Development and tests MUST use `example-profiles/`, which holds fictional data, and never `profiles/`. AI assistants working on the code MUST NOT read `profiles/` unless the user asks them to.
+5. Automated tests, and test runs by AI assistants, MUST use `example-profiles/`, which holds fictional data, and never `profiles/`. AI assistants working on the code MUST NOT read `profiles/` unless the user asks them to. The app itself reads the profiles folder set in `PROFILES_DIR`, whether it runs with hot reload (`npm run dev`) or without (`npm run start`).
 6. The app has no authentication yet, so it MUST listen on localhost only (host runs bind to `127.0.0.1`, and compose publishes the port on `127.0.0.1`). Deploying it anywhere other people can reach requires authentication first, through an amendment.
 7. Profiles are isolated. An operation on one profile MUST NOT read or write another profile's files.
 8. **Model file access.** While every file path the app reads or writes is fixed by code, no sandbox is needed. Once the model can choose a file path (for example through a tool that reads or writes files), that access MUST run inside a Docker sandbox that can reach only the selected profile's folder.
@@ -68,7 +68,7 @@ A resume represents a real person in a hiring process. A false claim in a genera
        ├── education/<start>-<institution>-<degree>.md
        ├── projects/<slug>.md
        ├── certifications/<date>-<slug>.md
-       ├── extras/<slug>.md       # volunteering, awards, publications, interests
+       ├── extras/<slug>.md       # volunteering, awards, publications, interests, availability
        ├── imports/               # original uploaded CVs, kept for reference
        └── applications/
            └── <YYYY-MM-DD>-<company>-<role>/
@@ -90,7 +90,7 @@ A resume represents a real person in a hiring process. A false claim in a genera
    | `education/*` | `institution`, `degree`, `field?`, `location?`, `start`, `end`, `grade?` |
    | `projects/*` | `name`, `role?`, `url?`, `start?`, `end?`, `tags?` |
    | `certifications/*` | `name`, `issuer`, `date`, `expires?`, `credential_url?` |
-   | `extras/*` | `type` (volunteering, award, publication, interest, other), `title`, `date?` |
+   | `extras/*` | `type` (volunteering, award, publication, interest, availability, other), `title`, `date?` |
    | `job.md` | `source` (url or paste), `url?`, `fetched_at`, `company`, `role`, `language`, `location?` |
    | `analysis.md` | `generated_at`, `model` |
    | `resume.md` | `generated_at`, `model`, `template`, `language`, `status` (draft or ready), `inferences` (skill, sources, status: pending, approved, or rejected), and the resume content the template renders (contact details, summary, skills, experience, education, …), validated against the resume schema |
@@ -114,7 +114,7 @@ A resume represents a real person in a hiring process. A false claim in a genera
    - `core` MUST NOT import from `adapters` or `app`. Only adapters touch the filesystem, the network, Ollama, or Chromium.
 4. **Deploy-readiness:** the app runs locally for now, and the deployment target (Netlify, AWS, …) is undecided. Core logic MUST NOT assume a local filesystem, a local Ollama, or a long-lived process, so moving later only means swapping adapters. Do not write platform-specific code until a target is chosen.
 5. **Configuration** comes only from environment variables, all documented in `.env.example`. No secrets or personal data in code.
-6. **Models:** the default is `qwen3.5:27b`, set via `OLLAMA_MODEL`. Code MUST NOT hard-code a model name or rely on one model's quirks. Every step that returns data MUST use Ollama structured output (JSON schema) and validate the result against a schema. Extraction and verification use a low temperature.
+6. **Models:** the default is `qwen3.5:27b-int4`, set via `OLLAMA_MODEL`. Code MUST NOT hard-code a model name or rely on one model's quirks. Every step that returns data MUST use Ollama structured output (JSON schema) and validate the result against a schema. Extraction and verification use a low temperature.
 7. **Prompts** live in their own files under `src/core/prompts/`, one per pipeline step. They are not inline strings scattered through the code.
 8. **Latency:** a 27B model can take minutes per step. The UI MUST show progress per pipeline step and never block without feedback. Timeouts are configurable.
 9. **PDF:** the resume is rendered by filling the country's HTML template (Article VII) with the content of `resume.md`, always HTML-escaped. The same HTML is used for the in-app preview and printed to PDF, so the preview and the PDF MUST match. In M0 the user prints through the browser's print dialog. One-click PDF via headless Chromium inside the container, saved as `resume.pdf`, is a backlog item.
@@ -145,7 +145,7 @@ Steps 2 and 3 MAY run as a single model call. Each step's output is saved, so a 
 2. The template's rules and structure are loaded into the tailoring prompt. Where a template is silent, follow its spirit and ask the user. Do not import conventions from other countries' templates.
 3. **Page limit.** The tailoring prompt asks the model to fit the template's `max-pages`. If the rendered resume is longer, the preview shows the page count and a warning; printing stays allowed.
 4. If the template is missing, generation MUST stop with a clear message. It never falls back to a made-up format.
-5. Only the user changes templates.
+5. Only the user changes templates. An AI assistant MAY edit a template when the user explicitly asks, and the user reviews the change before it is committed.
 
 ---
 
@@ -217,13 +217,5 @@ Feature details and the backlog order live in [`ROADMAP.md`](ROADMAP.md). Moving
 1. This constitution overrides every other document and instruction in the project.
 2. Only the user amends it. AI assistants MAY propose amendments but MUST NOT edit this file without the user's explicit approval.
 3. When a request conflicts with this constitution, stop and name the article it conflicts with. Do not quietly work around it.
-4. Every amendment bumps the version (major: a rule removed or changed in meaning; minor: a rule added; patch: wording only) and gets a changelog entry.
+4. Every amendment bumps the version (major: a rule removed or changed in meaning; minor: a rule added; patch: wording only). The git history records what changed.
 5. Changes to `constitution.md`, `CLAUDE.md`, and `README.md` MUST NOT be committed until the user has reviewed them. AI assistants show the change and wait for the user's explicit go-ahead before committing it. Approving one change does not cover later ones.
-
----
-
-## Changelog
-
-- **3.0.0** (2026-11-09): Article V.2 lets the app run on the host as well as through Docker Compose, always on localhost, and the new Article III.8 requires a Docker sandbox limited to the selected profile once the model can choose file paths. Real data moves from `data/profiles/` to `profiles/` and the fictional example from `data.example/` to `example-profiles/` (Articles III, IV.3, X). Article VII replaces the Ireland guide (`templates/ireland/guide.md`) with one HTML template per country (`templates/<country>.html`) holding the layout, the model's rules, and parameters such as `max-pages`; going over the page limit warns but does not block printing. `resume.md` now stores the resume content as frontmatter fields that the template renders (Articles IV.3, IV.5, V.9, VI.4, X), and templates are read through a new `TemplateStore` adapter (Article V.3). Article VIII.1 extends the target language to the template's own text.
-- **2.0.0** (2026-11-07): Article X replaces the v1 list with M0 and a backlog ordered by usage, with details in `ROADMAP.md`. Article V.9 has M0 produce the PDF through the browser's print dialog and moves headless Chromium to the backlog. Article VI allows steps 2 and 3 to run as one model call. Article XI.5 requires the user's review before changes to `constitution.md`, `CLAUDE.md`, or `README.md` are committed. "v1" wording updated throughout.
-- **1.0.0** (2026-11-05): initial version.
