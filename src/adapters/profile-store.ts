@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { link, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { access, link, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isApplicationId, withCollisionSuffix, type ApplicationFile } from "@/core/application/folder";
 import {
@@ -30,6 +30,11 @@ export interface ProfileStore {
   readApplicationFile(slug: string, id: string, file: ApplicationFile): Promise<string | null>;
   /** Adds a file to an application. Fails if it already exists: nothing is overwritten (Art. IV.8). */
   addApplicationFile(slug: string, id: string, file: ApplicationFile, content: string): Promise<void>;
+  /**
+   * Replaces a file of an application atomically (Art. IV.8). Only for changes the user asked
+   * for in the UI, or a run updating the files it has just written. Fails if the file doesn't exist.
+   */
+  replaceApplicationFile(slug: string, id: string, file: ApplicationFile, content: string): Promise<void>;
 }
 
 const MAX_FOLDER_ATTEMPTS = 100;
@@ -120,6 +125,14 @@ export function createFsProfileStore(profilesDir: string): ProfileStore {
       } finally {
         await rm(temp, { force: true });
       }
+    },
+
+    async replaceApplicationFile(slug, id, file, content) {
+      const target = path.join(/* turbopackIgnore: true */ applicationFolder(slug, id), file);
+      await access(target).catch(() => {
+        throw new Error(`${file} doesn't exist in ${id}`);
+      });
+      await writeFileAtomic(target, content);
     },
   };
 }

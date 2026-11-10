@@ -13,6 +13,8 @@ const STEP_LABELS: Record<RunStep, string> = {
   analyse: "Analysing the posting and matching it to your profile",
   save: "Saving the application",
   tailor: "Writing the tailored resume",
+  check: "Checking names, dates and numbers against your profile",
+  review: "Reviewing every claim against its sources",
 };
 
 const POSTING_LANGUAGE = "posting";

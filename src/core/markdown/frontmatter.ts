@@ -44,6 +44,16 @@ export function parseFrontmatter(source: string): FrontmatterResult {
   return { ok: true, data: data as Record<string, unknown>, body };
 }
 
+/**
+ * Changes fields of a file's frontmatter, keeping the fields the app doesn't know about
+ * and the body (Art. IV.7). Throws when the file has no valid frontmatter.
+ */
+export function patchFrontmatter(source: string, patch: Record<string, unknown>): string {
+  const parsed = parseFrontmatter(source);
+  if (!parsed.ok) throw new Error(parsed.problem);
+  return stringifyFrontmatter({ ...parsed.data, ...patch }, parsed.body);
+}
+
 /** Writes fields and body back into a Markdown file that parseFrontmatter reads. */
 export function stringifyFrontmatter(data: Record<string, unknown>, body = ""): string {
   const yaml = Object.keys(data).length > 0 ? stringify(data, { lineWidth: 0 }) : "";

@@ -29,5 +29,5 @@ export function isApplicationId(id: string): boolean {
 }
 
 /** The files a run writes in its application folder (Art. IV.3). */
-export const APPLICATION_FILES = ["job.md", "analysis.md", "resume.md"] as const;
+export const APPLICATION_FILES = ["job.md", "analysis.md", "resume.md", "verification.md"] as const;
 export type ApplicationFile = (typeof APPLICATION_FILES)[number];

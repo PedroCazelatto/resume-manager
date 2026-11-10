@@ -155,6 +155,26 @@ describe("createFsProfileStore in a scratch folder", () => {
       expect((await readdir(path.join(profileDir, "applications", id))).sort()).toEqual(["analysis.md", "job.md"]);
     });
 
+    it("replaces an existing file and leaves no temp file behind", async () => {
+      const store = createFsProfileStore(profilesDir);
+      const id = await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+
+      await store.replaceApplicationFile("jane-doe", id, "analysis.md", "---\nmodel: other\n---\n");
+
+      expect(await store.readApplicationFile("jane-doe", id, "analysis.md")).toBe("---\nmodel: other\n---\n");
+      expect((await readdir(path.join(profileDir, "applications", id))).sort()).toEqual(["analysis.md", "job.md"]);
+    });
+
+    it("doesn't create a file when asked to replace one that doesn't exist", async () => {
+      const store = createFsProfileStore(profilesDir);
+      const id = await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+
+      await expect(store.replaceApplicationFile("jane-doe", id, "resume.md", "x")).rejects.toThrow(
+        `resume.md doesn't exist in ${id}`,
+      );
+      expect(await store.readApplicationFile("jane-doe", id, "resume.md")).toBeNull();
+    });
+
     it.each(["../../other/x", "2026-11-09-Globex", "jane-doe"])("refuses the application name %j", async (id) => {
       const store = createFsProfileStore(profilesDir);
 

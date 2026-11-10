@@ -4,12 +4,14 @@ import { Suspense } from "react";
 import { AnalysisView } from "@/components/analysis-view";
 import { FileProblems } from "@/components/file-problems";
 import { InferenceList, ResumePreview } from "@/components/resume-view";
+import { VerificationView } from "@/components/verification-view";
 import { isApplicationId } from "@/core/application/folder";
 import { analysisSchema, jobSchema } from "@/core/application/schemas";
 import { languageName } from "@/core/application/languages";
 import { validateMarkdownFile, type FileError } from "@/core/markdown/validate";
 import { renderResume } from "@/core/resume/render";
 import { resumeFileSchema } from "@/core/resume/schema";
+import { verificationSchema } from "@/core/verification/schema";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import { templateStore } from "@/app/templates";
 
@@ -35,19 +37,22 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
   const slug = await readSelectedProfile((await store.listProfiles()).slugs);
   if (!slug) return <p className="text-sm">Choose a profile on the home page first.</p>;
 
-  const [jobSource, analysisSource, resumeSource] = await Promise.all([
+  const [jobSource, analysisSource, resumeSource, verificationSource] = await Promise.all([
     store.readApplicationFile(slug, id, "job.md"),
     store.readApplicationFile(slug, id, "analysis.md"),
     store.readApplicationFile(slug, id, "resume.md"),
+    store.readApplicationFile(slug, id, "verification.md"),
   ]);
   if (jobSource === null) notFound();
 
   const job = validateMarkdownFile(jobSchema, "job.md", jobSource);
   const analysis = analysisSource === null ? null : validateMarkdownFile(analysisSchema, "analysis.md", analysisSource);
   const resume = resumeSource === null ? null : validateMarkdownFile(resumeFileSchema, "resume.md", resumeSource);
+  const verification =
+    verificationSource === null ? null : validateMarkdownFile(verificationSchema, "verification.md", verificationSource);
   const template = resume?.ok ? await templateStore().loadTemplate(resume.data.template) : null;
   const errors: FileError[] = [
-    ...[job, analysis, resume].flatMap((file) => (file && !file.ok ? [file.error] : [])),
+    ...[job, analysis, resume, verification].flatMap((file) => (file && !file.ok ? [file.error] : [])),
     ...(template && !template.ok ? [template.error] : []),
   ];
   if (errors.length > 0) {
@@ -60,7 +65,6 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
     );
   }
   if (!job.ok) return null;
-
 
   return (
     <div className="space-y-6">
@@ -84,7 +88,12 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
               inferences: resume.data.inferences,
             })}
           />
-          <InferenceList inferences={resume.data.inferences} />
+          <InferenceList id={id} inferences={resume.data.inferences} />
+          {verification?.ok ? (
+            <VerificationView id={id} verification={verification.data} />
+          ) : (
+            <p className="text-sm">The resume has not been verified yet.</p>
+          )}
         </section>
       )}
       {analysis?.ok ? (

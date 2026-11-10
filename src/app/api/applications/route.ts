@@ -3,7 +3,10 @@ import { isLanguageCode } from "@/core/application/languages";
 import { LlmError } from "@/core/llm";
 import { stringifyFrontmatter } from "@/core/markdown/frontmatter";
 import { analysePosting } from "@/core/pipeline/analyse-posting";
+import { reviewResume } from "@/core/pipeline/review-resume";
 import { tailorResume } from "@/core/pipeline/tailor-resume";
+import { checkResume } from "@/core/verification/checks";
+import { resumeStatus, type Verification } from "@/core/verification/schema";
 import { llmClient } from "@/app/llm";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import type { RunEvent } from "@/app/run-events";
@@ -11,7 +14,7 @@ import { M0_TEMPLATE, templateStore } from "@/app/templates";
 
 const MAX_POSTING_CHARS = 50_000;
 
-/** Runs the pipeline for the selected profile and streams its progress (F09, F12–F14, F25, F30). */
+/** Runs the pipeline for the selected profile and streams its progress (F09, F12–F17, F24, F25, F30). */
 export async function POST(request: Request): Promise<Response> {
   const body = (await request.json().catch(() => null)) as { posting?: unknown; language?: unknown } | null;
   const posting = typeof body?.posting === "string" ? body.posting.trim() : "";
@@ -67,6 +70,21 @@ export async function POST(request: Request): Promise<Response> {
         });
         await store.addApplicationFile(slug, id, "resume.md", stringifyFrontmatter(resume));
         send({ type: "step", step: "tailor", status: "done" });
+
+        send({ type: "step", step: "check", status: "running" });
+        const checked_at = now().toISOString();
+        const found = checkResume(loaded.profile, resume);
+        send({ type: "step", step: "check", status: "done" });
+
+        send({ type: "step", step: "review", status: "running" });
+        const { review, failures } = await reviewResume({ llm, profile: loaded.profile, resume, now });
+        const verification: Verification = { checked_at, review, failures: [...found, ...failures] };
+        await store.addApplicationFile(slug, id, "verification.md", stringifyFrontmatter(verification));
+        const status = resumeStatus(resume, verification);
+        if (status !== resume.status) {
+          await store.replaceApplicationFile(slug, id, "resume.md", stringifyFrontmatter({ ...resume, status }));
+        }
+        send({ type: "step", step: "review", status: "done" });
         send({ type: "done", id });
       } catch (error) {
         send({ type: "error", message: errorMessage(error) });

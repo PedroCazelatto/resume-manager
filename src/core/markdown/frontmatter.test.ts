@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFrontmatter, stringifyFrontmatter } from "./frontmatter";
+import { parseFrontmatter, patchFrontmatter, stringifyFrontmatter } from "./frontmatter";
 
 describe("parseFrontmatter", () => {
   it("splits frontmatter fields from the body", () => {
@@ -92,5 +92,17 @@ describe("stringifyFrontmatter", () => {
     const text = "word ".repeat(40).trim();
 
     expect(stringifyFrontmatter({ text })).toBe(`---\ntext: ${text}\n---\n`);
+  });
+});
+
+describe("patchFrontmatter", () => {
+  it("changes the given fields and keeps unknown fields and the body", () => {
+    const file = patchFrontmatter("---\nstatus: draft\nmy_note: keep me\n---\nBody\n", { status: "ready" });
+
+    expect(parseFrontmatter(file)).toEqual({ ok: true, data: { status: "ready", my_note: "keep me" }, body: "Body\n" });
+  });
+
+  it("refuses a file without valid frontmatter", () => {
+    expect(() => patchFrontmatter("No frontmatter", { status: "ready" })).toThrow("missing YAML frontmatter");
   });
 });
