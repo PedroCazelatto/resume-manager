@@ -76,6 +76,15 @@ describe("createOllamaClient", () => {
       shift: false,
       stream: true,
     });
+    expect(calls[0].body).not.toHaveProperty("think");
+  });
+
+  it("sends the thinking setting only when it is configured", async () => {
+    const { fetchImpl, calls } = fakeFetch(() => stream(chunk('{"company":"Globex"}'), done()));
+
+    await createOllamaClient({ ...settings, think: false }, fetchImpl).generate(request);
+
+    expect(calls[0].body).toMatchObject({ think: false });
   });
 
   it("reports a reply that ran out of context", async () => {

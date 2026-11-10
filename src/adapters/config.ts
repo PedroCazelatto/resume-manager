@@ -22,13 +22,16 @@ export interface OllamaSettings {
   timeoutMs: number;
   /** Context window sent with every call. Prompts that don't fit fail instead of being truncated. */
   numCtx: number;
+  /** Thinking mode for models that have one; left to the model's default when unset. */
+  think?: boolean;
 }
 
 const ollamaEnv = z.object({
   OLLAMA_BASE_URL: z.url({ protocol: /^https?$/ }).default("http://host.docker.internal:11434"),
   OLLAMA_MODEL: z.string().min(1),
-  OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
+  OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(1_800_000),
   OLLAMA_NUM_CTX: z.coerce.number().int().positive().default(16_384),
+  OLLAMA_THINK: z.enum(["true", "false"]).optional(),
 });
 
 export function ollamaSettings(env: Record<string, string | undefined> = process.env): OllamaSettings {
@@ -37,11 +40,12 @@ export function ollamaSettings(env: Record<string, string | undefined> = process
     const names = [...new Set(result.error.issues.map((issue) => String(issue.path[0])))];
     throw new Error(`Missing or invalid setting: ${names.join(", ")}. See .env.example.`);
   }
-  const { OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT_MS, OLLAMA_NUM_CTX } = result.data;
+  const { OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT_MS, OLLAMA_NUM_CTX, OLLAMA_THINK } = result.data;
   return {
     baseUrl: OLLAMA_BASE_URL,
     model: OLLAMA_MODEL,
     timeoutMs: OLLAMA_TIMEOUT_MS,
     numCtx: OLLAMA_NUM_CTX,
+    ...(OLLAMA_THINK ? { think: OLLAMA_THINK === "true" } : {}),
   };
 }

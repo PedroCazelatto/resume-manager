@@ -24,6 +24,8 @@ export function createOllamaClient(settings: OllamaSettings, fetchImpl: typeof f
         ],
         format: z.toJSONSchema(request.schema),
         options: { temperature: request.temperature, num_ctx: settings.numCtx },
+        // Only sent when configured: models without a thinking mode keep their default.
+        ...(settings.think === undefined ? {} : { think: settings.think }),
         // Fail instead of silently dropping prompt text when the prompt or the reply
         // doesn't fit in the context window (OLLAMA_NUM_CTX).
         truncate: false,

@@ -16,10 +16,10 @@ describe("profilesDir", () => {
 
 describe("ollamaSettings", () => {
   it("uses the documented defaults when only the model is set", () => {
-    expect(ollamaSettings({ OLLAMA_MODEL: "qwen3.5:27b" })).toEqual({
+    expect(ollamaSettings({ OLLAMA_MODEL: "qwen3.5:27b-int4" })).toEqual({
       baseUrl: "http://host.docker.internal:11434",
-      model: "qwen3.5:27b",
-      timeoutMs: 600_000,
+      model: "qwen3.5:27b-int4",
+      timeoutMs: 1_800_000,
       numCtx: 16_384,
     });
   });
@@ -30,6 +30,7 @@ describe("ollamaSettings", () => {
       OLLAMA_MODEL: "qwen2.5:7b",
       OLLAMA_TIMEOUT_MS: "120000",
       OLLAMA_NUM_CTX: "32768",
+      OLLAMA_THINK: "false",
     });
 
     expect(settings).toEqual({
@@ -37,6 +38,7 @@ describe("ollamaSettings", () => {
       model: "qwen2.5:7b",
       timeoutMs: 120_000,
       numCtx: 32_768,
+      think: false,
     });
   });
 
@@ -46,7 +48,15 @@ describe("ollamaSettings", () => {
 
   it("names every invalid setting", () => {
     expect(() =>
-      ollamaSettings({ OLLAMA_MODEL: "m", OLLAMA_TIMEOUT_MS: "soon", OLLAMA_NUM_CTX: "-1", OLLAMA_BASE_URL: "file:///x" }),
-    ).toThrow("Missing or invalid setting: OLLAMA_BASE_URL, OLLAMA_TIMEOUT_MS, OLLAMA_NUM_CTX. See .env.example.");
+      ollamaSettings({
+        OLLAMA_MODEL: "m",
+        OLLAMA_TIMEOUT_MS: "soon",
+        OLLAMA_NUM_CTX: "-1",
+        OLLAMA_BASE_URL: "file:///x",
+        OLLAMA_THINK: "yes",
+      }),
+    ).toThrow(
+      "Missing or invalid setting: OLLAMA_BASE_URL, OLLAMA_TIMEOUT_MS, OLLAMA_NUM_CTX, OLLAMA_THINK. See .env.example.",
+    );
   });
 });
