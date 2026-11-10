@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isApplicationId, withCollisionSuffix, type ApplicationFile } from "@/core/application/folder";
 import {
@@ -28,6 +28,8 @@ export interface ProfileStore {
   createApplication(slug: string, baseName: string, files: Partial<Record<ApplicationFile, string>>): Promise<string>;
   /** One file of an application, or null when it doesn't exist. */
   readApplicationFile(slug: string, id: string, file: ApplicationFile): Promise<string | null>;
+  /** Adds a file to an application. Fails if it already exists: nothing is overwritten (Art. IV.8). */
+  addApplicationFile(slug: string, id: string, file: ApplicationFile, content: string): Promise<void>;
 }
 
 const MAX_FOLDER_ATTEMPTS = 100;
@@ -38,6 +40,11 @@ export function createFsProfileStore(profilesDir: string): ProfileStore {
     // The profiles folder is only known at runtime. turbopackIgnore stops the build from
     // tracing these paths and copying profiles/ into the output (Art. III.3).
     return path.join(/* turbopackIgnore: true */ profilesDir, slug);
+  }
+
+  function applicationFolder(slug: string, id: string): string {
+    if (!isApplicationId(id)) throw new Error("Invalid application name");
+    return path.join(/* turbopackIgnore: true */ profileFolder(slug), "applications", id);
   }
 
   return {
@@ -92,12 +99,27 @@ export function createFsProfileStore(profilesDir: string): ProfileStore {
     },
 
     async readApplicationFile(slug, id, file) {
-      if (!isApplicationId(id)) throw new Error("Invalid application name");
-      const full = path.join(/* turbopackIgnore: true */ profileFolder(slug), "applications", id, file);
+      const full = path.join(/* turbopackIgnore: true */ applicationFolder(slug, id), file);
       return readFile(full, "utf8").catch((error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") return null;
         throw error;
       });
+    },
+
+    async addApplicationFile(slug, id, file, content) {
+      const folder = applicationFolder(slug, id);
+      const target = path.join(/* turbopackIgnore: true */ folder, file);
+      const temp = path.join(/* turbopackIgnore: true */ folder, `.${file}.${randomUUID()}.tmp`);
+      try {
+        await writeFile(temp, content, { flag: "wx" });
+        // link fails when the target exists, so the file appears complete or not at all.
+        await link(temp, target);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`${file} already exists in ${id}`);
+        throw error;
+      } finally {
+        await rm(temp, { force: true });
+      }
     },
   };
 }
