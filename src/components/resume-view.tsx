@@ -2,18 +2,6 @@ import { decideInference } from "@/app/applications/[id]/actions";
 import { Button } from "@/components/ui/button";
 import type { Inference } from "@/core/resume/schema";
 
-/** The rendered resume, isolated in a sandboxed frame (no scripts, no access to the app). */
-export function ResumePreview({ html }: { html: string }) {
-  return (
-    <iframe
-      title="Resume preview"
-      sandbox=""
-      srcDoc={html}
-      className="aspect-[210/297] w-full rounded-lg border bg-white"
-    />
-  );
-}
-
 /** Skills the model inferred; they stay out of the resume until approved (Art. II.3, F16). */
 export function InferenceList({ id, inferences }: { id: string; inferences: Inference[] }) {
   if (inferences.length === 0) return null;

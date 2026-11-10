@@ -3,15 +3,17 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AnalysisView } from "@/components/analysis-view";
 import { FileProblems } from "@/components/file-problems";
-import { InferenceList, ResumePreview } from "@/components/resume-view";
+import { ResumeEditor } from "@/components/resume-editor";
+import { InferenceList } from "@/components/resume-view";
 import { VerificationView } from "@/components/verification-view";
 import { isApplicationId } from "@/core/application/folder";
 import { analysisSchema, jobSchema } from "@/core/application/schemas";
 import { languageName } from "@/core/application/languages";
 import { validateMarkdownFile, type FileError } from "@/core/markdown/validate";
+import { contentYaml } from "@/core/resume/edit";
 import { renderResume } from "@/core/resume/render";
-import { resumeFileSchema } from "@/core/resume/schema";
-import { verificationSchema } from "@/core/verification/schema";
+import { resumeFileSchema, type ResumeFile } from "@/core/resume/schema";
+import { verificationSchema, type Verification } from "@/core/verification/schema";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import { templateStore } from "@/app/templates";
 
@@ -81,12 +83,19 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
           <h2 className="font-medium">
             Resume · {languageName(resume.data.language)} · {resume.data.status}
           </h2>
-          <ResumePreview
+          <ResumeEditor
+            // A new key resets the editor when the saved file changes.
+            key={resumeSource}
+            id={id}
+            yaml={contentYaml(resume.data)}
             html={renderResume(template.template, {
               content: resume.data,
               language: resume.data.language,
               inferences: resume.data.inferences,
             })}
+            maxPages={template.template.maxPages}
+            blockers={printBlockers(resume.data, verification?.ok ? verification.data : null)}
+            reviewCurrent={verification?.ok === true && verification.data.review?.current === true}
           />
           <InferenceList id={id} inferences={resume.data.inferences} />
           {verification?.ok ? (
@@ -107,4 +116,15 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
       </details>
     </div>
   );
+}
+
+/** Why the resume is still a draft, in the user's words (F24). */
+function printBlockers(resume: ResumeFile, verification: Verification | null): string[] {
+  const pending = resume.inferences.filter((i) => i.status === "pending").length;
+  const open = verification?.failures.filter((f) => !f.dismissed).length ?? 0;
+  return [
+    ...(pending > 0 ? [`you approve or reject ${pending} implied skill${pending === 1 ? "" : "s"}`] : []),
+    ...(open > 0 ? [`${open} failed check${open === 1 ? " is" : "s are"} fixed or dismissed`] : []),
+    ...(verification?.review?.current ? [] : ["the model review has run on the current content"]),
+  ];
 }
