@@ -32,7 +32,7 @@ Every claim in the resume traces back to a file in your profile. A verification 
 | Part | Choice |
 |---|---|
 | App | Next.js (App Router) + TypeScript, Tailwind CSS + shadcn/ui |
-| AI | [Ollama](https://ollama.com) on the host. Default model `qwen3.5:27b-int4` |
+| AI | [Ollama](https://ollama.com) on the host. Default model `qwen3.5:27b` |
 | PDF | The country's HTML template, previewed in the app and printed from the browser (one-click Chromium PDF later) |
 | Storage | Markdown files with YAML frontmatter. No database |
 | Runtime | On the host (`npm run dev` / `npm run start`) or Docker Compose (app only). Ollama always runs on the host for GPU speed |
@@ -46,10 +46,10 @@ Ollama runs outside Docker because Docker on macOS can't use the Apple GPU, whic
 - Ollama installed and running on the host, with the model pulled:
 
   ```bash
-  ollama pull qwen3.5:27b-int4
+  ollama pull qwen3.5:27b
   ```
 
-  This 4-bit build of the 27B model is about 16 GB on disk and fits a Mac with 24 GB of RAM at the default 16k context (`OLLAMA_NUM_CTX`). Other builds of the same model are larger and need more memory. Smaller models such as `qwen2.5:7b` also work, with lower quality; set `OLLAMA_MODEL` to switch.
+  A 27B model is about 19 GB on disk, and 32 GB of RAM or more is recommended. Smaller models such as `qwen2.5:7b` also work, with lower quality; set `OLLAMA_MODEL` to switch.
 
 ## Quick start (planned)
 
@@ -68,11 +68,9 @@ The app listens on `127.0.0.1` only. It has no login yet, so don't expose it to 
 | Variable | Default | Purpose |
 |---|---|---|
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Ollama endpoint, as seen from the container (`http://localhost:11434` on the host) |
-| `OLLAMA_MODEL` | `qwen3.5:27b-int4` | Model used for every pipeline step |
-| `OLLAMA_TIMEOUT_MS` | `1800000` | Per-call timeout (large models are slow) |
-| `OLLAMA_NUM_CTX` | `16384` | Context window in tokens. Prompts or replies that don't fit fail with a clear error instead of being silently truncated |
-| `OLLAMA_THINK` | model default | Thinking mode for models that have one (`true`/`false`). Unset uses the model's default; `false` is much faster but may judge less carefully |
-| `PROFILES_DIR` | `/app/profiles` | Folder holding the profile folders. In Docker it's bind-mounted from `./profiles`; on the host set it in `.env.local` (e.g. `./profiles`) |
+| `OLLAMA_MODEL` | `qwen3.5:27b` | Model used for every pipeline step |
+| `OLLAMA_TIMEOUT_MS` | `600000` | Per-call timeout (large models are slow) |
+| `PROFILES_DIR` | `/app/profiles` | Folder holding the profile folders. In Docker it's bind-mounted from `./profiles`; `npm run dev` always uses `./example-profiles` |
 | `PORT` | `3000` | Web UI port |
 
 **Linux hosts:** `host.docker.internal` is mapped through `extra_hosts: host-gateway` in compose. Ollama must also listen on an address the container can reach, e.g. `OLLAMA_HOST=0.0.0.0` behind a firewall.
@@ -118,7 +116,7 @@ tags: [typescript, aws, postgresql]
 - Cut p95 API latency from 800 ms to 120 ms by redesigning the caching layer.
 ```
 
-The full schema for every file is in [`constitution.md`, Article IV](constitution.md#article-iv--data-markdown-is-the-source-of-truth). `profiles/` is gitignored. `example-profiles/` holds a fictional profile for tests.
+The full schema for every file is in [`constitution.md`, Article IV](constitution.md#article-iv--data-markdown-is-the-source-of-truth). `profiles/` is gitignored. `example-profiles/` holds a fictional profile for development and tests.
 
 ## Resume templates
 
