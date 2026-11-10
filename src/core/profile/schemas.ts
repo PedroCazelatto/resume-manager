@@ -80,7 +80,7 @@ export const certificationSchema = z.looseObject({
   credential_url: url.optional(),
 });
 
-export const EXTRA_TYPES = ["volunteering", "award", "publication", "interest", "other"] as const;
+export const EXTRA_TYPES = ["volunteering", "award", "publication", "interest", "availability", "other"] as const;
 
 export const extraSchema = z.looseObject({
   type: z.enum(EXTRA_TYPES, { error: requiredOr(`must be one of: ${EXTRA_TYPES.join(", ")}`) }),

@@ -161,7 +161,7 @@ describe("parseProfileFile", () => {
 
     expect(result).toMatchObject({
       ok: false,
-      error: { problems: ["type: must be one of: volunteering, award, publication, interest, other"] },
+      error: { problems: ["type: must be one of: volunteering, award, publication, interest, availability, other"] },
     });
   });
 
