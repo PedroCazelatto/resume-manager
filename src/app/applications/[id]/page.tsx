@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AnalysisView } from "@/components/analysis-view";
 import { FileProblems } from "@/components/file-problems";
+import { RetryRun } from "@/components/retry-run";
 import { ResumeEditor } from "@/components/resume-editor";
 import { InferenceList } from "@/components/resume-view";
 import { VerificationView } from "@/components/verification-view";
@@ -98,13 +99,10 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
             reviewCurrent={verification?.ok === true && verification.data.review?.current === true}
           />
           <InferenceList id={id} inferences={resume.data.inferences} />
-          {verification?.ok ? (
-            <VerificationView id={id} verification={verification.data} />
-          ) : (
-            <p className="text-sm">The resume has not been verified yet.</p>
-          )}
+          {verification?.ok && <VerificationView id={id} verification={verification.data} />}
         </section>
       )}
+      {(resume === null || verification === null) && <RetryRun id={id} needsResume={resume === null} />}
       {analysis?.ok ? (
         <AnalysisView analysis={analysis.data} />
       ) : (
