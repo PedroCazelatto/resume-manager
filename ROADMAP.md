@@ -60,7 +60,7 @@ Three model calls run per resume. Quality comes first, so a run that takes sever
 | F20 | HTML preview rendered from the country template, with print CSS and a page-count warning above the template's `max-pages` |
 | F21 | Edit the content fields of `resume.md` in a text area, with a live preview |
 | F22 | Save as PDF through the browser's print dialog |
-| F24 | `draft`/`ready` status: Print is disabled while verification fails or implied skills are pending |
+| F24 | `draft`/`ready` status: Print is disabled while verification failures are neither fixed nor dismissed, the model review is out of date, or implied skills are pending |
 | F25 | Save every run in `applications/<date>-<company>-<role>/` (with a `-2` suffix on collision, so nothing is overwritten) |
 | F28 | Docker Compose: one app service on `127.0.0.1`, Ollama on the host, `profiles/` bind-mounted |
 | F29 | Ollama client: structured output, schema validation, configurable timeout |
