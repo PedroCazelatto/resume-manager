@@ -3,6 +3,7 @@ import { ProfilePicker } from "@/components/profile-picker";
 import { FileProblems } from "@/components/file-problems";
 import { NewApplicationForm } from "@/components/new-application-form";
 import { profileStore, readSelectedProfile } from "./profiles";
+import { M0_TEMPLATE, templateStore } from "./templates";
 
 export default function Home() {
   return (
@@ -29,7 +30,10 @@ async function ProfileSection() {
     );
   }
 
-  const result = selected ? await store.loadProfile(selected) : null;
+  const [result, template] = await Promise.all([
+    selected ? store.loadProfile(selected) : null,
+    templateStore().loadTemplate(M0_TEMPLATE),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -51,6 +55,18 @@ async function ProfileSection() {
           <p className="text-sm">
             Profile of <strong>{result.profile.personal.data.name}</strong> is valid.
           </p>
+          {template.ok ? (
+            <p className="text-sm text-muted-foreground">
+              Template: {template.template.country}
+              {template.template.maxPages ? ` · up to ${template.template.maxPages} page(s)` : ""}
+            </p>
+          ) : (
+            <FileProblems
+              title="The resume template isn't ready"
+              hint="Tailoring is blocked until it's fixed. You can still analyse postings."
+              errors={[template.error]}
+            />
+          )}
           <NewApplicationForm />
         </>
       )}

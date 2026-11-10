@@ -10,6 +10,11 @@ export function profilesDir(): string {
   return path.resolve(/* turbopackIgnore: true */ process.env.PROFILES_DIR ?? "/app/profiles");
 }
 
+/** Absolute path of templates/ in the working directory (mounted read-only in Docker). */
+export function templatesDir(): string {
+  return path.resolve(/* turbopackIgnore: true */ "templates");
+}
+
 export interface OllamaSettings {
   baseUrl: string;
   /** No default: the model is never hard-coded (Art. V.6). */
