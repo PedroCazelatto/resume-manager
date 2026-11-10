@@ -1,7 +1,7 @@
 import { stringify } from "yaml";
 import { z } from "zod";
 import type { Analysis } from "../application/schemas";
-import type { LlmClient } from "../llm";
+import { LlmError, type LlmClient } from "../llm";
 import { languageName } from "../application/languages";
 import { listProfileFiles, type Profile } from "../profile/profile";
 import { buildTailorResumePrompt, tailorResumeSystem } from "../prompts/tailor-resume";
@@ -81,6 +81,16 @@ export async function tailorResume({
 
   const personal = profile.personal.data;
   const { inferences, ...content } = reply;
+
+  // An implied skill is held back by its exact name; a different spelling in "skills" would slip through (Art. II.3).
+  const items = new Set(content.skills.flatMap((group) => group.items.map((item) => item.trim().toLowerCase())));
+  const unmatched = inferences.filter((inference) => !items.has(inference.skill.trim().toLowerCase()));
+  if (unmatched.length > 0) {
+    throw new LlmError(
+      "invalid-output",
+      `The model flagged ${unmatched.length} implied skill(s) under a different name than the one it wrote in the skills list. Try again.`,
+    );
+  }
   return {
     generated_at: now().toISOString(),
     model: llm.model,

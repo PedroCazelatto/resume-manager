@@ -169,6 +169,14 @@ describe("tailorResume", () => {
     expect(inferenceSources.items.enum).not.toContain("notes.md");
   });
 
+  it("rejects an implied skill that the skills list writes differently (Art. II.3)", async () => {
+    const bad = reply();
+    bad.skills = [{ category: "Languages", items: ["TypeScript", "Kubernetes (Amazon EKS)"] }];
+    const { llm } = fakeLlm(bad);
+
+    await expect(run(llm)).rejects.toThrow("under a different name");
+  });
+
   it("rejects a reply citing a file that isn't in the profile", async () => {
     const bad = reply();
     bad.experience[0].sources = ["experience/2020-01-made-up.md"];
