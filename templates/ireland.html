@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="{{language}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="max-pages" content="1">
+  <title>{{name}}</title>
+
+  <script type="text/markdown" id="rules">
+Irish resume. It should fit on one page.
+
+- Header: full name; below it, on one line, city and country, phone, email and work permission (e.g. Stamp 2). The LinkedIn link goes on its own line, only if the profile has one.
+- Summary: three short sentences about the person's experience and the way they work, aimed at the role.
+- Technical Skills: short skill phrases relevant to the role, separated by |.
+- Professional Experience: most recent job first. For each job: the role, then company — city - start and end dates, then short bullet phrases that start with a verb, without a full stop.
+- Education: degree, then institution — city, country – start and end years. Include an English course in Ireland if the profile has one.
+- Certifications: only if the profile has any; names only.
+- Availability: only what the profile's availability entries say; leave the section out if there are none.
+  </script>
+
+  <style>
+    @page { size: A4; margin: 14mm 16mm; }
+    body { margin: 0; font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; line-height: 1.35; color: #111; }
+    header { margin-bottom: 8pt; text-align: center; }
+    h1 { margin: 0 0 4pt; font-size: 20pt; letter-spacing: 0.5pt; text-transform: uppercase; }
+    header p { margin: 0; }
+    h2 { margin: 12pt 0 6pt; padding-bottom: 2pt; border-bottom: 1px solid #999; font-size: 11pt; letter-spacing: 0.5pt; text-transform: uppercase; }
+    h3 { margin: 8pt 0 0; font-size: 10.5pt; }
+    p { margin: 0 0 3pt; }
+    .meta { color: #333; }
+    ul { margin: 2pt 0 0; padding-left: 14pt; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{name}}</h1>
+    <p>{{contact.location.city}}, {{contact.location.country}}{{#if contact.phone}} | {{contact.phone}}{{/if}} | {{contact.email}}{{#if contact.work_authorisation}} | {{contact.work_authorisation}}{{/if}}</p>
+    {{#if contact.links.length}}<p>{{#each contact.links}}{{url}}{{#unless @last}} | {{/unless}}{{/each}}</p>{{/if}}
+  </header>
+
+  <section>
+    <h2>{{labels.summary}}</h2>
+    <p>{{summary}}</p>
+  </section>
+
+  {{#if skills.length}}
+  <section>
+    <h2>{{labels.skills}}</h2>
+    <p>{{#each skills}}{{#each items}}{{this}}{{#unless @last}} | {{/unless}}{{/each}}{{#unless @last}} | {{/unless}}{{/each}}</p>
+  </section>
+  {{/if}}
+
+  {{#if experience.length}}
+  <section>
+    <h2>{{labels.experience}}</h2>
+    {{#each experience}}
+    <h3>{{role}}</h3>
+    <p class="meta">{{company}}{{#if location}} — {{location}}{{/if}} - {{date start}} – {{date end}}</p>
+    {{#if bullets.length}}<ul>{{#each bullets}}<li>{{this}}</li>{{/each}}</ul>{{/if}}
+    {{/each}}
+  </section>
+  {{/if}}
+
+  {{#if education.length}}
+  <section>
+    <h2>{{labels.education}}</h2>
+    {{#each education}}
+    <h3>{{degree}}{{#if field}}, {{field}}{{/if}}</h3>
+    <p class="meta">{{institution}}{{#if location}} — {{location}}{{/if}} – {{date start "year"}} - {{date end "year"}}</p>
+    {{#if bullets.length}}<ul>{{#each bullets}}<li>{{this}}</li>{{/each}}</ul>{{/if}}
+    {{/each}}
+  </section>
+  {{/if}}
+
+  {{#if certifications.length}}
+  <section>
+    <h2>{{labels.certifications}}</h2>
+    <ul>{{#each certifications}}<li>{{name}}</li>{{/each}}</ul>
+  </section>
+  {{/if}}
+
+  {{#if extras.availability.length}}
+  <section>
+    <h2>{{labels.availability}}</h2>
+    <ul>{{#each extras.availability}}<li>{{title}}</li>{{#each bullets}}<li>{{this}}</li>{{/each}}{{/each}}</ul>
+  </section>
+  {{/if}}
+</body>
+</html>
