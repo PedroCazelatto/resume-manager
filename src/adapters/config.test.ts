@@ -7,6 +7,12 @@ describe("profilesDir", () => {
     vi.unstubAllEnvs();
   });
 
+  it("defaults to profiles/ in the working directory", () => {
+    vi.stubEnv("PROFILES_DIR", undefined);
+
+    expect(profilesDir()).toBe(path.resolve("profiles"));
+  });
+
   it("resolves a relative PROFILES_DIR against the working directory", () => {
     vi.stubEnv("PROFILES_DIR", "./example-profiles");
 
@@ -17,7 +23,7 @@ describe("profilesDir", () => {
 describe("ollamaSettings", () => {
   it("uses the documented defaults when only the model is set", () => {
     expect(ollamaSettings({ OLLAMA_MODEL: "qwen3.5:27b-int4" })).toEqual({
-      baseUrl: "http://host.docker.internal:11434",
+      baseUrl: "http://localhost:11434",
       model: "qwen3.5:27b-int4",
       timeoutMs: 1_800_000,
       numCtx: 16_384,
@@ -26,7 +32,7 @@ describe("ollamaSettings", () => {
 
   it("reads every setting from the environment", () => {
     const settings = ollamaSettings({
-      OLLAMA_BASE_URL: "http://localhost:11434",
+      OLLAMA_BASE_URL: "http://127.0.0.1:11500",
       OLLAMA_MODEL: "qwen2.5:7b",
       OLLAMA_TIMEOUT_MS: "120000",
       OLLAMA_NUM_CTX: "32768",
@@ -34,7 +40,7 @@ describe("ollamaSettings", () => {
     });
 
     expect(settings).toEqual({
-      baseUrl: "http://localhost:11434",
+      baseUrl: "http://127.0.0.1:11500",
       model: "qwen2.5:7b",
       timeoutMs: 120_000,
       numCtx: 32_768,

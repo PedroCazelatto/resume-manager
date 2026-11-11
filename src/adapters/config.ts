@@ -6,11 +6,11 @@ import { z } from "zod";
 /** Absolute path of the folder holding the profile folders. Relative values resolve against the working directory. */
 export function profilesDir(): string {
   // The ignore comment stops the build from tracing (and copying) the whole project,
-  // profiles/ and .env included, into the standalone output (Art. III.3).
-  return path.resolve(/* turbopackIgnore: true */ process.env.PROFILES_DIR ?? "/app/profiles");
+  // profiles/ and .env included, into the build output (Art. III.3).
+  return path.resolve(/* turbopackIgnore: true */ process.env.PROFILES_DIR ?? "./profiles");
 }
 
-/** Absolute path of templates/ in the working directory (mounted read-only in Docker). */
+/** Absolute path of templates/ in the working directory. */
 export function templatesDir(): string {
   return path.resolve(/* turbopackIgnore: true */ "templates");
 }
@@ -27,7 +27,7 @@ export interface OllamaSettings {
 }
 
 const ollamaEnv = z.object({
-  OLLAMA_BASE_URL: z.url({ protocol: /^https?$/ }).default("http://host.docker.internal:11434"),
+  OLLAMA_BASE_URL: z.url({ protocol: /^https?$/ }).default("http://localhost:11434"),
   OLLAMA_MODEL: z.string().min(1),
   OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().default(1_800_000),
   OLLAMA_NUM_CTX: z.coerce.number().int().positive().default(16_384),
