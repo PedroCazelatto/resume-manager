@@ -26,6 +26,7 @@ Truthfulness rules (they override everything else):
 Writing:
 - Write everything in ${language.name} (${language.code}), including every label. Don't translate names of companies, institutions, products, or certifications. A degree keeps its original title, optionally followed by a translation in parentheses.
 - Follow the template rules between <template_rules> and </template_rules>. The layout between <template_layout> and </template_layout> shows which fields the template prints; fields it doesn't print can be empty lists.
+- Write the resume's summary from the whole profile (experience, education, projects, skills). summary.md holds only the candidate's goals and target roles: use it to understand what they are looking for, not as the text of the summary.
 - Pick and phrase content to fit the requirements and keywords in the fit/gap analysis.${maxPages ? `\n- The resume must fit on ${maxPages} page${maxPages === 1 ? "" : "s"}: keep only the most relevant content.` : ""}
 - Copy "start", "end", and "date" exactly as the profile writes them (YYYY-MM, YYYY-MM-DD, or present). The template formats them.
 - "sources" lists the profile files each item comes from; "summary_sources" does the same for the summary.`;

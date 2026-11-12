@@ -40,6 +40,12 @@ vi.mock("@/app/llm", () => ({
 }));
 
 const ACME = "experience/2023-01-acme-senior-developer.md";
+const INITECH = "experience/2019-03-initech-software-developer.md";
+
+// The example profile's summary.md holds goals only, so the summary cites an experience file.
+function content() {
+  return { ...resumeFixture(), summary_sources: [INITECH] };
+}
 const TEMPLATE =
   '<script type="text/markdown" id="rules">- Summary: three sentences.</script><h1>{{name}}</h1><p>{{summary}}</p>{{#each skills}}{{#each items}}<i>{{this}}</i>{{/each}}{{/each}}';
 
@@ -53,7 +59,7 @@ const unsupported: Failure = {
 
 function resume(): ResumeFile {
   return {
-    ...resumeFixture(),
+    ...content(),
     generated_at: "2026-11-10T10:05:00.000Z",
     model: "fake-model",
     template: "ireland",
@@ -166,7 +172,7 @@ describe("application actions", () => {
   describe("previewResume", () => {
     it("renders edited content without saving it", async () => {
       await application();
-      const edited = { ...resumeFixture(), summary: "Edited <summary>." };
+      const edited = { ...content(), summary: "Edited <summary>." };
 
       const result = await previewResume(id, contentYaml(edited));
 
@@ -188,7 +194,7 @@ describe("application actions", () => {
   describe("saveResume", () => {
     it("saves the content, checks it again and sends the resume back to draft", async () => {
       await application({ resume: { ...resume(), inferences: [], status: "ready" } });
-      const edited = { ...resumeFixture(), summary: "Backend developer with 7 years of experience." };
+      const edited = { ...content(), summary: "Backend developer with 7 years of experience." };
 
       expect(await saveResume(id, contentYaml(edited))).toEqual({ ok: true });
 
@@ -200,14 +206,14 @@ describe("application actions", () => {
       });
       expect(await read("verification.md")).toMatchObject({
         review: { current: false },
-        failures: [{ check: "deterministic", where: "summary", problem: "the number 7 isn't in summary.md" }],
+        failures: [{ check: "deterministic", where: "summary", problem: `the number 7 isn't in ${INITECH}` }],
       });
     });
 
     it("starts verification.md when the run never verified the resume", async () => {
       await application({ verification: null });
 
-      expect(await saveResume(id, contentYaml(resumeFixture()))).toEqual({ ok: true });
+      expect(await saveResume(id, contentYaml(content()))).toEqual({ ok: true });
 
       const saved = await read("verification.md");
       expect(saved.failures).toEqual([]);
@@ -259,7 +265,7 @@ describe("application actions", () => {
   describe("every action", () => {
     it("refuses an invalid application name", async () => {
       await expect(decideInference("../../other", "Kubernetes", "approved")).rejects.toThrow("Invalid application name");
-      await expect(saveResume("jane-doe", contentYaml(resumeFixture()))).rejects.toThrow("Invalid application name");
+      await expect(saveResume("jane-doe", contentYaml(content()))).rejects.toThrow("Invalid application name");
     });
 
     it("needs a selected profile and an existing resume", async () => {
