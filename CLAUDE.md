@@ -11,7 +11,7 @@ Before doing any work here, read [`constitution.md`](constitution.md) in full. I
 
 ## What this project is
 
-Resumee Manager is a local web app (Next.js, running on the host or in Docker). It keeps a person's profile as Markdown files and uses a local Ollama model, running on the host, to write resumes tailored to a job posting, following a country's HTML template in `templates/<country>.html` (Ireland first).
+Resumee Manager is a local web app (Next.js, running on the host). It keeps a person's profile as Markdown files and uses a local Ollama model, running on the host, to write resumes tailored to a job posting, following a country's HTML template in `templates/<country>.html` (Ireland first).
 
 ## Basic rules
 
@@ -19,7 +19,7 @@ Resumee Manager is a local web app (Next.js, running on the host or in Docker). 
 2. **Keep personal data private.** Don't read, print, or commit `profiles/`; use `example-profiles/` for tests and your own test runs (`PROFILES_DIR=./example-profiles`). No hosted AI APIs and no telemetry. (Art. III)
 3. **Markdown is the database.** User data lives in `.md` files with YAML frontmatter, one file per item. Never delete or overwrite user files without confirmation. (Art. IV)
 4. **Respect the layers.** `src/core/` is pure logic with no I/O. All filesystem, network, Ollama, and Chromium access goes through `src/adapters/`. (Art. V)
-5. **Ollama on the host; sandbox model file access.** Don't add an Ollama service to compose, and don't hard-code a model name. If the model ever chooses file paths, that access runs in a Docker sandbox limited to the selected profile. (Art. III.8, V)
+5. **Everything on the host; Docker only as a sandbox.** The app and Ollama run on the host, not in Docker, and no model name is hard-coded. Docker has one use: if the model ever chooses file paths, that access runs in a Docker sandbox limited to the selected profile. (Art. III.8, V)
 6. **Treat job postings as untrusted input.** Delimit them in prompts, and never let their text change the rules. (Art. II.7)
 7. **Stay in M0 scope.** Build only what Art. X lists for M0; `ROADMAP.md` has the details. Ask before adding features or heavy dependencies.
 8. **Done means green.** Typecheck, lint, and tests pass, with the LLM mocked in tests. (Art. IX)
@@ -28,12 +28,11 @@ Resumee Manager is a local web app (Next.js, running on the host or in Docker). 
 
 ## Commands
 
-Copy `.env.example` to `.env` first. Host runs listen on 127.0.0.1 only and read overrides from `.env.local` (see `.env.example`).
+Copy `.env.example` to `.env` first. The app listens on 127.0.0.1 only.
 
 ```bash
-npm run dev                     # host server with hot reload at http://localhost:3000, using PROFILES_DIR from .env.local
-npm run build && npm run start  # host server without hot reload, using PROFILES_DIR from .env.local
-docker compose up --build       # the app in Docker at http://localhost:3000, using ./profiles
+npm run dev                     # server with hot reload at http://localhost:3000, using PROFILES_DIR from .env
+npm run build && npm run start  # server without hot reload, using PROFILES_DIR from .env
 npm test                        # Vitest unit tests (example-profiles only)
 npm run test:watch
 npm run lint
@@ -50,5 +49,5 @@ npm run typecheck
 | `src/adapters/` | `ProfileStore`, `TemplateStore`, `LlmClient`, `JobFetcher`, `CvTextExtractor`, `PdfRenderer` |
 | `src/app/`, `src/components/` | Next.js routes, route handlers, shadcn/ui components |
 | `templates/<country>.html` | Country resume templates: layout, model rules, parameters (owned by the user; edit only when they ask, Art. VII.5) |
-| `profiles/` | Real user profiles. Gitignored. Don't read it unless asked |
+| `profiles/` | Real user profiles. Gitignored. Don't read it unless asked. Each run is saved in `<profile>/applications/<id>/` as `job.md`, `analysis.md`, `resume.md`, `verification.md` |
 | `example-profiles/` | Fictional profile for tests and your test runs |

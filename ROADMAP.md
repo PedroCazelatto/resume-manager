@@ -1,6 +1,6 @@
 # Roadmap
 
-**Last updated 2026-11-09.** The binding scope is [`constitution.md`, Article X](constitution.md#article-x--scope). This file lists every feature and the order we build them in.
+**Last updated 2026-11-11.** The binding scope is [`constitution.md`, Article X](constitution.md#article-x--scope). This file lists every feature and the order we build them in.
 
 ## How we prioritise
 
@@ -20,7 +20,9 @@ Speed never outranks truthfulness (Art. II) or privacy (Art. III).
 - an Ireland-format resume in the posting's language, with implied skills flagged for your approval and every claim checked against your profile;
 - a chance to review and edit it, then save it as a PDF.
 
-All of this runs in the Docker app, and every step is saved in the application folder.
+All of this runs in the local app, and every step is saved in the application folder, so a run that fails can be tried again from its last saved step.
+
+**Status (2026-11-11):** every M0 feature is built. What remains is using it for real applications.
 
 ### The flow
 
@@ -30,11 +32,12 @@ Choose profile ─▶ Paste posting (+ optional language) ─▶ Generate
    ├─ [2] Tailor resume to the Ireland template (LLM)
    ├─ [3] Check names, dates, numbers          (code)
    └─ [4] Review every claim against sources   (LLM)
-─▶ Your review: fit/gap, warnings, approve/reject implied skills, edit Markdown
-─▶ Print ▸ Save as PDF
+─▶ Your review: fit/gap, approve/reject implied skills, fix or dismiss failed checks,
+   edit the content (verify again after an edit)
+─▶ Print ▸ Save as PDF          (a failed run: Try again continues from the last saved step)
 ```
 
-Three model calls run per resume. Quality comes first, so a run that takes several minutes is fine.
+Three model calls run per resume, and the results of [3] and [4] are saved in `verification.md`. Quality comes first, so a run that takes several minutes is fine.
 
 ### Before M0 can run, you provide
 
@@ -56,13 +59,12 @@ Three model calls run per resume. Quality comes first, so a run that takes sever
 | F15 | Deterministic verification: every employer, institution, date, and number in the resume exists in the profile |
 | F16 | Implied skills in the resume, each flagged with its sources; you approve or reject each one before printing |
 | F17 | Model-based review: checks every claim against its sources and lists any it can't support |
-| F19 | Resume a failed run: steps whose output file already exists are skipped |
+| F19 | Resume a failed run with "Try again": steps whose output file already exists are skipped |
 | F20 | HTML preview rendered from the country template, with print CSS and a page-count warning above the template's `max-pages` |
 | F21 | Edit the content fields of `resume.md` in a text area, with a live preview |
 | F22 | Save as PDF through the browser's print dialog |
 | F24 | `draft`/`ready` status: Print is disabled while verification failures are neither fixed nor dismissed, the model review is out of date, or implied skills are pending |
 | F25 | Save every run in `applications/<date>-<company>-<role>/` (with a `-2` suffix on collision, so nothing is overwritten) |
-| F28 | Docker Compose: one app service on `127.0.0.1`, Ollama on the host, `profiles/` bind-mounted |
 | F29 | Ollama client: structured output, schema validation, configurable timeout |
 | F30 | Step-by-step progress in the UI |
 
@@ -75,7 +77,7 @@ Every M0 feature ships with unit tests for its core logic, and prompts delimit t
 | Profile editor, CV import | Your own editor works on day one. Whichever hurts more becomes the next pick. |
 | Fetching postings by URL | Pasting always works. A URL only saves one copy-paste. |
 | Writing approved implied skills back to the profile | You can add them by hand. The resume already records which ones you approved. |
-| One-click PDF via headless Chromium | Browser print uses the same HTML/CSS and keeps Chromium out of the image. |
+| One-click PDF via headless Chromium | Browser print uses the same HTML/CSS and needs no Chromium dependency. |
 | Application history screen | The files are already in the application folder. |
 
 ---
@@ -140,7 +142,6 @@ Size: **S** = small, **M** = medium, **L** = large.
 
 | ID | Feature | Size | When |
 |---|---|---|---|
-| F28 | Docker Compose app service | S | M0 |
 | F29 | Ollama client with structured output | S | M0 |
 | F30 | Step-by-step progress | S | M0 |
 | F31 | Opt-in debug logging | S | Backlog |
