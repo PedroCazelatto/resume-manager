@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { RunEvent, RunStep } from "@/core/pipeline/run";
+import { formatElapsed } from "@/lib/utils";
 
 const STEP_LABELS: Record<RunStep, string> = {
   analyse: "Analysing the posting and matching it to your profile",
@@ -100,7 +101,7 @@ export function RunProgress({ run }: { run: Run }) {
       {run.steps.map(({ step, status }) => (
         <li key={step}>
           {status === "done" ? "✓" : "…"} {STEP_LABELS[step]}
-          {status === "running" && run.running && <span className="text-muted-foreground"> ({run.elapsed} s)</span>}
+          {status === "running" && run.running && <span className="text-muted-foreground"> ({formatElapsed(run.elapsed)})</span>}
         </li>
       ))}
     </ol>
