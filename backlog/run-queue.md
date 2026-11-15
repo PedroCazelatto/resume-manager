@@ -12,6 +12,7 @@ The server doesn't know which generation is running. Each request runs its own p
 ## Behaviour
 
 - Only one run uses the model at a time, across all profiles. A run started while another is active waits in a queue and starts by itself when its turn comes.
+- Everything that starts a run goes through the queue, whatever sent it: the form, a link, a list of links, the bookmarklet or the extension.
 - A run is one of: a new application from pasted text, "Try again" on an application, or "Verify again" on an application.
 - The home page shows a "Runs" list for the selected profile: the active run with its steps and progress, the waiting ones in order, and the ones that finished, failed or were cancelled since the app started, each linking to its application when it has one.
 - A waiting run can be removed from the queue.

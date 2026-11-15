@@ -52,4 +52,5 @@ The posting has to be copied and pasted. The user wants to give the link to the 
 - Decided 2026-11-15: two tabs on the form.
 - Decided 2026-11-15: 30 seconds, 5 MB, no minimum text length.
 - Checked 2026-11-15 with a plain request labelled as this app: LinkedIn's public job page answered 200 with the full description in the HTML. Indeed answered 403 "Security Check" on a search page and on a real job link, and 401 "Authenticating" on another job link.
-- Indeed must work too (user, 2026-11-15). How is still open: see [indeed-postings](indeed-postings.md). This task covers LinkedIn and other sites that answer plain requests.
+- Indeed is handled from the user's browser instead: see [indeed-postings](indeed-postings.md). This task covers LinkedIn and other sites that answer plain requests.
+- Checked 2026-11-15: an undisguised headless Chrome is blocked by Indeed too, so the ban on headless-browser scraping (Art. V.10) stays.
