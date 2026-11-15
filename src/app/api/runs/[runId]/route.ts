@@ -1,6 +1,9 @@
 import { runRegistry, selectedProfile } from "@/app/run";
 
-/** Takes a waiting run of the selected profile off the queue (F42). */
+/**
+ * Stops a run of the selected profile: a waiting run leaves the queue (F42), the running
+ * one is cancelled and ends once its model call has stopped (F32).
+ */
 export async function DELETE(_request: Request, context: RouteContext<"/api/runs/[runId]">): Promise<Response> {
   const { runId } = await context.params;
   const selected = await selectedProfile();
@@ -8,8 +11,7 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/runs
 
   const result = runRegistry().remove(selected.slug, runId);
   if (result === "unknown") return Response.json({ error: "Unknown run." }, { status: 404 });
-  if (result === "not-waiting") {
-    return Response.json({ error: "Only a waiting run can be removed." }, { status: 409 });
-  }
-  return new Response(null, { status: 204 });
+  if (result === "ended") return Response.json({ error: "This run has already ended." }, { status: 409 });
+  // The cancelled run's stream says when it has stopped.
+  return new Response(null, { status: result === "cancelling" ? 202 : 204 });
 }

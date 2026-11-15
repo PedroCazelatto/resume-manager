@@ -1,5 +1,6 @@
 import type { RunEvent, RunInput } from "@/core/pipeline/run";
 import {
+  cancelRun,
   enqueue,
   findRun,
   finishRun,
@@ -26,8 +27,11 @@ export interface RunRequest {
 
 export type AppRun = QueuedRun<RunRequest>;
 
-/** Does a run's work, sending its events; throws when the run fails. */
-export type ExecuteRun = (run: AppRun, send: (event: RunEvent) => void) => Promise<void>;
+/**
+ * Does a run's work, sending its events; throws when the run fails. `signal` is aborted
+ * when the user cancels the run, and the work then stops as soon as it can (F32).
+ */
+export type ExecuteRun = (run: AppRun, send: (event: RunEvent) => void, signal: AbortSignal) => Promise<void>;
 
 /** A run as the Runs list shows it. */
 export interface RunSummary {
@@ -50,6 +54,8 @@ export type RunRegistry = ReturnType<typeof createRunRegistry>;
 export function createRunRegistry(execute: ExecuteRun) {
   let runs: AppRun[] = [];
   const followers = new Map<string, Set<RunFollower>>();
+  /** The running run and what cancels it (F32). */
+  let active: { runId: string; cancel: AbortController } | null = null;
 
   /** Sends a run's latest event to everyone following it. */
   function publish(runId: string) {
@@ -68,16 +74,26 @@ export function createRunRegistry(execute: ExecuteRun) {
       const { runId } = run;
       runs = startRun(runs, runId);
       publish(runId);
+      const cancel = new AbortController();
+      active = { runId, cancel };
       let error: string | null = null;
       try {
-        await execute(run, (event) => {
-          runs = recordEvent(runs, runId, event);
-          publish(runId);
-        });
+        await execute(
+          run,
+          (event) => {
+            runs = recordEvent(runs, runId, event);
+            publish(runId);
+          },
+          cancel.signal,
+        );
       } catch (thrown) {
         error = thrown instanceof Error ? thrown.message : "Something went wrong. See the server console.";
       }
-      runs = finishRun(runs, runId, error);
+      active = null;
+      // A run that stopped after the user cancelled it didn't fail. One that still got
+      // to its end is finished.
+      const cancelled = error !== null && cancel.signal.aborted;
+      runs = cancelled ? cancelRun(runs, runId) : finishRun(runs, runId, error);
       if (error !== null) publish(runId);
       close(runId);
     }
@@ -122,11 +138,20 @@ export function createRunRegistry(execute: ExecuteRun) {
       return () => following.delete(follower);
     },
 
-    /** Takes a waiting run of this profile off the queue, so it never starts. */
-    remove(profile: string, runId: string): "removed" | "not-waiting" | "unknown" {
-      if (!findRun(runs, profile, runId)) return "unknown";
+    /**
+     * Stops a run of this profile. A waiting run leaves the queue and never starts. The
+     * running one is told to stop: it ends as `cancelled` once its model call has stopped,
+     * and the next run starts then (F32).
+     */
+    remove(profile: string, runId: string): "removed" | "cancelling" | "ended" | "unknown" {
+      const run = findRun(runs, profile, runId);
+      if (!run) return "unknown";
+      if (run.status === "running" && active?.runId === runId) {
+        active.cancel.abort();
+        return "cancelling";
+      }
       const result = removeWaiting(runs, profile, runId);
-      if (!result.removed) return "not-waiting";
+      if (!result.removed) return "ended";
       runs = result.runs;
       for (const follower of followers.get(runId) ?? []) follower.event({ type: "removed" });
       close(runId);

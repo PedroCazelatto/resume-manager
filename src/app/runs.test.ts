@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { LlmClient } from "@/core/llm";
+import { LlmError, type LlmClient } from "@/core/llm";
 import type { QueueEvent } from "@/core/runs/queue";
 import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "./runs";
 
@@ -13,12 +13,14 @@ function manualRuns() {
   const started: AppRun[] = [];
   const ends = new Map<string, { resolve: () => void; reject: (error: Error) => void }>();
   const sends = new Map<string, Parameters<ExecuteRun>[1]>();
-  const execute: ExecuteRun = (run, send) => {
+  const signals = new Map<string, AbortSignal>();
+  const execute: ExecuteRun = (run, send, signal) => {
     started.push(run);
     sends.set(run.runId, send);
+    signals.set(run.runId, signal);
     return new Promise((resolve, reject) => ends.set(run.runId, { resolve, reject }));
   };
-  return { execute, started, ends, sends };
+  return { execute, started, ends, sends, signals };
 }
 
 /** Follows a run and resolves with every event it got, once the stream closes. */
@@ -194,18 +196,108 @@ describe("run registry", () => {
     expect(started.map((run) => run.runId)).toEqual([first, third]);
   });
 
-  it("only removes a run that is waiting", async () => {
+  it("doesn't remove a run that has ended or that it doesn't know", async () => {
     const { execute, ends } = manualRuns();
     const registry = createRunRegistry(execute);
     const runId = registry.enqueue("jane-doe", "new", posting());
 
-    expect(registry.remove("jane-doe", runId)).toBe("not-waiting");
     const ended = followed(registry, "jane-doe", runId);
     ends.get(runId)!.resolve();
     await ended;
-    expect(registry.remove("jane-doe", runId)).toBe("not-waiting");
+    expect(registry.remove("jane-doe", runId)).toBe("ended");
     expect(registry.remove("jane-doe", "no-such-run")).toBe("unknown");
     expect(statuses(registry)).toEqual(["done"]);
+  });
+
+  describe("cancelling the running run (F32)", () => {
+    /** A run whose model call hangs until the run's signal aborts it, like the Ollama client's. */
+    const untilCancelled: ExecuteRun = (_run, send, signal) =>
+      new Promise((_, reject) => {
+        send({ type: "step", step: "analyse", status: "running" });
+        signal.addEventListener("abort", () => reject(new LlmError("cancelled", "The run was cancelled.")));
+      });
+
+    it("aborts the run's signal, ends it as cancelled and starts the next one", async () => {
+      const started: string[] = [];
+      const registry = createRunRegistry((run, send, signal) => {
+        started.push(run.runId);
+        return untilCancelled(run, send, signal);
+      });
+      const first = registry.enqueue("jane-doe", "new", posting());
+      const second = registry.enqueue("jane-doe", "new", posting());
+      const events = followed(registry, "jane-doe", first);
+
+      expect(registry.remove("jane-doe", first)).toBe("cancelling");
+
+      // Cancelling is not an error: no error event, no error in the list.
+      expect(await events).toEqual([
+        { type: "started" },
+        { type: "step", step: "analyse", status: "running" },
+        { type: "cancelled" },
+      ]);
+      expect(registry.list("jane-doe")).toMatchObject([
+        { runId: second, status: "running" },
+        { runId: first, status: "cancelled", error: undefined },
+      ]);
+      expect(started).toEqual([first, second]);
+      expect(await followed(registry, "jane-doe", first)).toContainEqual({ type: "cancelled" });
+      expect(registry.remove("jane-doe", first)).toBe("ended");
+    });
+
+    it("keeps the next run waiting until the cancelled one has really stopped", async () => {
+      const { execute, started, ends, signals } = manualRuns();
+      const registry = createRunRegistry(execute);
+      const first = registry.enqueue("jane-doe", "new", posting());
+      registry.enqueue("jane-doe", "new", posting());
+
+      expect(registry.remove("jane-doe", first)).toBe("cancelling");
+      expect(signals.get(first)!.aborted).toBe(true);
+      expect(statuses(registry)).toEqual(["running", "queued"]);
+      expect(started).toHaveLength(1);
+
+      const ended = followed(registry, "jane-doe", first);
+      ends.get(first)!.reject(new LlmError("cancelled", "The run was cancelled."));
+      await ended;
+      expect(statuses(registry)).toEqual(["running", "cancelled"]);
+      expect(started).toHaveLength(2);
+    });
+
+    it("keeps the application of a cancelled run, so it can be tried again", async () => {
+      const registry = createRunRegistry((run, send, signal) => {
+        send({ type: "saved", id: ID });
+        return untilCancelled(run, send, signal);
+      });
+      const runId = registry.enqueue("jane-doe", "new", posting());
+      const events = followed(registry, "jane-doe", runId);
+
+      registry.remove("jane-doe", runId);
+      await events;
+
+      expect(registry.list("jane-doe")).toMatchObject([{ runId, status: "cancelled", applicationId: ID }]);
+    });
+
+    it("finishes a run that got to its end although it was cancelled", async () => {
+      const { execute, ends } = manualRuns();
+      const registry = createRunRegistry(execute);
+      const runId = registry.enqueue("jane-doe", "new", posting());
+      const ended = followed(registry, "jane-doe", runId);
+
+      registry.remove("jane-doe", runId);
+      ends.get(runId)!.resolve();
+      await ended;
+
+      expect(statuses(registry)).toEqual(["done"]);
+    });
+
+    it("doesn't cancel another profile's run (Art. III.7)", () => {
+      const { execute, signals } = manualRuns();
+      const registry = createRunRegistry(execute);
+      const runId = registry.enqueue("jane-doe", "new", posting());
+
+      expect(registry.remove("john-roe", runId)).toBe("unknown");
+      expect(signals.get(runId)!.aborted).toBe(false);
+      expect(statuses(registry)).toEqual(["running"]);
+    });
   });
 
   it("never logs the posting a run holds (Art. III.4)", async () => {

@@ -18,7 +18,7 @@ export function readLanguage(value: unknown): { language: string | null } | { er
 }
 
 /** Does the work of one queued run for its profile: the pipeline, or "Verify again" (F42). */
-const executeRun: ExecuteRun = async (run: AppRun, send) => {
+const executeRun: ExecuteRun = async (run: AppRun, send, signal) => {
   const store = profileStore();
   const slug = run.profile;
   const loaded = await store.loadProfile(slug);
@@ -35,7 +35,7 @@ const executeRun: ExecuteRun = async (run: AppRun, send) => {
   try {
     if (run.kind === "verify") {
       if (!("id" in start)) throw new Error("Only a saved application can be verified.");
-      await verifyApplication({ llm: llmClient(), profile: loaded.profile, files, id: start.id, now: () => new Date(), send });
+      await verifyApplication({ llm: llmClient(), profile: loaded.profile, files, id: start.id, now: () => new Date(), send, signal });
     } else {
       await runApplication({
         llm: llmClient(),
@@ -49,6 +49,7 @@ const executeRun: ExecuteRun = async (run: AppRun, send) => {
         // Today's date on this machine, as YYYY-MM-DD.
         today: () => new Date().toLocaleDateString("en-CA"),
         send,
+        signal,
       });
     }
   } catch (error) {

@@ -9,7 +9,7 @@ export type RunStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 export type RunKind = "new" | "retry" | "verify";
 
 /** What a run's event stream carries: the pipeline's events, plus what the queue did with the run. */
-export type QueueEvent = RunEvent | { type: "started" } | { type: "removed" };
+export type QueueEvent = RunEvent | { type: "started" } | { type: "removed" } | { type: "cancelled" };
 
 export interface QueuedRun<Input = unknown> {
   runId: string;
@@ -65,6 +65,14 @@ export function startRun<I>(runs: readonly QueuedRun<I>[], runId: string): Queue
   return recordEvent(started, runId, { type: "started" });
 }
 
+/** Forgets the oldest finished runs beyond `maxFinished`. */
+function forgetOldest<I>(runs: QueuedRun<I>[], maxFinished: number): QueuedRun<I>[] {
+  // Finished runs sit in the list in the order they ended, because only one runs at a time.
+  const finished = runs.filter(isFinished);
+  const forgotten = new Set(finished.slice(0, Math.max(0, finished.length - maxFinished)).map((run) => run.runId));
+  return runs.filter((run) => !forgotten.has(run.runId));
+}
+
 /** Ends the running run, and forgets the oldest finished runs beyond `maxFinished`. */
 export function finishRun<I>(
   runs: readonly QueuedRun<I>[],
@@ -80,10 +88,13 @@ export function finishRun<I>(
           runId,
           { type: "error", message: error },
         );
-  // Finished runs sit in the list in the order they ended, because only one runs at a time.
-  const finished = ended.filter(isFinished);
-  const forgotten = new Set(finished.slice(0, Math.max(0, finished.length - maxFinished)).map((run) => run.runId));
-  return ended.filter((run) => !forgotten.has(run.runId));
+  return forgetOldest(ended, maxFinished);
+}
+
+/** Ends the running run as cancelled by the user, which is not a failure (F32). */
+export function cancelRun<I>(runs: readonly QueuedRun<I>[], runId: string, maxFinished = MAX_FINISHED_RUNS): QueuedRun<I>[] {
+  const cancelled = update(runs, runId, (run) => ({ ...run, status: "cancelled" }));
+  return forgetOldest(recordEvent(cancelled, runId, { type: "cancelled" }), maxFinished);
 }
 
 /** A profile's own run, or null: another profile's run is as good as unknown (Art. III.7). */

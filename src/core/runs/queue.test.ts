@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cancelRun,
   enqueue,
   findRun,
   finishRun,
@@ -71,6 +72,21 @@ describe("run queue", () => {
     expect(runs[0]).toMatchObject({ status: "failed", error: "Can't reach Ollama." });
     expect(runs[0].events.at(-1)).toEqual({ type: "error", message: "Can't reach Ollama." });
     expect(nextRun(runs)?.runId).toBe("b");
+  });
+
+  it("ends a cancelled run as cancelled, without an error, and lets the next one start (F32)", () => {
+    let runs = startRun(queued("a", "b"), "a");
+    runs = recordEvent(runs, "a", { type: "saved", id: "2026-11-10-globex-backend-engineer" });
+
+    runs = cancelRun(runs, "a");
+
+    expect(runs[0]).toMatchObject({ status: "cancelled", applicationId: "2026-11-10-globex-backend-engineer" });
+    expect(runs[0].error).toBeUndefined();
+    expect(runs[0].events.at(-1)).toEqual({ type: "cancelled" });
+    expect(nextRun(runs)?.runId).toBe("b");
+    // A cancelled run counts as finished: the limit applies and it can't be removed.
+    expect(statuses(cancelRun(startRun(runs, "b"), "b", 1))).toEqual(["b:cancelled"]);
+    expect(removeWaiting(runs, "jane-doe", "a").removed).toBe(false);
   });
 
   it("forgets the oldest finished runs beyond the limit, never a waiting one", () => {
