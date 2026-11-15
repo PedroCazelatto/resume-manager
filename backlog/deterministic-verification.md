@@ -30,4 +30,4 @@ version: implemented
 
 ## Notes
 
-- Numbers written as words are left to the model review; see [catch-number-words](catch-number-words.md).
+- Numbers written as words are not caught here; the model review is told to check them (see [catch-number-words](catch-number-words.md)).

@@ -15,12 +15,10 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [show-line-sources.md](show-line-sources.md) — Show where each resume line comes from (F18)
 - [cancel-a-run.md](cancel-a-run.md) — Cancel a running generation (F32)
 - [list-of-posting-urls.md](list-of-posting-urls.md) — Accept a list of job links at once (F33)
-- [dark-mode.md](dark-mode.md) — Dark mode (F34)
 - [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
 - [notify-when-run-ends.md](notify-when-run-ends.md) — Notify when a run ends (F38)
 - [reconnect-to-a-run.md](reconnect-to-a-run.md) — Reconnect to a running generation (F39)
 - [context-size-warning.md](context-size-warning.md) — Warn when a model call won't fit the context window (F40)
-- [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
 - [run-queue.md](run-queue.md) — Queue runs and track them on the server (F42)
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 
@@ -58,8 +56,10 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [application-folders.md](application-folders.md) — Save every run in its own folder (F25)
 - [ollama-client.md](ollama-client.md) — Local model through Ollama (F29)
 - [run-progress.md](run-progress.md) — Step-by-step progress (F30)
+- [dark-mode.md](dark-mode.md) — Dark mode (F34)
 - [timer-format.md](timer-format.md) — Show the run timer as MMmSSs (F36)
 - [model-timeout.md](model-timeout.md) — The model timed out before writing the resume (F37)
+- [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
 
 ## Out of scope
 

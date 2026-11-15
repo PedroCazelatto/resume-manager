@@ -123,6 +123,16 @@ describe("reviewResume", () => {
     expect(temperature).toBeLessThanOrEqual(0.2);
   });
 
+  it("tells the model to treat numbers written as words as numbers", async () => {
+    const { llm, requests } = fakeLlm({ unsupported: [] });
+
+    await run(llm);
+
+    expect(requests[0].system).toContain(
+      `- A number written as a word (e.g. "five years") is a number, in any language: the claim is unsupported when the files it cites don't state that number.`,
+    );
+  });
+
   it("only lets the model point at claims that are in the resume", async () => {
     const { llm, requests } = fakeLlm({ unsupported: [] });
     await run(llm);
