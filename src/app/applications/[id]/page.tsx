@@ -6,14 +6,17 @@ import { FileProblems } from "@/components/file-problems";
 import { RetryRun } from "@/components/retry-run";
 import { ResumeEditor } from "@/components/resume-editor";
 import { InferenceList } from "@/components/resume-view";
+import { SourceList } from "@/components/source-list";
 import { VerificationView } from "@/components/verification-view";
 import { isApplicationId } from "@/core/application/folder";
 import { analysisSchema, jobSchema } from "@/core/application/schemas";
 import { languageName } from "@/core/application/languages";
 import { validateMarkdownFile, type FileError } from "@/core/markdown/validate";
+import { listProfileFiles } from "@/core/profile/profile";
 import { contentYaml } from "@/core/resume/edit";
 import { renderResume } from "@/core/resume/render";
 import { resumeFileSchema, type ResumeFile } from "@/core/resume/schema";
+import { citedFileTexts, listSourcedItems } from "@/core/resume/sources";
 import { verificationSchema, type Verification } from "@/core/verification/schema";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import { templateStore } from "@/app/templates";
@@ -69,6 +72,11 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
   }
   if (!job.ok) return null;
 
+  // Only the files this resume cites reach the browser (F18).
+  const sourcedItems = resume?.ok ? listSourcedItems(resume.data) : [];
+  const profile = resume?.ok ? await store.loadProfile(slug) : null;
+  const citedFiles = profile?.ok ? citedFileTexts(sourcedItems, listProfileFiles(profile.profile)) : null;
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -80,7 +88,7 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
         </p>
       </header>
       {resume?.ok && template?.ok && (
-        <section className="space-y-3">
+        <section className="relative space-y-3">
           <h2 className="font-medium">
             Resume · {languageName(resume.data.language)} · {resume.data.status}
           </h2>
@@ -97,6 +105,12 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
             maxPages={template.template.maxPages}
             blockers={printBlockers(resume.data, verification?.ok ? verification.data : null)}
             reviewCurrent={verification?.ok === true && verification.data.review?.current === true}
+          />
+          {/* Beside the preview when the window has room for it, under it otherwise. */}
+          <SourceList
+            items={sourcedItems}
+            files={citedFiles}
+            className="xl:absolute xl:top-0 xl:left-full xl:ml-6 xl:w-64"
           />
           <InferenceList id={id} inferences={resume.data.inferences} />
           {verification?.ok && <VerificationView id={id} verification={verification.data} />}
