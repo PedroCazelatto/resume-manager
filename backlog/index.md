@@ -20,7 +20,6 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [notify-when-run-ends.md](notify-when-run-ends.md) — Notify when a run ends (F38)
 - [reconnect-to-a-run.md](reconnect-to-a-run.md) — Reconnect to a running generation (F39)
 - [context-size-warning.md](context-size-warning.md) — Warn when a model call won't fit the context window (F40)
-- [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
 - [run-queue.md](run-queue.md) — Queue runs and track them on the server (F42)
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 
@@ -60,6 +59,7 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [run-progress.md](run-progress.md) — Step-by-step progress (F30)
 - [timer-format.md](timer-format.md) — Show the run timer as MMmSSs (F36)
 - [model-timeout.md](model-timeout.md) — The model timed out before writing the resume (F37)
+- [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
 
 ## Out of scope
 
