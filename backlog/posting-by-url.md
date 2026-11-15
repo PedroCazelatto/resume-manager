@@ -17,4 +17,5 @@ The posting has to be copied and pasted. The user wants a field for the link to 
 ## Notes
 
 - Art. V.10 sets the rules: http/https only, no private or loopback addresses, size and time limits, and no headless-browser scraping.
-- Open risk: Indeed may refuse plain automated requests. This has not been checked. If it does, links from Indeed would always fall back to pasting.
+- Decided 2026-11-15: plain fetch with the paste fallback; no headless browser.
+- Open risk: Indeed may refuse plain automated requests. Check this before building and report the result; if it refuses, links from Indeed always fall back to pasting.

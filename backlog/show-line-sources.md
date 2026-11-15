@@ -1,7 +1,7 @@
 ---
 title: Show where each resume line comes from
 id: F18
-version: future version
+version: next version
 ---
 
 ## Problem
@@ -10,4 +10,9 @@ version: future version
 
 ## What to build
 
-- Next to each resume line, show its source files and let you open the text.
+- Beside the preview, list each resume item (the summary, each job, each bullet) with its source files; clicking a file shows its text.
+- The printed resume is untouched.
+
+## Notes
+
+- Decided 2026-11-15: a list beside the preview, not clickable lines inside it.

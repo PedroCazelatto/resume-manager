@@ -13,4 +13,8 @@ Once "Generate resume" (or "Try again" / "Verify again") starts, there is no way
 
 - A Cancel button next to the running step, on the home form and on the application page.
 - Cancelling stops the model call in Ollama, not only the page: today the server keeps running the pipeline even when the browser disconnects.
-- Files of finished steps stay saved (nothing is deleted), so a cancelled run can be continued with "Try again".
+- Files of finished steps stay saved (nothing is deleted), and the page offers "Try again", as with a failed run.
+
+## Notes
+
+- Decided 2026-11-15: cancelling never deletes or asks to delete the application folder.

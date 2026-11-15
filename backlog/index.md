@@ -6,20 +6,24 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
+- [write-back-implied-skills.md](write-back-implied-skills.md) — Write approved implied skills back to the profile (F07)
 - [posting-by-url.md](posting-by-url.md) — Give a link to the job posting instead of pasting it (F10)
+- [show-line-sources.md](show-line-sources.md) — Show where each resume line comes from (F18)
 - [cancel-a-run.md](cancel-a-run.md) — Cancel a running generation (F32)
 - [list-of-posting-urls.md](list-of-posting-urls.md) — Accept a list of job links at once (F33)
 - [dark-mode.md](dark-mode.md) — Dark mode (F34)
 - [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
+- [notify-when-run-ends.md](notify-when-run-ends.md) — Notify when a run ends (F38)
+- [reconnect-to-a-run.md](reconnect-to-a-run.md) — Reconnect to a running generation (F39)
+- [context-size-warning.md](context-size-warning.md) — Warn when a model call won't fit the context window (F40)
+- [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
 
 ## Future version
 
 - [create-and-rename-profiles.md](create-and-rename-profiles.md) — Create and rename profiles in the app (F04)
 - [profile-editor.md](profile-editor.md) — Edit profile files in the app (F05)
 - [cv-import.md](cv-import.md) — Import an existing CV (F06)
-- [write-back-implied-skills.md](write-back-implied-skills.md) — Write approved implied skills back to the profile (F07)
 - [guided-interview.md](guided-interview.md) — Guided interview that fills the profile (F08)
-- [show-line-sources.md](show-line-sources.md) — Show where each resume line comes from (F18)
 - [one-click-pdf.md](one-click-pdf.md) — One-click PDF (F23)
 - [application-history.md](application-history.md) — Application history (F26)
 - [regenerate-application.md](regenerate-application.md) — Regenerate inside an application (F27)
