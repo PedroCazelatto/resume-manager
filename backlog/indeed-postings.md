@@ -15,7 +15,8 @@ Indeed is one of the two job sites that must work, and it refuses automated requ
 - On a job page in the user's own browser (Indeed, LinkedIn, or any other site), clicking the bookmark opens the app's `/send` page in a new tab, carrying the page's link and the posting's text.
 - `/send` shows where the posting came from, the start of its text, the language choice, and one "Generate resume" button, which has the focus. Pressing it puts the run in the queue; if another run is working, this one waits its turn.
 - The run is saved with the page's link in `job.md` (`source: paste`, `url`).
-- The text taken from the page is, in this order: the text the user selected, if any; the site's job-description element when known (Indeed: `#jobDescriptionText`; LinkedIn: `.show-more-less-html__markup` or `.jobs-description`); otherwise the page's visible text. It is cut at 50,000 characters.
+- The text taken from the page is, in this order: the text the user selected, if any; the visible text of the page's main area (the `main` element or `[role="main"]`); otherwise the whole page's visible text. It is cut at 50,000 characters.
+- The text keeps the job's title, company and location that sit above the description, since the analysis needs them. Leftover menu words are harmless: the model treats the posting as data.
 
 ## Acceptance criteria
 
@@ -37,11 +38,11 @@ Indeed is one of the two job sites that must work, and it refuses automated requ
 ## Depends on
 
 - [run-queue](run-queue.md): a posting sent while a run is working must wait in the queue.
-- Not ready to build until the user has run the check below and it passed (Art. X.5).
 
 ## Decisions
 
 - Checked 2026-11-15: Indeed answers 403 "Security Check" or "Blocked" to a plain request, and "Blocked" to an undisguised headless Chrome, on a real job link. The app must not disguise itself as a person's browser to get past that check.
 - Decided 2026-11-15: no copy-pasting; try the bookmarklet first. The browser extension stays as a fallback ([browser-extension](browser-extension.md)).
 - Decided 2026-11-15: whatever sends a posting, it goes to the queue when a run is already working.
-- Open check, to be run by the user in their browser on an Indeed job page: create a bookmark whose address is `javascript:(()=>{window.open('http://127.0.0.1:3000/send#text='+encodeURIComponent((document.querySelector('#jobDescriptionText')||document.body).innerText.slice(0,3000)))})()` and click it. It passes if a new tab opens whose address contains the posting's text (the app doesn't need to be running).
+- Checked 2026-11-15 by the user on a real Indeed job page: the bookmark opened the app's `/send` address in a new tab with the page's text after `#text=`. The mechanism works on Indeed.
+- From the same check: `#jobDescriptionText` did not match on that page, so the whole page's text was sent, starting with Indeed's menu ("Skip to main content, Home, Company reviews…") and then the title, company, location and the full description. That is why the picking rule uses the page's main area instead of a site-specific element.
