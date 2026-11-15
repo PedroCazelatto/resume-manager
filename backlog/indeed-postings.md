@@ -1,7 +1,7 @@
 ---
-title: Send a posting from your browser with a bookmarklet (Indeed)
+title: Send a posting from your browser with a bookmarklet (fallback for Indeed)
 id: F44
-version: next version
+version: future version
 reported: 2026-11-15
 ---
 
@@ -47,4 +47,4 @@ Indeed is one of the two job sites that must work, and it refuses automated requ
 - Checked 2026-11-15 by the user on a real Indeed job page: the bookmark opened the app's `/send` address in a new tab with the page's text after `#text=`. The mechanism works on Indeed.
 - From the same check: `#jobDescriptionText` did not match on that page, so the whole page's text was sent, starting with Indeed's menu ("Skip to main content, Home, Company reviews…") and then the title, company, location and the full description. That is why the picking rule uses the page's main area instead of a site-specific element.
 - Checked 2026-11-15 (web search of Indeed's developer docs and third-party guides): no official Indeed API was found that lets an individual read a job posting. The old Publisher API (job search) is reported as retired and closed to new users; the current APIs (Job Sync, Job Update, Disposition Sync, Sponsored Jobs) are for employers and recruiting-software partners and need Indeed's approval. Indeed's own notice of the Publisher API's retirement was not found, so its date is unconfirmed.
-- 2026-11-15: the user finds the bookmarklet's extra tab clumsy and wants to paste a copied link instead. Only the browser extension can do that for Indeed; see [browser-extension](browser-extension.md).
+- Decided 2026-11-15: the user finds the bookmarklet's extra tab clumsy and wants to paste a copied link instead, so [browser-extension](browser-extension.md) is built first. This task is only a fallback that needs no installation: build it only if the extension fails on Indeed, and delete this file if the extension works.

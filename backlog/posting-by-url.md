@@ -39,7 +39,7 @@ The posting has to be copied and pasted. The user wants to give the link to the 
 - Tabs: add the shadcn/ui `tabs` component.
 - LinkedIn job pages are large (about 260 KB) and full of other jobs. The posting's text is inside the element with class `show-more-less-html__markup` (inside `description__text`); when the page is on `linkedin.com`, take the text from that element, and fall back to the general rules if it is missing.
 - LinkedIn links copied while logged in often look like `linkedin.com/jobs/collections/...?currentJobId=<id>` or `linkedin.com/jobs/search/?currentJobId=<id>`. Rewrite them to `https://www.linkedin.com/jobs/view/<id>` before fetching; this is a pure function with unit tests.
-- Indeed links (`indeed.com` and its country subdomains) are not fetched: the run fails at once with "Indeed blocks automated requests" and the form switches to "Paste text" with the link kept.
+- Indeed links (`indeed.com` and its country subdomains) are never fetched by the server. Until [browser-extension](browser-extension.md) is built, the form refuses them with "Indeed blocks automated requests" and switches to "Paste text" with the link kept. Recognising an Indeed link is a pure function with unit tests.
 - Art. II.7 (fetched text is untrusted, like pasted text), Art. III.2 (outbound requests only to links the user submits), Art. V.10 (fetcher rules).
 
 ## Depends on
@@ -52,5 +52,5 @@ The posting has to be copied and pasted. The user wants to give the link to the 
 - Decided 2026-11-15: two tabs on the form.
 - Decided 2026-11-15: 30 seconds, 5 MB, no minimum text length.
 - Checked 2026-11-15 with a plain request labelled as this app: LinkedIn's public job page answered 200 with the full description in the HTML. Indeed answered 403 "Security Check" on a search page and on a real job link, and 401 "Authenticating" on another job link.
-- Indeed is handled from the user's browser instead: see [indeed-postings](indeed-postings.md). This task covers LinkedIn and other sites that answer plain requests.
+- Indeed is handled from the user's browser instead: see [browser-extension](browser-extension.md). This task covers LinkedIn and other sites that answer plain requests.
 - Checked 2026-11-15: an undisguised headless Chrome is blocked by Indeed too, so the ban on headless-browser scraping (Art. V.10) stays.

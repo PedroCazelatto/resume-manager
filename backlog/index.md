@@ -8,7 +8,7 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: run-queue, cancel-a-run, reconnect-to-a-run, posting-by-url, list-of-posting-urls; then dark-mode and visual-pass together; the rest in any order.
+Suggested order, from what each task depends on: run-queue, cancel-a-run, reconnect-to-a-run, posting-by-url, list-of-posting-urls, browser-extension; then dark-mode and visual-pass together; the rest in any order.
 
 - [write-back-implied-skills.md](write-back-implied-skills.md) — Write approved implied skills back to the profile (F07)
 - [posting-by-url.md](posting-by-url.md) — Give a link to the job posting instead of pasting it (F10)
@@ -22,7 +22,7 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [context-size-warning.md](context-size-warning.md) — Warn when a model call won't fit the context window (F40)
 - [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
 - [run-queue.md](run-queue.md) — Queue runs and track them on the server (F42)
-- [indeed-postings.md](indeed-postings.md) — Send a posting from your browser with a bookmarklet (Indeed) (F44)
+- [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 
 ## Future version
 
@@ -35,7 +35,7 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [regenerate-application.md](regenerate-application.md) — Regenerate the resume with a change request (F27)
 - [debug-logging.md](debug-logging.md) — Opt-in debug logging (F31)
 - [database-storage.md](database-storage.md) — Move all data into a local database (F43)
-- [browser-extension.md](browser-extension.md) — Browser extension that sends job postings to the app (F45)
+- [indeed-postings.md](indeed-postings.md) — Send a posting from your browser with a bookmarklet (fallback for Indeed) (F44)
 
 ## Implemented
 
