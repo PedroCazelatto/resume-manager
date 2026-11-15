@@ -13,6 +13,8 @@ export interface LlmRequest<T> {
   temperature: number;
   /** Called while the model works, so the UI can show it is alive (Art. V.8). */
   onProgress?: (progress: LlmProgress) => void;
+  /** Aborted when the user cancels the run; the call then fails as `cancelled` (F32). */
+  signal?: AbortSignal;
 }
 
 /** How far a call is: the model thinks first (when it has a thinking mode), then writes the reply. */
@@ -28,7 +30,7 @@ export interface LlmClient {
   generate<T>(request: LlmRequest<T>): Promise<T>;
 }
 
-export type LlmErrorKind = "unreachable" | "timeout" | "context" | "ollama" | "invalid-output";
+export type LlmErrorKind = "unreachable" | "timeout" | "context" | "ollama" | "invalid-output" | "cancelled";
 
 /** A failed model call. Messages never include prompt or reply text (Art. III.4). */
 export class LlmError extends Error {
@@ -39,6 +41,11 @@ export class LlmError extends Error {
     this.name = "LlmError";
     this.kind = kind;
   }
+}
+
+/** Stops a run between two steps once the user has cancelled it (F32). */
+export function stopIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new LlmError("cancelled", "The run was cancelled.");
 }
 
 /** Parses the model's JSON reply and validates it against the request schema. */

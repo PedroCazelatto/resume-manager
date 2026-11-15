@@ -292,6 +292,90 @@ describe("runApplication", () => {
   });
 });
 
+describe("cancelling a run (F32)", () => {
+  /** A model that cancels the run while it answers its `at`-th call, which still returns. */
+  function cancellingLlm(replies: unknown[], at: number) {
+    const cancel = new AbortController();
+    const { llm, requests } = fakeLlm(replies);
+    const generate = llm.generate.bind(llm);
+    llm.generate = (request) => {
+      if (requests.length + 1 === at) cancel.abort();
+      return generate(request);
+    };
+    return { llm, requests, signal: cancel.signal };
+  }
+
+  it("hands the signal to every model call", async () => {
+    const { llm, requests } = fakeLlm([analysisReply, tailorReply(), { unsupported: [] }]);
+    const signal = new AbortController().signal;
+
+    await runApplication(input({ llm, files: memoryFiles().files, signal }).run);
+
+    expect(requests.map((request) => request.signal)).toEqual([signal, signal, signal]);
+  });
+
+  it("makes no model call when the run was cancelled before it started", async () => {
+    const { llm, requests } = fakeLlm([analysisReply]);
+    const { files, saved } = memoryFiles();
+
+    const failure = runApplication(input({ llm, files, signal: AbortSignal.abort() }).run).catch((error) => error);
+
+    expect(await failure).toMatchObject({ kind: "cancelled", message: "The run was cancelled." });
+    expect(requests).toHaveLength(0);
+    expect(saved.size).toBe(0);
+  });
+
+  it("stops before the next step, keeping what the finished steps saved", async () => {
+    const { llm, requests, signal } = cancellingLlm([analysisReply, tailorReply(), { unsupported: [] }], 2);
+    const { files, saved } = memoryFiles();
+    const { run, events } = input({ llm, files, signal });
+
+    await expect(runApplication(run)).rejects.toMatchObject({ kind: "cancelled" });
+
+    // The resume was being written when Cancel came: it is saved, the review never starts.
+    expect(requests).toHaveLength(2);
+    expect([...saved.keys()].sort()).toEqual([`${ID}/analysis.md`, `${ID}/job.md`, `${ID}/resume.md`]);
+    expect(steps(events)).toEqual(["analyse:running", "analyse:done", "save:running", "save:done", "saved", "tailor:running", "tailor:done"]);
+  });
+
+  it("stops with the model's cancelled error and can be tried again from the saved analysis", async () => {
+    const { files, saved } = memoryFiles();
+    const cancelled = fakeLlm([analysisReply, new LlmError("cancelled", "The run was cancelled.")]);
+    await expect(runApplication(input({ llm: cancelled.llm, files }).run)).rejects.toMatchObject({ kind: "cancelled" });
+    expect([...saved.keys()].sort()).toEqual([`${ID}/analysis.md`, `${ID}/job.md`]);
+
+    const { llm, requests } = fakeLlm([tailorReply(), { unsupported: [] }]);
+    const { run, events } = input({ llm, files, start: { id: ID } });
+    expect(await runApplication(run)).toBe(ID);
+
+    // "Try again" skips the analysis: only the resume and the review call the model.
+    expect(requests).toHaveLength(2);
+    expect(steps(events).slice(0, 3)).toEqual(["analyse:done", "save:done", "saved"]);
+    expect(saved.has(`${ID}/verification.md`)).toBe(true);
+  });
+
+  it("stops Verify again before the model review, leaving the files as they were", async () => {
+    const memory = memoryFiles();
+    await runApplication(input({ llm: fakeLlm([analysisReply, tailorReply(), { unsupported: [] }]).llm, files: memory.files }).run);
+    const before = new Map(memory.saved);
+    const { llm, requests } = fakeLlm([{ unsupported: [] }]);
+
+    const verifying = verifyApplication({
+      llm,
+      profile: profile(),
+      files: memory.files,
+      id: ID,
+      now: () => new Date("2026-11-11T09:00:00.000Z"),
+      send: () => {},
+      signal: AbortSignal.abort(),
+    });
+
+    await expect(verifying).rejects.toMatchObject({ kind: "cancelled" });
+    expect(requests).toHaveLength(0);
+    expect(memory.saved).toEqual(before);
+  });
+});
+
 describe("verifyApplication", () => {
   const flagged = { unsupported: [{ id: "summary", problem: "Not stated." }] };
   const now = () => new Date("2026-11-11T09:00:00.000Z");

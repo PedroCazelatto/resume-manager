@@ -49,6 +49,7 @@ export interface TailorResumeInput {
   language: string;
   now: () => Date;
   onProgress?: LlmRequest<unknown>["onProgress"];
+  signal?: AbortSignal;
 }
 
 /** Pipeline step 4: writes the resume content as a draft, with implied skills pending (F13, F14, F16). */
@@ -61,6 +62,7 @@ export async function tailorResume({
   language,
   now,
   onProgress,
+  signal,
 }: TailorResumeInput): Promise<ResumeFile> {
   const files = listProfileFiles(profile);
   const paths = files.map((f) => f.file) as [string, ...string[]];
@@ -80,6 +82,7 @@ export async function tailorResume({
     schema: tailorReplySchema(paths),
     temperature: 0.3,
     onProgress,
+    signal,
   });
 
   const personal = profile.personal.data;

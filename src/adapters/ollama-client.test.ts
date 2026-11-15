@@ -206,6 +206,41 @@ describe("createOllamaClient", () => {
     expect(error.kind).toBe("timeout");
   });
 
+  it("hands the run's cancel signal to fetch, so the connection to Ollama closes (F32)", async () => {
+    const cancel = new AbortController();
+    let received: AbortSignal | null | undefined;
+    const hanging: typeof fetch = (_input, init) => {
+      received = init?.signal;
+      return new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)));
+    };
+
+    const call = errorOf(createOllamaClient(settings, hanging).generate({ ...request, signal: cancel.signal }));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(received?.aborted).toBe(false);
+    cancel.abort();
+
+    expect(await call).toMatchObject({ kind: "cancelled", message: "The run was cancelled." });
+    expect(received?.aborted).toBe(true);
+  });
+
+  it("reports a call cancelled in the middle of the stream as cancelled, not as an Ollama error (F32)", async () => {
+    const cancel = new AbortController();
+    const client = createOllamaClient(settings, slowFetch([thought("Let me"), thought(" check"), chunk("{")], 30));
+
+    const call = errorOf(client.generate({ ...request, signal: cancel.signal, onProgress: () => cancel.abort() }));
+
+    expect((await call).kind).toBe("cancelled");
+  });
+
+  it("still reports an idle timeout as a timeout when the call can be cancelled (F32)", async () => {
+    const cancel = new AbortController();
+    const client = createOllamaClient({ ...settings, timeoutMs: 20 }, slowFetch([thought("Let me"), chunk("{")], 200));
+
+    const error = await errorOf(client.generate({ ...request, signal: cancel.signal }));
+
+    expect(error.kind).toBe("timeout");
+  });
+
   it("reports thinking and writing progress, and leaves the thinking out of the reply", async () => {
     const { fetchImpl } = fakeFetch(() =>
       stream(thought("Let me"), thought(" check."), chunk('{"comp'), chunk('any":"Globex"}'), done()),

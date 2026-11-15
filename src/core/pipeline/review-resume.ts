@@ -20,10 +20,11 @@ export interface ReviewResumeInput {
   resume: ResumeFile;
   now: () => Date;
   onProgress?: LlmRequest<unknown>["onProgress"];
+  signal?: AbortSignal;
 }
 
 /** Pipeline step 5, model part: lists the claims the profile doesn't support (Art. II.5, F17). */
-export async function reviewResume({ llm, profile, resume, now, onProgress }: ReviewResumeInput): Promise<{
+export async function reviewResume({ llm, profile, resume, now, onProgress, signal }: ReviewResumeInput): Promise<{
   review: NonNullable<Verification["review"]>;
   failures: Failure[];
 }> {
@@ -36,6 +37,7 @@ export async function reviewResume({ llm, profile, resume, now, onProgress }: Re
     schema: reviewReplySchema(ids),
     temperature: 0.1,
     onProgress,
+    signal,
   });
 
   const text = new Map(claims.map((claim) => [claim.where, claim.text]));

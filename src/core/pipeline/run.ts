@@ -1,6 +1,6 @@
 import { applicationFolderName, type ApplicationFile } from "../application/folder";
 import { analysisSchema, jobSchema } from "../application/schemas";
-import type { LlmClient, LlmProgress } from "../llm";
+import { stopIfCancelled, type LlmClient, type LlmProgress } from "../llm";
 import { patchFrontmatter, stringifyFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile } from "../markdown/validate";
 import type { Profile } from "../profile/profile";
@@ -13,7 +13,8 @@ import { reviewResume } from "./review-resume";
 import { tailorResume } from "./tailor-resume";
 
 // One run of the pipeline (Art. VI), from the posting to the verified resume. Each step's
-// output is saved; a step whose output file already exists is skipped (F19).
+// output is saved; a step whose output file already exists is skipped (F19). A cancelled
+// run stops its model call, or stops before the next step; what is saved stays (F32).
 
 export type RunStep = "analyse" | "save" | "tailor" | "check" | "review";
 
@@ -50,6 +51,8 @@ export interface RunInput {
   /** Today's date as YYYY-MM-DD, for the application folder's name. */
   today: () => string;
   send: (event: RunEvent) => void;
+  /** Aborted when the user cancels the run (F32). */
+  signal?: AbortSignal;
 }
 
 /** A saved file the run can't continue from; the user fixes or removes it (Art. IV.6). */
@@ -59,7 +62,7 @@ function invalid(file: string, problems: string[]): Error {
 
 /** Runs the steps that have no saved output yet and returns the application's ID. */
 export async function runApplication(input: RunInput): Promise<string> {
-  const { llm, profile, files, send, now } = input;
+  const { llm, profile, files, send, now, signal } = input;
   const step = (name: RunStep, status: "running" | "done") => send({ type: "step", step: name, status });
   const progress = (name: RunStep) => (p: LlmProgress) => send({ type: "progress", step: name, ...p });
 
@@ -69,10 +72,12 @@ export async function runApplication(input: RunInput): Promise<string> {
   let analysis;
   if ("posting" in input.start) {
     posting = input.start.posting;
+    stopIfCancelled(signal);
     step("analyse", "running");
-    ({ job, analysis } = await analysePosting({ llm, profile, posting, now, onProgress: progress("analyse") }));
+    ({ job, analysis } = await analysePosting({ llm, profile, posting, now, onProgress: progress("analyse"), signal }));
     step("analyse", "done");
 
+    stopIfCancelled(signal);
     step("save", "running");
     id = await files.create(applicationFolderName(input.today(), job.company, job.role), {
       "job.md": stringifyFrontmatter(job, `${posting}\n`),
@@ -100,6 +105,7 @@ export async function runApplication(input: RunInput): Promise<string> {
   let resume;
   const resumeSource = await files.read(id, "resume.md");
   if (resumeSource === null) {
+    stopIfCancelled(signal);
     step("tailor", "running");
     // Without a usable template the run stops here; the analysis stays saved (Art. VII.4).
     const template = await input.loadTemplate(input.template);
@@ -113,6 +119,7 @@ export async function runApplication(input: RunInput): Promise<string> {
       language: input.language ?? job.language,
       now,
       onProgress: progress("tailor"),
+      signal,
     });
     await files.add(id, "resume.md", stringifyFrontmatter(resume));
   } else {
@@ -123,13 +130,15 @@ export async function runApplication(input: RunInput): Promise<string> {
   step("tailor", "done");
 
   if ((await files.read(id, "verification.md")) === null) {
+    stopIfCancelled(signal);
     step("check", "running");
     const checked_at = now().toISOString();
     const found = checkResume(profile, resume);
     step("check", "done");
 
+    stopIfCancelled(signal);
     step("review", "running");
-    const { review, failures } = await reviewResume({ llm, profile, resume, now, onProgress: progress("review") });
+    const { review, failures } = await reviewResume({ llm, profile, resume, now, onProgress: progress("review"), signal });
     const verification: Verification = { checked_at, review, failures: [...found, ...failures] };
     await files.add(id, "verification.md", stringifyFrontmatter(verification));
     const status = resumeStatus(resume, verification);

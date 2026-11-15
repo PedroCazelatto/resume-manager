@@ -15,6 +15,9 @@ export function createOllamaClient(settings: OllamaSettings, fetchImpl: typeof f
       // still thinking or writing is never cut off, however long the whole call takes.
       const idle = new AbortController();
       const timeout = idle.signal;
+      // The call also stops when the user cancels the run (F32). Closing the connection
+      // is what makes Ollama stop generating.
+      const stop = request.signal ? AbortSignal.any([request.signal, timeout]) : timeout;
       let timer = setTimeout(() => idle.abort(), settings.timeoutMs);
       const alive = () => {
         clearTimeout(timer);
@@ -23,7 +26,7 @@ export function createOllamaClient(settings: OllamaSettings, fetchImpl: typeof f
       const ollama = new Ollama({
         host: settings.baseUrl,
         fetch: (input, init) =>
-          fetchImpl(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout }),
+          fetchImpl(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, stop]) : stop }),
       });
 
       const chat = {
@@ -64,7 +67,7 @@ export function createOllamaClient(settings: OllamaSettings, fetchImpl: typeof f
           }
         }
       } catch (error) {
-        throw toLlmError(error, settings, timeout);
+        throw toLlmError(error, settings, timeout, request.signal);
       } finally {
         clearTimeout(timer);
       }
@@ -80,7 +83,8 @@ export function createOllamaClient(settings: OllamaSettings, fetchImpl: typeof f
   };
 }
 
-function toLlmError(error: unknown, settings: OllamaSettings, timeout: AbortSignal): LlmError {
+function toLlmError(error: unknown, settings: OllamaSettings, timeout: AbortSignal, cancel?: AbortSignal): LlmError {
+  if (cancel?.aborted) return new LlmError("cancelled", "The run was cancelled.");
   if (timeout.aborted) {
     return new LlmError(
       "timeout",

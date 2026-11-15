@@ -1,4 +1,4 @@
-import type { LlmClient, LlmProgress } from "../llm";
+import { stopIfCancelled, type LlmClient, type LlmProgress } from "../llm";
 import { patchFrontmatter, stringifyFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile } from "../markdown/validate";
 import type { Profile } from "../profile/profile";
@@ -20,10 +20,12 @@ export interface VerifyInput {
   id: string;
   now: () => Date;
   send: (event: RunEvent) => void;
+  /** Aborted when the user cancels the run (F32). */
+  signal?: AbortSignal;
 }
 
 /** Verifies the saved resume, replaces the failures in verification.md and updates the resume's status. */
-export async function verifyApplication({ llm, profile, files, id, now, send }: VerifyInput): Promise<string> {
+export async function verifyApplication({ llm, profile, files, id, now, send, signal }: VerifyInput): Promise<string> {
   const resumeSource = await files.read(id, "resume.md");
   if (resumeSource === null) throw new Error("This application has no resume yet.");
   const saved = validateMarkdownFile(resumeFileSchema, "resume.md", resumeSource);
@@ -35,11 +37,13 @@ export async function verifyApplication({ llm, profile, files, id, now, send }: 
     verificationSource === null ? null : validateMarkdownFile(verificationSchema, "verification.md", verificationSource);
   if (previous && !previous.ok) throw new Error("verification.md has problems. Fix the file first.");
 
+  stopIfCancelled(signal);
   send({ type: "step", step: "check", status: "running" });
   const checkedAt = now().toISOString();
   const found = checkResume(profile, resume);
   send({ type: "step", step: "check", status: "done" });
 
+  stopIfCancelled(signal);
   send({ type: "step", step: "review", status: "running" });
   const reviewed = await reviewResume({
     llm,
@@ -47,6 +51,7 @@ export async function verifyApplication({ llm, profile, files, id, now, send }: 
     resume,
     now,
     onProgress: (progress: LlmProgress) => send({ type: "progress", step: "review", ...progress }),
+    signal,
   });
   const next = withFullVerification(previous?.data ?? null, [...found, ...reviewed.failures], checkedAt, reviewed.review);
   if (verificationSource === null) await files.add(id, "verification.md", stringifyFrontmatter(next));
