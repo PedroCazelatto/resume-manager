@@ -1,40 +1,40 @@
 ---
 title: Show where each resume line comes from
 id: F18
-version: next version
+version: implemented
 ---
 
-## Problem
+## What it does
 
-`resume.md` records the profile files behind every item, but the page doesn't show them.
+- The application page has a "Sources" list that names each item of the resume (the summary, each job, each degree, each project, each certification, each language, each extra) with the profile files it cites.
+- Clicking a file opens a dialog with that file's current text from the selected profile.
+- A cited file that is no longer in the profile is shown in red as "missing from the profile" and can't be opened.
+- An item that cites no file says "No source recorded".
+- When the profile can't be loaded because one of its files is invalid, the list still names the files, without links, and says the profile has problems.
+- The list sits to the right of the resume when the window is at least 1280 px wide, and under the preview and its buttons otherwise.
+- Only the text of files this resume cites is sent to the browser.
+- The printed resume is untouched: the list is outside the preview frame.
 
-## Behaviour
+## Where it lives
 
-- Beside the preview, a "Sources" list names each resume item (the summary, each job, each degree, each project, each certification, each language, each extra) with the profile files it cites.
-- Clicking a file opens a dialog with that file's text.
-- A cited file that is no longer in the profile is shown as missing.
-- The printed resume is untouched.
+- `src/core/resume/sources.ts`: `listSourcedItems` (the items with their sources) and `citedFileTexts` (the text of the cited files, `null` for a missing one).
+- `src/components/source-list.tsx`: `SourceList`, the list and the dialog.
+- `src/components/ui/dialog.tsx`: the shadcn/ui dialog.
+- `src/app/applications/[id]/page.tsx`: loads the selected profile, prepares the data and places the list.
 
-## Acceptance criteria
+## Tests
 
-- [ ] Every item of the resume appears in the list with its `sources`.
-- [ ] The dialog shows the file's current text from the selected profile.
-- [ ] Only files cited by this resume are sent to the browser.
-- [ ] On a narrow screen the list sits under the preview.
-- [ ] `npm run typecheck`, `npm run lint` and `npm test` pass; new core logic has unit tests with the model mocked (Art. IX).
-- [ ] This file's header says `version: implemented` and `backlog/index.md` lists it under Implemented.
+- `src/core/resume/sources.test.ts`: every kind of item is listed with its sources; an item without sources is kept; only cited files are returned; a missing file is `null`; an empty file is not missing.
 
-## Technical notes
+## Rules it follows
 
-- Sources are per item in `resume.md` (`sources`, and `summary_sources` for the summary); bullets share their item's sources.
-- New component in `src/components/`; data prepared in `src/app/applications/[id]/page.tsx` from the loaded profile.
-- Add the shadcn/ui `dialog` component if it isn't there yet.
-- Art. II.4 (traceability shown in the UI), Art. III.7.
+- Art. II.4 (traceability shown in the UI).
+- Art. III.7 (files are read from the selected profile only).
+- Art. V.3 (the list is built in `src/core/`, with no I/O).
+- Art. IX.4 (no new dependency: the dialog is built on `@base-ui/react`).
 
-## Depends on
-
-- Nothing.
-
-## Decisions
+## Notes
 
 - Decided 2026-11-15: a list beside the preview, not clickable lines inside it.
+- Sources are per item in `resume.md` (`sources`, and `summary_sources` for the summary); bullets share their item's sources. Skills and contact details record no sources, so they are not in the list.
+- The page keeps its narrow column, so on a wide window the list is placed outside it, in the free space to the right. [visual-pass](visual-pass.md) redesigns the page and can give it a real column.

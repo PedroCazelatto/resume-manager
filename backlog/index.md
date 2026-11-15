@@ -12,7 +12,6 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 
 - [write-back-implied-skills.md](write-back-implied-skills.md) — Write approved implied skills back to the profile (F07)
 - [posting-by-url.md](posting-by-url.md) — Give a link to the job posting instead of pasting it (F10)
-- [show-line-sources.md](show-line-sources.md) — Show where each resume line comes from (F18)
 - [cancel-a-run.md](cancel-a-run.md) — Cancel a running generation (F32)
 - [list-of-posting-urls.md](list-of-posting-urls.md) — Accept a list of job links at once (F33)
 - [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
@@ -48,6 +47,7 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [deterministic-verification.md](deterministic-verification.md) — Check names, dates and numbers (F15)
 - [implied-skills-approval.md](implied-skills-approval.md) — Approve or reject implied skills (F16)
 - [model-claim-review.md](model-claim-review.md) — Model review of every claim (F17)
+- [show-line-sources.md](show-line-sources.md) — Show where each resume line comes from (F18)
 - [try-again-failed-run.md](try-again-failed-run.md) — Try a failed run again (F19)
 - [resume-preview-and-page-count.md](resume-preview-and-page-count.md) — Resume preview with page count (F20)
 - [edit-resume.md](edit-resume.md) — Edit the resume with a live preview (F21)
