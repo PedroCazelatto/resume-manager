@@ -22,6 +22,7 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [context-size-warning.md](context-size-warning.md) — Warn when a model call won't fit the context window (F40)
 - [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
 - [run-queue.md](run-queue.md) — Queue runs and track them on the server (F42)
+- [indeed-postings.md](indeed-postings.md) — Get postings from Indeed (F44)
 
 ## Future version
 
