@@ -171,9 +171,11 @@ Add a dated line each time something slows you down or doesn't feel right. The n
 
 <!-- - 2026-11-20: had to fix the summary by hand every time (→ prompt tweak?) -->
 
+Each note below has a task file in [`backlog/`](backlog/); the file's header says which version carries it (`implemented`, `next version`, or `future version`).
+
 - 2026-11-14: first real run. A run can't be cancelled once it starts; any mistake means restarting the app.
 - 2026-11-14: wants to give a link to the job's Indeed page instead of pasting (→ F10), ideally a list of links at once.
 - 2026-11-14: wants a dark mode.
 - 2026-11-14: the run timer should read MMmSSs (done).
-- 2026-11-14: the resume was never generated: the model call hit the 30-minute timeout.
+- 2026-11-14: the resume was never generated: the model call hit the 30-minute timeout (done: the timeout now only counts silence).
 - 2026-11-14: the interface is ugly and needs a visual pass.
