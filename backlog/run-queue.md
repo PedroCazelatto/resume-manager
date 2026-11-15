@@ -17,11 +17,11 @@ version: implemented
 
 ## Where it lives
 
-- `src/core/runs/queue.ts`: the pure ordering and state transitions (`enqueue`, `nextRun`, `startRun`, `recordEvent`, `finishRun`, `removeWaiting`, `findRun`, `runsOf`) and the stream's event type `QueueEvent` (the pipeline's events plus `started` and `removed`).
+- `src/core/runs/queue.ts`: the pure ordering and state transitions (`enqueue`, `nextRun`, `startRun`, `recordEvent`, `finishRun`, `removeWaiting`, `findRun`, `runsOf`) and the stream's event type `QueueEvent` (the pipeline's events plus `started`, `removed` and `cancelled`).
 - `src/core/pipeline/verify.ts`: `verifyApplication`, the "Verify again" logic as a run that sends step events.
 - `src/app/runs.ts`: `createRunRegistry`, the in-memory registry with its single worker loop and the followers of each run.
 - `src/app/run.ts`: the registry kept on `globalThis` (`runRegistry`), the executor that calls `runApplication` or `verifyApplication` for the run's profile, and `enqueueRun` for the routes.
-- Routes: `POST /api/applications`, `POST /api/applications/[id]` and `POST /api/applications/[id]/verification` enqueue and answer `{ runId }`; `GET /api/runs` lists the selected profile's runs; `GET /api/runs/[runId]/events` streams NDJSON; `DELETE /api/runs/[runId]` removes a waiting run (409 for any other run of the profile, 404 for an unknown or another profile's run).
+- Routes: `POST /api/applications`, `POST /api/applications/[id]` and `POST /api/applications/[id]/verification` enqueue and answer `{ runId }`; `GET /api/runs` lists the selected profile's runs; `GET /api/runs/[runId]/events` streams NDJSON; `DELETE /api/runs/[runId]` removes a waiting run (404 for an unknown or another profile's run; what it does to a running or ended run is in [cancel-a-run](cancel-a-run.md)).
 - `src/components/use-run.tsx` (`useRun().start` and `.follow`, `enqueueRun`), `src/components/runs-list.tsx`, `src/components/new-application-form.tsx`, `src/components/retry-run.tsx`, `src/components/resume-editor.tsx`, `src/app/page.tsx`.
 
 ## Tests
@@ -43,6 +43,6 @@ version: implemented
 
 - Decided 2026-11-15: one run at a time, others queue (not refused, not parallel).
 - Decided 2026-11-15: the queue is in memory only for now; [database-storage](database-storage.md) will persist it.
-- A removed run leaves the list entirely; the `cancelled` status exists but nothing sets it until [cancel-a-run](cancel-a-run.md), which also adds the `AbortController`.
+- A removed run leaves the list entirely; the `cancelled` status is for a running run stopped by the user ([cancel-a-run](cancel-a-run.md)).
 - The Runs list refreshes every 2 seconds, and at once when this tab queues or removes a run.
 - A replay keeps only the latest progress event of each step.

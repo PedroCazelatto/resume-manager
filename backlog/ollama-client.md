@@ -9,7 +9,7 @@ version: implemented
 - Every model call goes to the local Ollama with the reply's JSON schema, and the reply is validated against it.
 - Model, context size, thinking mode and timeout come from `.env` (`OLLAMA_MODEL`, `OLLAMA_NUM_CTX`, `OLLAMA_THINK`, `OLLAMA_TIMEOUT_MS`, `OLLAMA_BASE_URL`); no model name is hard-coded.
 - Prompts and replies that don't fit the context window fail with a clear message instead of being truncated.
-- Errors are named: unreachable, timeout, context, invalid output, other Ollama error. Messages never contain prompt or reply text.
+- Errors are named: unreachable, timeout, context, invalid output, cancelled ([cancel-a-run](cancel-a-run.md)), other Ollama error. Messages never contain prompt or reply text.
 
 ## Where it lives
 

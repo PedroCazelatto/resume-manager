@@ -8,11 +8,10 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: cancel-a-run, reconnect-to-a-run, posting-by-url, list-of-posting-urls, browser-extension; then visual-pass; the rest in any order.
+Suggested order, from what each task depends on: reconnect-to-a-run, posting-by-url, list-of-posting-urls, browser-extension; then visual-pass; the rest in any order.
 
 - [write-back-implied-skills.md](write-back-implied-skills.md) — Write approved implied skills back to the profile (F07)
 - [posting-by-url.md](posting-by-url.md) — Give a link to the job posting instead of pasting it (F10)
-- [cancel-a-run.md](cancel-a-run.md) — Cancel a running generation (F32)
 - [list-of-posting-urls.md](list-of-posting-urls.md) — Accept a list of job links at once (F33)
 - [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
 - [notify-when-run-ends.md](notify-when-run-ends.md) — Notify when a run ends (F38)
@@ -55,6 +54,7 @@ Suggested order, from what each task depends on: cancel-a-run, reconnect-to-a-ru
 - [application-folders.md](application-folders.md) — Save every run in its own folder (F25)
 - [ollama-client.md](ollama-client.md) — Local model through Ollama (F29)
 - [run-progress.md](run-progress.md) — Step-by-step progress (F30)
+- [cancel-a-run.md](cancel-a-run.md) — Cancel a running generation (F32)
 - [dark-mode.md](dark-mode.md) — Dark mode (F34)
 - [timer-format.md](timer-format.md) — Show the run timer as MMmSSs (F36)
 - [model-timeout.md](model-timeout.md) — The model timed out before writing the resume (F37)
