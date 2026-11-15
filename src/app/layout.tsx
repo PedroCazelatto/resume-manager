@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,8 +10,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    // The inline script adds the `dark` class before React hydrates, so the DOM wins here.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body>
+        <div className="absolute top-4 right-4">
+          <ThemeToggle />
+        </div>
+        {children}
+      </body>
     </html>
   );
 }
