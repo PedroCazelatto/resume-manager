@@ -1,23 +1,31 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LanguageSelect } from "@/components/language-select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { RunProgress, useRun } from "@/components/use-run";
+import { enqueueRun } from "@/components/use-run";
 
-/** Paste a posting and follow the run step by step (F09, F30). */
+/** Paste a posting and queue its run; the Runs list below follows it (F09, F42). */
 export function NewApplicationForm() {
-  const router = useRouter();
-  const run = useRun();
   const [posting, setPosting] = useState("");
   const [language, setLanguage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [queued, setQueued] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function start(url: string, body: Record<string, string>) {
-    const id = await run.start(url, body);
-    if (id) router.push(`/applications/${id}`);
+  function change(value: string) {
+    setPosting(value);
+    setQueued(false);
+  }
+
+  async function generate() {
+    setSending(true);
+    setError(null);
+    const reply = await enqueueRun("/api/applications", { posting, language });
+    setSending(false);
+    setQueued("runId" in reply);
+    if ("error" in reply) setError(reply.error);
   }
 
   return (
@@ -28,40 +36,18 @@ export function NewApplicationForm() {
         placeholder="Paste the full job posting here"
         className="min-h-60"
         value={posting}
-        disabled={run.running}
-        onChange={(e) => setPosting(e.target.value)}
+        disabled={sending}
+        onChange={(e) => change(e.target.value)}
       />
       <div className="flex flex-wrap items-center gap-3">
-        <LanguageSelect value={language} disabled={run.running} onChange={setLanguage} />
-        <Button
-          disabled={run.running || posting.trim() === ""}
-          onClick={() => start("/api/applications", { posting, language })}
-        >
-          {run.running ? "Working…" : "Generate resume"}
+        <LanguageSelect value={language} disabled={sending} onChange={setLanguage} />
+        {/* One run per pasted posting: the button unlocks again when the text changes. */}
+        <Button disabled={sending || queued || posting.trim() === ""} onClick={generate}>
+          Generate resume
         </Button>
+        {queued && <span className="text-sm text-muted-foreground">Added to the runs below.</span>}
       </div>
-
-      <RunProgress run={run} />
-      {run.error && (
-        <div className="space-y-2 text-sm">
-          <p className="text-destructive">{run.error}</p>
-          {run.savedId && (
-            <div className="flex flex-wrap items-center gap-3">
-              {/* The finished steps are saved, so trying again continues from the failed one (F19). */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => start(`/api/applications/${run.savedId}`, { language })}
-              >
-                Try again
-              </Button>
-              <Link href={`/applications/${run.savedId}`} className="underline">
-                See what was saved
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </section>
   );
 }

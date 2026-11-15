@@ -4,22 +4,19 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFsProfileStore, type ProfileStore } from "@/adapters/profile-store";
 import { createFsTemplateStore } from "@/adapters/template-store";
-import { LlmError, type LlmClient, type LlmRequest } from "@/core/llm";
 import { parseFrontmatter, stringifyFrontmatter } from "@/core/markdown/frontmatter";
 import { contentYaml } from "@/core/resume/edit";
 import { resumeFixture } from "@/core/resume/fixture.testing";
 import type { ResumeFile } from "@/core/resume/schema";
 import type { Failure, Verification } from "@/core/verification/schema";
-import { decideInference, previewResume, saveResume, setFailureDismissed, verifyResume } from "./actions";
+import { decideInference, previewResume, saveResume, setFailureDismissed } from "./actions";
 
 // The actions run against a scratch copy of the fictional profile (Art. III.5); the
-// cookie, the cache and the model are replaced.
+// cookie and the cache are replaced.
 const app = vi.hoisted(() => ({
   profilesDir: "",
   templatesDir: "",
   selected: "jane-doe" as string | null,
-  reply: { unsupported: [] } as unknown,
-  requests: [] as unknown[],
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -28,16 +25,6 @@ vi.mock("@/app/profiles", () => ({
   readSelectedProfile: async () => app.selected,
 }));
 vi.mock("@/app/templates", () => ({ templateStore: () => createFsTemplateStore(app.templatesDir) }));
-vi.mock("@/app/llm", () => ({
-  llmClient: (): LlmClient => ({
-    model: "fake-model",
-    async generate<T>(request: LlmRequest<T>): Promise<T> {
-      app.requests.push(request);
-      if (app.reply instanceof Error) throw app.reply;
-      return request.schema.parse(app.reply);
-    },
-  }),
-}));
 
 const ACME = "experience/2023-01-acme-senior-developer.md";
 const INITECH = "experience/2019-03-initech-software-developer.md";
@@ -104,8 +91,6 @@ describe("application actions", () => {
     app.profilesDir = path.join(root, "profiles");
     app.templatesDir = path.join(root, "templates");
     app.selected = "jane-doe";
-    app.reply = { unsupported: [] };
-    app.requests = [];
     await cp(path.resolve("example-profiles/jane-doe"), path.join(app.profilesDir, "jane-doe"), {
       recursive: true,
       filter: (source) => !source.includes(`${path.sep}applications`),
@@ -230,38 +215,6 @@ describe("application actions", () => {
     });
   });
 
-  describe("verifyResume", () => {
-    it("runs both checks, replaces the failures and marks a clean resume ready", async () => {
-      const stale = { ...verification([unsupported]), review: { ...verification().review!, current: false } };
-      await application({ resume: { ...resume(), inferences: [] }, verification: stale });
-
-      expect(await verifyResume(id)).toEqual({ ok: true });
-
-      expect(app.requests).toHaveLength(1);
-      expect(await read("verification.md")).toMatchObject({ review: { current: true }, failures: [] });
-      expect(await read("resume.md")).toMatchObject({ status: "ready" });
-    });
-
-    it("keeps a dismissal when the model flags the same claim again", async () => {
-      await application({ verification: verification([{ ...unsupported, dismissed: true }]) });
-      app.reply = { unsupported: [{ id: unsupported.where, problem: "Still not stated." }] };
-
-      await verifyResume(id);
-
-      expect((await read("verification.md")).failures).toEqual([
-        { ...unsupported, problem: "Still not stated.", dismissed: true },
-      ]);
-    });
-
-    it("reports a model failure and leaves the files as they were", async () => {
-      await application({ verification: verification([unsupported]) });
-      app.reply = new LlmError("unreachable", "Can't reach Ollama.");
-
-      expect(await verifyResume(id)).toEqual({ ok: false, problems: ["Can't reach Ollama."] });
-      expect((await read("verification.md")).failures).toEqual([unsupported]);
-    });
-  });
-
   describe("every action", () => {
     it("refuses an invalid application name", async () => {
       await expect(decideInference("../../other", "Kubernetes", "approved")).rejects.toThrow("Invalid application name");
@@ -274,7 +227,9 @@ describe("application actions", () => {
       await expect(decideInference(id, "Kubernetes", "approved")).rejects.toThrow("Choose a profile first.");
 
       app.selected = "jane-doe";
-      await expect(verifyResume("2026-11-10-initech-developer")).rejects.toThrow("no resume yet");
+      await expect(decideInference("2026-11-10-initech-developer", "Kubernetes", "approved")).rejects.toThrow(
+        "no resume yet",
+      );
     });
   });
 });

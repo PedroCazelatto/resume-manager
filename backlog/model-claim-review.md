@@ -16,7 +16,8 @@ version: implemented
 - `src/core/verification/claims.ts`: splits the resume into claims.
 - `src/core/prompts/review-resume.ts`, `src/core/pipeline/review-resume.ts`.
 - `src/core/verification/update.ts`: `withFullVerification`.
-- `src/app/applications/[id]/actions.ts`: `setFailureDismissed`, `verifyResume`.
+- `src/app/applications/[id]/actions.ts`: `setFailureDismissed`.
+- `src/core/pipeline/verify.ts`: `verifyApplication`, queued as a run (see [run-queue](run-queue.md)).
 - `src/components/verification-view.tsx`.
 
 ## Tests

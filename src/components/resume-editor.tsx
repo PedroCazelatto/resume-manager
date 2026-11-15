@@ -1,10 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { previewResume, saveResume, verifyResume } from "@/app/applications/[id]/actions";
+import { previewResume, saveResume } from "@/app/applications/[id]/actions";
 import { ResumePreview } from "@/components/resume-preview";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { RunProgress, useRun } from "@/components/use-run";
 
 const PREVIEW_DELAY_MS = 400;
 
@@ -28,7 +30,10 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
   const [edited, setEdited] = useState<{ text: string; html: string } | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   const [saving, startSaving] = useTransition();
-  const [verifying, startVerifying] = useTransition();
+  // "Verify again" is a run in the queue, like a generation (F42).
+  const router = useRouter();
+  const verification = useRun();
+  const verifying = verification.running;
   const dirty = text !== savedText;
   // While editing, the preview shows the last edit that rendered; otherwise the saved file.
   const preview = dirty ? (edited?.html ?? html) : html;
@@ -61,14 +66,13 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
     });
   }
 
-  function verify() {
-    startVerifying(async () => {
-      const result = await verifyResume(id);
-      setProblems(result.ok ? [] : result.problems);
-    });
+  async function verify() {
+    setProblems([]);
+    if (await verification.start(`/api/applications/${id}/verification`, {})) router.refresh();
   }
 
   const busy = saving || verifying;
+  const shownProblems = verification.error ? [...problems, verification.error] : problems;
   const printBlockers = dirty ? ["you save or discard your changes"] : blockers;
 
   return (
@@ -87,6 +91,7 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
           <span className="text-sm text-muted-foreground">Printing unlocks when: {printBlockers.join("; ")}.</span>
         )}
       </div>
+      <RunProgress run={verification} />
       <details className="space-y-2">
         <summary className="cursor-pointer text-sm text-muted-foreground">Edit the resume</summary>
         <Textarea
@@ -109,9 +114,9 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
           </span>
         </div>
       </details>
-      {problems.length > 0 && (
+      {shownProblems.length > 0 && (
         <ul className="list-disc pl-6 text-sm text-destructive">
-          {problems.map((problem) => (
+          {shownProblems.map((problem) => (
             <li key={problem}>{problem}</li>
           ))}
         </ul>

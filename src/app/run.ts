@@ -1,8 +1,11 @@
 import { isLanguageCode } from "@/core/application/languages";
 import { LlmError } from "@/core/llm";
-import { runApplication, type RunEvent, type RunInput } from "@/core/pipeline/run";
+import { runApplication } from "@/core/pipeline/run";
+import { verifyApplication } from "@/core/pipeline/verify";
+import type { RunKind } from "@/core/runs/queue";
 import { llmClient } from "@/app/llm";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
+import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "@/app/runs";
 import { DEFAULT_TEMPLATE, templateStore } from "@/app/templates";
 
 /** Reads the optional resume language from a request body; `error` when it isn't a known code. */
@@ -14,57 +17,69 @@ export function readLanguage(value: unknown): { language: string | null } | { er
   return { language };
 }
 
-/**
- * Runs the pipeline for the selected profile and streams its progress, one JSON event
- * per line (F30). Used by a new run and by "Try again" on a saved application (F19).
- */
-export async function streamRun(start: RunInput["start"], language: string | null): Promise<Response> {
+/** Does the work of one queued run for its profile: the pipeline, or "Verify again" (F42). */
+const executeRun: ExecuteRun = async (run: AppRun, send) => {
   const store = profileStore();
-  const slug = await readSelectedProfile((await store.listProfiles()).slugs);
-  if (!slug) return Response.json({ error: "Choose a profile first." }, { status: 400 });
+  const slug = run.profile;
   const loaded = await store.loadProfile(slug);
-  if (!loaded.ok) return Response.json({ error: "Fix the profile's problems first." }, { status: 400 });
+  if (!loaded.ok) throw new Error("Fix the profile's problems first.");
+  // Every file belongs to the run's profile (Art. III.7).
+  const files = {
+    create: (baseName, initial) => store.createApplication(slug, baseName, initial),
+    read: (id, file) => store.readApplicationFile(slug, id, file),
+    add: (id, file, content) => store.addApplicationFile(slug, id, file, content),
+    replace: (id, file, content) => store.replaceApplicationFile(slug, id, file, content),
+  } satisfies Parameters<typeof runApplication>[0]["files"];
+  const { start, language } = run.input;
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (event: RunEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
-      try {
-        await runApplication({
-          llm: llmClient(),
-          profile: loaded.profile,
-          // Every file belongs to the selected profile (Art. III.7).
-          files: {
-            create: (baseName, files) => store.createApplication(slug, baseName, files),
-            read: (id, file) => store.readApplicationFile(slug, id, file),
-            add: (id, file, content) => store.addApplicationFile(slug, id, file, content),
-            replace: (id, file, content) => store.replaceApplicationFile(slug, id, file, content),
-          },
-          loadTemplate: (country) => templateStore().loadTemplate(country),
-          template: DEFAULT_TEMPLATE,
-          start,
-          language,
-          now: () => new Date(),
-          // Today's date on this machine, as YYYY-MM-DD.
-          today: () => new Date().toLocaleDateString("en-CA"),
-          send,
-        });
-      } catch (error) {
-        send({ type: "error", message: errorMessage(error) });
-      } finally {
-        controller.close();
-      }
-    },
-  });
+  try {
+    if (run.kind === "verify") {
+      if (!("id" in start)) throw new Error("Only a saved application can be verified.");
+      await verifyApplication({ llm: llmClient(), profile: loaded.profile, files, id: start.id, now: () => new Date(), send });
+    } else {
+      await runApplication({
+        llm: llmClient(),
+        profile: loaded.profile,
+        files,
+        loadTemplate: (country) => templateStore().loadTemplate(country),
+        template: DEFAULT_TEMPLATE,
+        start,
+        language,
+        now: () => new Date(),
+        // Today's date on this machine, as YYYY-MM-DD.
+        today: () => new Date().toLocaleDateString("en-CA"),
+        send,
+      });
+    }
+  } catch (error) {
+    // Unexpected errors carry file paths at most, never profile or posting text (Art. III.4).
+    if (!(error instanceof LlmError)) console.error(error);
+    throw error;
+  }
+};
 
-  return new Response(stream, {
-    headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" },
-  });
+// One registry for the whole server, kept on globalThis so hot reload doesn't duplicate it.
+const server = globalThis as typeof globalThis & { resumeRuns?: RunRegistry };
+
+export function runRegistry(): RunRegistry {
+  return (server.resumeRuns ??= createRunRegistry(executeRun));
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof LlmError) return error.message;
-  // Unexpected errors carry file paths at most, never profile or posting text (Art. III.4).
-  console.error(error);
-  return error instanceof Error ? error.message : "Something went wrong. See the server console.";
+/** The selected profile, or the response that says there is none. */
+export async function selectedProfile(): Promise<{ slug: string } | { error: Response }> {
+  const slug = await readSelectedProfile((await profileStore().listProfiles()).slugs);
+  return slug ? { slug } : { error: Response.json({ error: "Choose a profile first." }, { status: 400 }) };
+}
+
+/**
+ * Queues a run for the selected profile and answers `{ runId }` right away; its progress
+ * arrives through the run's event stream (F42).
+ */
+export async function enqueueRun(kind: RunKind, input: RunRequest): Promise<Response> {
+  const selected = await selectedProfile();
+  if ("error" in selected) return selected.error;
+  const loaded = await profileStore().loadProfile(selected.slug);
+  if (!loaded.ok) return Response.json({ error: "Fix the profile's problems first." }, { status: 400 });
+
+  return Response.json({ runId: runRegistry().enqueue(selected.slug, kind, input) }, { status: 202 });
 }

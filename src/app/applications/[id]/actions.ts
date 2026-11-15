@@ -4,16 +4,13 @@ import { revalidatePath } from "next/cache";
 import { isApplicationId } from "@/core/application/folder";
 import { patchFrontmatter } from "@/core/markdown/frontmatter";
 import { validateMarkdownFile } from "@/core/markdown/validate";
-import { LlmError } from "@/core/llm";
-import { reviewResume } from "@/core/pipeline/review-resume";
 import { contentYaml, parseContentYaml } from "@/core/resume/edit";
 import { renderResume } from "@/core/resume/render";
 import { resumeFileSchema, type Inference } from "@/core/resume/schema";
 import { checkResume } from "@/core/verification/checks";
 import { resumeStatus, verificationSchema, type Verification } from "@/core/verification/schema";
-import { withChecks, withFullVerification } from "@/core/verification/update";
+import { withChecks } from "@/core/verification/update";
 import { stringifyFrontmatter } from "@/core/markdown/frontmatter";
-import { llmClient } from "@/app/llm";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import { templateStore } from "@/app/templates";
 
@@ -106,31 +103,6 @@ export async function saveResume(id: string, yaml: string): Promise<ActionResult
     patchFrontmatter(resumeSource, { ...parsed.content, status: resumeStatus(resume, next) }),
   );
   await writeVerification(store, slug, id, verificationSource, next);
-  revalidatePath(`/applications/${id}`);
-  return { ok: true };
-}
-
-/** Runs both checks on the saved resume; the model review can take minutes (Art. II.5, F15, F17). */
-export async function verifyResume(id: string): Promise<ActionResult> {
-  const { store, slug, resumeSource, resume, verificationSource, verification } = await loadReview(id);
-  const profile = await store.loadProfile(slug);
-  if (!profile.ok) return { ok: false, problems: ["Your profile has problems. Fix its files first."] };
-
-  const checkedAt = new Date().toISOString();
-  const found = checkResume(profile.profile, resume);
-  let reviewed;
-  try {
-    reviewed = await reviewResume({ llm: llmClient(), profile: profile.profile, resume, now: () => new Date() });
-  } catch (error) {
-    if (error instanceof LlmError) return { ok: false, problems: [error.message] };
-    throw error;
-  }
-  const next = withFullVerification(verification, [...found, ...reviewed.failures], checkedAt, reviewed.review);
-  await writeVerification(store, slug, id, verificationSource, next);
-  const status = resumeStatus(resume, next);
-  if (status !== resume.status) {
-    await store.replaceApplicationFile(slug, id, "resume.md", patchFrontmatter(resumeSource, { status }));
-  }
   revalidatePath(`/applications/${id}`);
   return { ok: true };
 }

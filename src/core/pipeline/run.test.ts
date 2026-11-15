@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { ApplicationFile } from "../application/folder";
 import { LlmError, type LlmClient, type LlmRequest } from "../llm";
-import { parseFrontmatter } from "../markdown/frontmatter";
+import { parseFrontmatter, patchFrontmatter } from "../markdown/frontmatter";
 import { assembleProfile, type Profile, type SourceFile } from "../profile/profile";
 import { resumeFixture } from "../resume/fixture.testing";
 import type { ResumeContent } from "../resume/schema";
 import { parseTemplate } from "../template/template";
 import { runApplication, type ApplicationFiles, type RunEvent, type RunInput } from "./run";
+import { verifyApplication } from "./verify";
 
 const ACME = "experience/2023-01-acme-senior-developer.md";
 const ID = "2026-11-10-globex-backend-engineer";
@@ -288,5 +289,80 @@ describe("runApplication", () => {
         "no saved posting and analysis",
       );
     });
+  });
+});
+
+describe("verifyApplication", () => {
+  const flagged = { unsupported: [{ id: "summary", problem: "Not stated." }] };
+  const now = () => new Date("2026-11-11T09:00:00.000Z");
+
+  /** An application whose review flagged the summary, so the resume is a draft. */
+  async function application() {
+    const memory = memoryFiles();
+    await runApplication(input({ llm: fakeLlm([analysisReply, tailorReply(), flagged]).llm, files: memory.files }).run);
+    return memory;
+  }
+
+  it("runs both checks, replaces the failures and marks a clean resume ready", async () => {
+    const { files, saved, data } = await application();
+    saved.set(`${ID}/resume.md`, saved.get(`${ID}/resume.md`)!.replace("---\n", "---\nmy_note: keep me\n"));
+    const { llm, requests } = fakeLlm([{ unsupported: [] }]);
+    const events: RunEvent[] = [];
+
+    expect(await verifyApplication({ llm, profile: profile(), files, id: ID, now, send: (e) => events.push(e) })).toBe(ID);
+
+    expect(requests).toHaveLength(1);
+    expect(data("verification.md").data).toMatchObject({
+      checked_at: "2026-11-11T09:00:00.000Z",
+      review: { current: true },
+      failures: [],
+    });
+    expect(data("resume.md").data).toMatchObject({ status: "ready", my_note: "keep me" });
+    expect(steps(events)).toEqual(["check:running", "check:done", "review:running", "review:done", "done"]);
+    expect(events).toContainEqual({ type: "progress", step: "review", phase: "thinking", tokens: 12 });
+  });
+
+  it("keeps a dismissal when the model flags the same claim again", async () => {
+    const { files, saved, data } = await application();
+    const failures = (data("verification.md").data.failures as object[]).map((f) => ({ ...f, dismissed: true }));
+    saved.set(`${ID}/verification.md`, patchFrontmatter(saved.get(`${ID}/verification.md`)!, { failures }));
+    const llm = fakeLlm([{ unsupported: [{ id: "summary", problem: "Still not stated." }] }]).llm;
+
+    await verifyApplication({ llm, profile: profile(), files, id: ID, now, send: () => {} });
+
+    expect(data("verification.md").data.failures).toMatchObject([
+      { check: "review", where: "summary", problem: "Still not stated.", dismissed: true },
+    ]);
+  });
+
+  it("starts verification.md when the run never verified the resume", async () => {
+    const { files, saved, data } = await application();
+    saved.delete(`${ID}/verification.md`);
+
+    await verifyApplication({ llm: fakeLlm([flagged]).llm, profile: profile(), files, id: ID, now, send: () => {} });
+
+    expect(data("verification.md").data.failures).toMatchObject([{ check: "review", where: "summary" }]);
+    expect(data("resume.md").data).toMatchObject({ status: "draft" });
+  });
+
+  it("fails with the model's error and leaves the files as they were", async () => {
+    const { files, saved } = await application();
+    const before = new Map(saved);
+    const llm = fakeLlm([new LlmError("unreachable", "Can't reach Ollama.")]).llm;
+
+    await expect(verifyApplication({ llm, profile: profile(), files, id: ID, now, send: () => {} })).rejects.toThrow(
+      "Can't reach Ollama.",
+    );
+    expect(saved).toEqual(before);
+  });
+
+  it("refuses an application without a resume", async () => {
+    const { files } = memoryFiles();
+    const { llm, requests } = fakeLlm([]);
+
+    await expect(verifyApplication({ llm, profile: profile(), files, id: ID, now, send: () => {} })).rejects.toThrow(
+      "no resume yet",
+    );
+    expect(requests).toHaveLength(0);
   });
 });

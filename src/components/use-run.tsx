@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { RunEvent, RunStep } from "@/core/pipeline/run";
+import type { QueueEvent } from "@/core/runs/queue";
 import { formatElapsed } from "@/lib/utils";
 
 const STEP_LABELS: Record<RunStep, string> = {
@@ -16,7 +17,10 @@ type StepState = { step: RunStep; status: "running" | "done" };
 type Progress = Extract<RunEvent, { type: "progress" }>;
 
 export interface Run {
+  /** True from the moment the run is sent until it ends, waiting in the queue included. */
   running: boolean;
+  /** The run is in the queue behind another one (F42). */
+  waiting: boolean;
   steps: StepState[];
   /** Seconds since the run started. */
   elapsed: number;
@@ -25,8 +29,33 @@ export interface Run {
   error: string | null;
   /** The application folder, once it exists; a failed run can be tried again from it (F19). */
   savedId: string | null;
-  /** Posts to a run endpoint and follows its events; resolves with the ID when the run finishes. */
+  /** Queues a run through a run endpoint and follows it; resolves with the application's ID when the run finishes. */
   start(url: string, body: Record<string, string>): Promise<string | null>;
+  /**
+   * Follows a queued run through its event stream, which replays what already happened.
+   * `language` is the run's resume language, remembered once the application exists.
+   */
+  follow(runId: string, options?: { language?: string; signal?: AbortSignal }): Promise<string | null>;
+}
+
+/** Tells the Runs list that a run was queued or removed, so it doesn't wait for its next refresh. */
+export const RUNS_CHANGED = "runs-changed";
+
+/** Queues a run through a run endpoint (F42). */
+export async function enqueueRun(url: string, body: Record<string, string>): Promise<{ runId: string } | { error: string }> {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const reply = (await response.json().catch(() => null)) as { runId?: string; error?: string } | null;
+    if (!response.ok || !reply?.runId) return { error: reply?.error ?? `The server answered ${response.status}.` };
+    window.dispatchEvent(new Event(RUNS_CHANGED));
+    return { runId: reply.runId };
+  } catch {
+    return { error: "Can't reach the app." };
+  }
 }
 
 // The chosen resume language is remembered in this browser only, per application, so
@@ -42,9 +71,10 @@ function rememberLanguage(id: string, language: string) {
   else window.localStorage.removeItem(languageKey(id));
 }
 
-/** Follows a pipeline run step by step (F30). */
+/** Follows a queued run step by step (F30, F42). */
 export function useRun(): Run {
   const [running, setRunning] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [steps, setSteps] = useState<StepState[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -52,38 +82,39 @@ export function useRun(): Run {
   const [savedId, setSavedId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!running) return;
+    if (!running || waiting) return;
     const started = Date.now();
     const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
     return () => clearInterval(timer);
-  }, [running]);
+  }, [running, waiting]);
 
-  async function start(url: string, body: Record<string, string>): Promise<string | null> {
+  const follow = useCallback(async (runId: string, options: { language?: string; signal?: AbortSignal } = {}) => {
     setRunning(true);
+    setWaiting(true);
     setElapsed(0);
     setSteps([]);
     setProgress(null);
     setError(null);
     let finished: string | null = null;
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const response = await fetch(`/api/runs/${runId}/events`, { signal: options.signal });
       if (!response.ok || !response.body) {
         const reply = (await response.json().catch(() => null)) as { error?: string } | null;
         setError(reply?.error ?? `The server answered ${response.status}.`);
         return null;
       }
       for await (const event of readEvents(response.body)) {
-        if (event.type === "step") {
+        if (event.type === "started") {
+          setWaiting(false);
+        } else if (event.type === "removed") {
+          setError("This run was removed from the queue.");
+        } else if (event.type === "step") {
           setSteps((current) => [...current.filter((s) => s.step !== event.step), { step: event.step, status: event.status }]);
         } else if (event.type === "progress") {
           setProgress(event);
         } else if (event.type === "saved") {
           setSavedId(event.id);
-          rememberLanguage(event.id, body.language ?? "");
+          if (options.language !== undefined) rememberLanguage(event.id, options.language);
         } else if (event.type === "error") {
           setError(event.message);
         } else {
@@ -91,17 +122,33 @@ export function useRun(): Run {
         }
       }
     } catch {
-      setError("Lost the connection to the app while the run was in progress.");
+      // Not an error when the page itself stopped following.
+      if (!options.signal?.aborted) setError("Lost the connection to the app while the run was in progress.");
     } finally {
       setRunning(false);
+      setWaiting(false);
     }
     return finished;
+  }, []);
+
+  async function start(url: string, body: Record<string, string>): Promise<string | null> {
+    setRunning(true);
+    setSteps([]);
+    setError(null);
+    const queued = await enqueueRun(url, body);
+    if ("error" in queued) {
+      setError(queued.error);
+      setRunning(false);
+      return null;
+    }
+    return follow(queued.runId, { language: body.language });
   }
 
-  return { running, steps, elapsed, progress, error, savedId, start };
+  return { running, waiting, steps, elapsed, progress, error, savedId, start, follow };
 }
 
 export function RunProgress({ run }: { run: Run }) {
+  if (run.waiting) return <p className="text-sm text-muted-foreground">Waiting for another run to finish…</p>;
   if (run.steps.length === 0) return null;
   return (
     <ol className="space-y-1 text-sm">
@@ -124,7 +171,7 @@ export function RunProgress({ run }: { run: Run }) {
 }
 
 /** Reads newline-delimited JSON events from the response body. */
-async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<RunEvent> {
+async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<QueueEvent> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -134,6 +181,6 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Run
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
-    for (const line of lines) if (line.trim()) yield JSON.parse(line) as RunEvent;
+    for (const line of lines) if (line.trim()) yield JSON.parse(line) as QueueEvent;
   }
 }

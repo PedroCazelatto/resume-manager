@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { ProfilePicker } from "@/components/profile-picker";
 import { FileProblems } from "@/components/file-problems";
 import { NewApplicationForm } from "@/components/new-application-form";
+import { RunsList } from "@/components/runs-list";
 import { profileStore, readSelectedProfile } from "./profiles";
 import { DEFAULT_TEMPLATE, templateStore } from "./templates";
 
@@ -68,6 +69,8 @@ async function ProfileSection() {
             />
           )}
           <NewApplicationForm />
+          {/* A new key empties the list when the profile changes (Art. III.7). */}
+          <RunsList key={selected} />
         </>
       )}
     </div>
