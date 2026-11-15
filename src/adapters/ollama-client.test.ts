@@ -25,6 +25,7 @@ function stream(...parts: object[]): Response {
   });
 }
 
+const thought = (thinking: string) => ({ message: { role: "assistant", content: "", thinking }, done: false });
 const chunk = (content: string) => ({ message: { role: "assistant", content }, done: false });
 const done = (done_reason = "stop") => ({ message: { role: "assistant", content: "" }, done: true, done_reason });
 
@@ -155,7 +156,7 @@ describe("createOllamaClient", () => {
     });
   });
 
-  it("gives up after the configured timeout", async () => {
+  it("gives up when Ollama sends nothing for the configured timeout", async () => {
     const hanging: typeof fetch = (_input, init) =>
       new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)));
 
@@ -163,5 +164,60 @@ describe("createOllamaClient", () => {
 
     expect(error.kind).toBe("timeout");
     expect(error.message).toContain("OLLAMA_TIMEOUT_MS");
+  });
+
+  /** A response that sends one part every `gapMs`, and fails like fetch does when the call is aborted. */
+  function slowFetch(parts: object[], gapMs: number): typeof fetch {
+    return async (_input, init) => {
+      const encoder = new TextEncoder();
+      let timer: ReturnType<typeof setTimeout>;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          let i = 0;
+          const next = () => {
+            if (i === parts.length) return controller.close();
+            controller.enqueue(encoder.encode(`${JSON.stringify(parts[i++])}\n`));
+            timer = setTimeout(next, gapMs);
+          };
+          next();
+          init?.signal?.addEventListener("abort", () => {
+            clearTimeout(timer);
+            controller.error(init.signal?.reason);
+          });
+        },
+      });
+      return new Response(body, { headers: { "content-type": "application/x-ndjson" } });
+    };
+  }
+
+  it("lets a call run longer than the timeout while tokens keep arriving", async () => {
+    const parts = [thought("Let me"), thought(" check"), thought(" the"), thought(" posting."), chunk('{"company":"Globex"}'), done()];
+
+    const client = createOllamaClient({ ...settings, timeoutMs: 60 }, slowFetch(parts, 25));
+
+    expect(await client.generate(request)).toEqual({ company: "Globex" });
+  });
+
+  it("gives up when the stream stalls for longer than the timeout", async () => {
+    const error = await errorOf(
+      createOllamaClient({ ...settings, timeoutMs: 20 }, slowFetch([thought("Let me"), chunk("{")], 200)).generate(request),
+    );
+
+    expect(error.kind).toBe("timeout");
+  });
+
+  it("reports thinking and writing progress, and leaves the thinking out of the reply", async () => {
+    const { fetchImpl } = fakeFetch(() =>
+      stream(thought("Let me"), thought(" check."), chunk('{"comp'), chunk('any":"Globex"}'), done()),
+    );
+    const progress: object[] = [];
+
+    const reply = await createOllamaClient(settings, fetchImpl).generate({ ...request, onProgress: (p) => progress.push(p) });
+
+    expect(reply).toEqual({ company: "Globex" });
+    expect(progress).toEqual([
+      { phase: "thinking", tokens: 1 },
+      { phase: "writing", tokens: 1 },
+    ]);
   });
 });

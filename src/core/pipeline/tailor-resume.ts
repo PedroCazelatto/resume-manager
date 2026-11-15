@@ -1,7 +1,7 @@
 import { stringify } from "yaml";
 import { z } from "zod";
 import type { Analysis } from "../application/schemas";
-import { LlmError, type LlmClient } from "../llm";
+import { LlmError, type LlmClient, type LlmRequest } from "../llm";
 import { languageName } from "../application/languages";
 import { listProfileFiles, type Profile } from "../profile/profile";
 import { buildTailorResumePrompt, tailorResumeSystem } from "../prompts/tailor-resume";
@@ -48,6 +48,7 @@ export interface TailorResumeInput {
   /** ISO 639-1 code: the posting's language, or the user's choice (Art. VIII.1). */
   language: string;
   now: () => Date;
+  onProgress?: LlmRequest<unknown>["onProgress"];
 }
 
 /** Pipeline step 4: writes the resume content as a draft, with implied skills pending (F13, F14, F16). */
@@ -59,6 +60,7 @@ export async function tailorResume({
   template,
   language,
   now,
+  onProgress,
 }: TailorResumeInput): Promise<ResumeFile> {
   const files = listProfileFiles(profile);
   const paths = files.map((f) => f.file) as [string, ...string[]];
@@ -77,6 +79,7 @@ export async function tailorResume({
     }),
     schema: tailorReplySchema(paths),
     temperature: 0.3,
+    onProgress,
   });
 
   const personal = profile.personal.data;

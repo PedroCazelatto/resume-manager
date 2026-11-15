@@ -11,6 +11,15 @@ export interface LlmRequest<T> {
   schema: z.ZodType<T>;
   /** Use a low value for extraction and verification (Art. V.6). */
   temperature: number;
+  /** Called while the model works, so the UI can show it is alive (Art. V.8). */
+  onProgress?: (progress: LlmProgress) => void;
+}
+
+/** How far a call is: the model thinks first (when it has a thinking mode), then writes the reply. */
+export interface LlmProgress {
+  phase: "thinking" | "writing";
+  /** Tokens received in this phase so far. */
+  tokens: number;
 }
 
 export interface LlmClient {

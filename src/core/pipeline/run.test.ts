@@ -68,6 +68,7 @@ function fakeLlm(replies: unknown[]) {
       requests.push(request as LlmRequest<unknown>);
       const reply = replies.shift();
       if (reply instanceof Error) throw reply;
+      request.onProgress?.({ phase: "thinking", tokens: 12 });
       return request.schema.parse(reply);
     },
   };
@@ -119,7 +120,8 @@ function input(overrides: Partial<RunInput> & Pick<RunInput, "llm" | "files">): 
   return { run, events };
 }
 
-const steps = (events: RunEvent[]) => events.map((e) => (e.type === "step" ? `${e.step}:${e.status}` : e.type));
+const steps = (events: RunEvent[]) =>
+  events.filter((e) => e.type !== "progress").map((e) => (e.type === "step" ? `${e.step}:${e.status}` : e.type));
 
 describe("runApplication", () => {
   it("runs every step, saves each output and marks a clean resume ready", async () => {
@@ -150,6 +152,17 @@ describe("runApplication", () => {
       "review:done",
       "done",
     ]);
+  });
+
+  it("passes on the model's progress with the step it belongs to", async () => {
+    const { llm } = fakeLlm([analysisReply, tailorReply(), { unsupported: [] }]);
+    const { run, events } = input({ llm, files: memoryFiles().files });
+
+    await runApplication(run);
+
+    expect(events.filter((e) => e.type === "progress")).toEqual(
+      ["analyse", "tailor", "review"].map((step) => ({ type: "progress", step, phase: "thinking", tokens: 12 })),
+    );
   });
 
   it("leaves the resume a draft when a check fails or a skill is pending", async () => {

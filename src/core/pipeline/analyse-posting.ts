@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { IMPORTANCE, MATCH_STATUS, languageCode, type Analysis, type Job } from "../application/schemas";
-import { LlmError, type LlmClient } from "../llm";
+import { LlmError, type LlmClient, type LlmRequest } from "../llm";
 import { listProfileFiles, type Profile } from "../profile/profile";
 import { ANALYSE_POSTING_SYSTEM, buildAnalysePostingPrompt } from "../prompts/analyse-posting";
 
@@ -29,10 +29,11 @@ export interface AnalysePostingInput {
   profile: Profile;
   posting: string;
   now: () => Date;
+  onProgress?: LlmRequest<unknown>["onProgress"];
 }
 
 /** Pipeline steps 2–3 in one model call: analyse the posting, then fit/gap against the profile (F12). */
-export async function analysePosting({ llm, profile, posting, now }: AnalysePostingInput): Promise<{
+export async function analysePosting({ llm, profile, posting, now, onProgress }: AnalysePostingInput): Promise<{
   job: Job;
   analysis: Analysis;
 }> {
@@ -46,6 +47,7 @@ export async function analysePosting({ llm, profile, posting, now }: AnalysePost
     prompt: buildAnalysePostingPrompt(files, posting),
     schema: analysePostingReplySchema(paths),
     temperature: 0.1,
+    onProgress,
   });
 
   // A match needs evidence and a gap has none (Art. II.6); report the reply instead of fixing it.

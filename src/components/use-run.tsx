@@ -13,12 +13,15 @@ const STEP_LABELS: Record<RunStep, string> = {
 };
 
 type StepState = { step: RunStep; status: "running" | "done" };
+type Progress = Extract<RunEvent, { type: "progress" }>;
 
 export interface Run {
   running: boolean;
   steps: StepState[];
   /** Seconds since the run started. */
   elapsed: number;
+  /** What the model is doing in the running step, once it has sent tokens. */
+  progress: Progress | null;
   error: string | null;
   /** The application folder, once it exists; a failed run can be tried again from it (F19). */
   savedId: string | null;
@@ -44,6 +47,7 @@ export function useRun(): Run {
   const [running, setRunning] = useState(false);
   const [steps, setSteps] = useState<StepState[]>([]);
   const [elapsed, setElapsed] = useState(0);
+  const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
 
@@ -58,6 +62,7 @@ export function useRun(): Run {
     setRunning(true);
     setElapsed(0);
     setSteps([]);
+    setProgress(null);
     setError(null);
     let finished: string | null = null;
     try {
@@ -74,6 +79,8 @@ export function useRun(): Run {
       for await (const event of readEvents(response.body)) {
         if (event.type === "step") {
           setSteps((current) => [...current.filter((s) => s.step !== event.step), { step: event.step, status: event.status }]);
+        } else if (event.type === "progress") {
+          setProgress(event);
         } else if (event.type === "saved") {
           setSavedId(event.id);
           rememberLanguage(event.id, body.language ?? "");
@@ -91,7 +98,7 @@ export function useRun(): Run {
     return finished;
   }
 
-  return { running, steps, elapsed, error, savedId, start };
+  return { running, steps, elapsed, progress, error, savedId, start };
 }
 
 export function RunProgress({ run }: { run: Run }) {
@@ -101,7 +108,15 @@ export function RunProgress({ run }: { run: Run }) {
       {run.steps.map(({ step, status }) => (
         <li key={step}>
           {status === "done" ? "✓" : "…"} {STEP_LABELS[step]}
-          {status === "running" && run.running && <span className="text-muted-foreground"> ({formatElapsed(run.elapsed)})</span>}
+          {status === "running" && run.running && (
+            <span className="text-muted-foreground">
+              {" "}
+              ({formatElapsed(run.elapsed)}
+              {run.progress?.step === step &&
+                ` · ${run.progress.phase}, ${run.progress.tokens.toLocaleString("en")} tokens`}
+              )
+            </span>
+          )}
         </li>
       ))}
     </ol>

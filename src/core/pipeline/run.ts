@@ -1,6 +1,6 @@
 import { applicationFolderName, type ApplicationFile } from "../application/folder";
 import { analysisSchema, jobSchema } from "../application/schemas";
-import type { LlmClient } from "../llm";
+import type { LlmClient, LlmProgress } from "../llm";
 import { patchFrontmatter, stringifyFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile } from "../markdown/validate";
 import type { Profile } from "../profile/profile";
@@ -19,6 +19,8 @@ export type RunStep = "analyse" | "save" | "tailor" | "check" | "review";
 
 export type RunEvent =
   | { type: "step"; step: RunStep; status: "running" | "done" }
+  /** The model is thinking or writing in this step (Art. V.8). */
+  | ({ type: "progress"; step: RunStep } & LlmProgress)
   /** The application folder exists from here on, even if a later step fails. */
   | { type: "saved"; id: string }
   | { type: "done"; id: string }
@@ -59,6 +61,7 @@ function invalid(file: string, problems: string[]): Error {
 export async function runApplication(input: RunInput): Promise<string> {
   const { llm, profile, files, send, now } = input;
   const step = (name: RunStep, status: "running" | "done") => send({ type: "step", step: name, status });
+  const progress = (name: RunStep) => (p: LlmProgress) => send({ type: "progress", step: name, ...p });
 
   let id: string;
   let posting: string;
@@ -67,7 +70,7 @@ export async function runApplication(input: RunInput): Promise<string> {
   if ("posting" in input.start) {
     posting = input.start.posting;
     step("analyse", "running");
-    ({ job, analysis } = await analysePosting({ llm, profile, posting, now }));
+    ({ job, analysis } = await analysePosting({ llm, profile, posting, now, onProgress: progress("analyse") }));
     step("analyse", "done");
 
     step("save", "running");
@@ -109,6 +112,7 @@ export async function runApplication(input: RunInput): Promise<string> {
       template: template.template,
       language: input.language ?? job.language,
       now,
+      onProgress: progress("tailor"),
     });
     await files.add(id, "resume.md", stringifyFrontmatter(resume));
   } else {
@@ -125,7 +129,7 @@ export async function runApplication(input: RunInput): Promise<string> {
     step("check", "done");
 
     step("review", "running");
-    const { review, failures } = await reviewResume({ llm, profile, resume, now });
+    const { review, failures } = await reviewResume({ llm, profile, resume, now, onProgress: progress("review") });
     const verification: Verification = { checked_at, review, failures: [...found, ...failures] };
     await files.add(id, "verification.md", stringifyFrontmatter(verification));
     const status = resumeStatus(resume, verification);
