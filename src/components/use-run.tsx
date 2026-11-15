@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RunEvent, RunStep } from "@/core/pipeline/run";
 import type { QueueEvent } from "@/core/runs/queue";
+import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/lib/utils";
 
 const STEP_LABELS: Record<RunStep, string> = {
@@ -27,6 +28,8 @@ export interface Run {
   /** What the model is doing in the running step, once it has sent tokens. */
   progress: Progress | null;
   error: string | null;
+  /** The user cancelled the run; that is not an error (F32). */
+  cancelled: boolean;
   /** The application folder, once it exists; a failed run can be tried again from it (F19). */
   savedId: string | null;
   /** Queues a run through a run endpoint and follows it; resolves with the application's ID when the run finishes. */
@@ -36,6 +39,10 @@ export interface Run {
    * `language` is the run's resume language, remembered once the application exists.
    */
   follow(runId: string, options?: { language?: string; signal?: AbortSignal }): Promise<string | null>;
+  /** Asks the server to stop the run being followed; the run's stream says when it has stopped (F32). */
+  cancel(): void;
+  /** True once Cancel was asked for, until the run ends. */
+  cancelling: boolean;
 }
 
 /** Tells the Runs list that a run was queued or removed, so it doesn't wait for its next refresh. */
@@ -80,6 +87,9 @@ export function useRun(): Run {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [cancelled, setCancelled] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [followedId, setFollowedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!running || waiting) return;
@@ -95,6 +105,9 @@ export function useRun(): Run {
     setSteps([]);
     setProgress(null);
     setError(null);
+    setCancelled(false);
+    setCancelling(false);
+    setFollowedId(runId);
     let finished: string | null = null;
     try {
       const response = await fetch(`/api/runs/${runId}/events`, { signal: options.signal });
@@ -108,6 +121,8 @@ export function useRun(): Run {
           setWaiting(false);
         } else if (event.type === "removed") {
           setError("This run was removed from the queue.");
+        } else if (event.type === "cancelled") {
+          setCancelled(true);
         } else if (event.type === "step") {
           setSteps((current) => [...current.filter((s) => s.step !== event.step), { step: event.step, status: event.status }]);
         } else if (event.type === "progress") {
@@ -127,6 +142,7 @@ export function useRun(): Run {
     } finally {
       setRunning(false);
       setWaiting(false);
+      setCancelling(false);
     }
     return finished;
   }, []);
@@ -135,6 +151,7 @@ export function useRun(): Run {
     setRunning(true);
     setSteps([]);
     setError(null);
+    setCancelled(false);
     const queued = await enqueueRun(url, body);
     if ("error" in queued) {
       setError(queued.error);
@@ -144,29 +161,48 @@ export function useRun(): Run {
     return follow(queued.runId, { language: body.language });
   }
 
-  return { running, waiting, steps, elapsed, progress, error, savedId, start, follow };
+  function cancel() {
+    if (followedId === null) return;
+    setCancelling(true);
+    void fetch(`/api/runs/${followedId}`, { method: "DELETE" })
+      .then((response) => {
+        if (!response.ok) setCancelling(false);
+        window.dispatchEvent(new Event(RUNS_CHANGED));
+      })
+      .catch(() => setCancelling(false));
+  }
+
+  return { running, waiting, steps, elapsed, progress, error, cancelled, savedId, start, follow, cancel, cancelling };
 }
 
 export function RunProgress({ run }: { run: Run }) {
   if (run.waiting) return <p className="text-sm text-muted-foreground">Waiting for another run to finish…</p>;
-  if (run.steps.length === 0) return null;
+  if (run.steps.length === 0 && !run.cancelled) return null;
   return (
-    <ol className="space-y-1 text-sm">
-      {run.steps.map(({ step, status }) => (
-        <li key={step}>
-          {status === "done" ? "✓" : "…"} {STEP_LABELS[step]}
-          {status === "running" && run.running && (
-            <span className="text-muted-foreground">
-              {" "}
-              ({formatElapsed(run.elapsed)}
-              {run.progress?.step === step &&
-                ` · ${run.progress.phase}, ${run.progress.tokens.toLocaleString("en")} tokens`}
-              )
-            </span>
-          )}
-        </li>
-      ))}
-    </ol>
+    <div className="space-y-1 text-sm">
+      <ol className="space-y-1">
+        {run.steps.map(({ step, status }) => (
+          <li key={step}>
+            {status === "done" ? "✓" : "…"} {STEP_LABELS[step]}
+            {status === "running" && run.running && (
+              <>
+                <span className="text-muted-foreground">
+                  {" "}
+                  ({formatElapsed(run.elapsed)}
+                  {run.progress?.step === step &&
+                    ` · ${run.progress.phase}, ${run.progress.tokens.toLocaleString("en")} tokens`}
+                  )
+                </span>
+                <Button variant="outline" size="xs" className="ml-2" disabled={run.cancelling} onClick={run.cancel}>
+                  {run.cancelling ? "Cancelling…" : "Cancel"}
+                </Button>
+              </>
+            )}
+          </li>
+        ))}
+      </ol>
+      {run.cancelled && <p className="text-muted-foreground">This run was cancelled. The finished steps stay saved.</p>}
+    </div>
   );
 }
 
