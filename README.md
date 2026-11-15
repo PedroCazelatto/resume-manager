@@ -2,7 +2,7 @@
 
 Resumes tailored to each job, written by a local AI model from your own data. Nothing leaves your machine.
 
-> **Status: M0, the first usable version, is built.** The rules are in [`constitution.md`](constitution.md) and the feature list in [`ROADMAP.md`](ROADMAP.md).
+> **Status: the first usable version is built.** The technical rules are in [`constitution.md`](constitution.md) and every feature, built or planned, in [`backlog/`](backlog/index.md).
 
 ## What it does
 
@@ -75,7 +75,7 @@ Settings live in `.env`:
 |---|---|---|
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama endpoint |
 | `OLLAMA_MODEL` | none (`qwen3.5:27b-int4` in `.env.example`) | Model used for every pipeline step |
-| `OLLAMA_TIMEOUT_MS` | `1800000` | Per-call timeout (large models are slow) |
+| `OLLAMA_TIMEOUT_MS` | `1800000` | How long a model call may stay silent. It restarts with every token, so a model that is still thinking or writing is never cut off |
 | `OLLAMA_NUM_CTX` | `16384` | Context window in tokens. Prompts or replies that don't fit fail with a clear error instead of being silently truncated |
 | `OLLAMA_THINK` | model default | Thinking mode for models that have one (`true`/`false`). Unset uses the model's default; `false` is much faster but may judge less carefully |
 | `PROFILES_DIR` | `./profiles` | Folder holding the profile folders |
@@ -134,17 +134,12 @@ Each country has one HTML template at `templates/<country>.html`, starting with 
 - The only outbound requests go to Ollama. No telemetry.
 - Your data stays in `profiles/` on your machine. It is never committed.
 
-## Roadmap
+## Features and plans
 
-- **M0, the first usable version (built):** pick a profile and paste a posting to get a fit/gap analysis and a tailored resume. You approve any implied skills, every claim is checked against your profile, and you print it to PDF.
-- **Backlog:** URL fetch, a history screen, one-click PDF, a profile editor, CV import, and more, built in the order real usage suggests.
-- **v2:** a guided AI interview that builds your profile by asking questions.
-- **Later, not decided:** web deployment (Netlify or AWS) with authentication, cover letters, application status tracking.
-
-The full feature list is in [`ROADMAP.md`](ROADMAP.md).
+Every feature has a file in [`backlog/`](backlog/index.md), marked `implemented`, `next version`, or `future version`. The index lists them all by status, along with what is out of scope.
 
 ## Project documents
 
-- [`constitution.md`](constitution.md): every rule of the project; it wins over everything else.
-- [`ROADMAP.md`](ROADMAP.md): the feature list, the M0 scope, and the backlog.
+- [`constitution.md`](constitution.md): the technical decisions and rules of the project; it wins over everything else.
+- [`backlog/`](backlog/index.md): one file per task, with the version that carries it.
 - [`CLAUDE.md`](CLAUDE.md): instructions for Claude Code.

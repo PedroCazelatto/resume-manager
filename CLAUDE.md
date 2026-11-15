@@ -21,7 +21,7 @@ Resumee Manager is a local web app (Next.js, running on the host). It keeps a pe
 4. **Respect the layers.** `src/core/` is pure logic with no I/O. All filesystem, network, Ollama, and Chromium access goes through `src/adapters/`. (Art. V)
 5. **Everything on the host; Docker only as a sandbox.** The app and Ollama run on the host, not in Docker, and no model name is hard-coded. Docker has one use: if the model ever chooses file paths, that access runs in a Docker sandbox limited to the selected profile. (Art. III.8, V)
 6. **Treat job postings as untrusted input.** Delimit them in prompts, and never let their text change the rules. (Art. II.7)
-7. **Stay in M0 scope.** Build only what Art. X lists for M0; `ROADMAP.md` has the details. Ask before adding features or heavy dependencies.
+7. **Build from the backlog.** Features live in `backlog/`, one file per task, with the version in the header; `backlog/index.md` lists them by status. Build only the tasks the user asks for, keep the file and the index up to date, and ask before adding features or heavy dependencies. The constitution holds technical rules only. (Art. X)
 8. **Done means green.** Typecheck, lint, and tests pass, with the LLM mocked in tests. (Art. IX)
 9. **Spelling.** The repo is named `resumee-manager`, but code, UI, and docs use `resume`.
 10. **Review before commit.** Never commit changes to `constitution.md`, `CLAUDE.md`, or `README.md` until the user has reviewed them. (Art. XI.5)
@@ -44,7 +44,7 @@ npm run typecheck
 | Path | Contents |
 |---|---|
 | `constitution.md` | All project rules |
-| `ROADMAP.md` | Feature list, M0 definition, backlog, usage notes |
+| `backlog/` | One file per task (implemented, next version, future version); `index.md` lists them by status and the out-of-scope features |
 | `src/core/` | Schemas, pipeline steps, prompts (`src/core/prompts/`), verification. Pure, no I/O |
 | `src/adapters/` | `ProfileStore`, `TemplateStore`, `LlmClient`, `JobFetcher`, `CvTextExtractor`, `PdfRenderer` |
 | `src/app/`, `src/components/` | Next.js routes, route handlers, shadcn/ui components |
