@@ -8,7 +8,7 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: cancel-a-run, reconnect-to-a-run, posting-by-url, list-of-posting-urls, browser-extension; then dark-mode and visual-pass together; the rest in any order.
+Suggested order, from what each task depends on: run-queue, cancel-a-run, reconnect-to-a-run, posting-by-url, list-of-posting-urls, browser-extension; then dark-mode and visual-pass together; the rest in any order.
 
 - [write-back-implied-skills.md](write-back-implied-skills.md) — Write approved implied skills back to the profile (F07)
 - [posting-by-url.md](posting-by-url.md) — Give a link to the job posting instead of pasting it (F10)
