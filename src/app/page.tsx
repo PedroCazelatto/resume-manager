@@ -3,7 +3,7 @@ import { ProfilePicker } from "@/components/profile-picker";
 import { FileProblems } from "@/components/file-problems";
 import { NewApplicationForm } from "@/components/new-application-form";
 import { profileStore, readSelectedProfile } from "./profiles";
-import { M0_TEMPLATE, templateStore } from "./templates";
+import { DEFAULT_TEMPLATE, templateStore } from "./templates";
 
 export default function Home() {
   return (
@@ -32,7 +32,7 @@ async function ProfileSection() {
 
   const [result, template] = await Promise.all([
     selected ? store.loadProfile(selected) : null,
-    templateStore().loadTemplate(M0_TEMPLATE),
+    templateStore().loadTemplate(DEFAULT_TEMPLATE),
   ]);
 
   return (

@@ -1,5 +1,6 @@
 ---
 title: Accept a list of job links at once
+id: F33
 version: next version
 reported: 2026-11-14
 ---
@@ -17,4 +18,3 @@ Applying to several jobs means starting each run by hand and waiting for it to f
 
 - Asked for as a bonus on top of [posting-by-url](posting-by-url.md), which it depends on.
 - Each link is a full run of three model calls, so a list can take hours. It also needs [cancel-a-run](cancel-a-run.md).
-- Not listed in constitution Art. X yet; it needs an amendment before it is built.

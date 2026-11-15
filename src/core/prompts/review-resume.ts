@@ -2,7 +2,7 @@ import { stringify } from "yaml";
 import type { Claim } from "../verification/claims";
 
 // Prompt for pipeline step 5: review the resume's claims against their sources
-// (constitution Art. II.5, VI.5; ROADMAP F17).
+// (constitution Art. II.5, VI.5; backlog F17).
 
 export function reviewResumeSystem(language: { code: string; name: string }): string {
   return `You review a generated resume against the candidate's profile for a resume tool. Your job is to find claims the profile doesn't support.

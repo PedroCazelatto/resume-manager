@@ -3,7 +3,7 @@ import { LlmError } from "@/core/llm";
 import { runApplication, type RunEvent, type RunInput } from "@/core/pipeline/run";
 import { llmClient } from "@/app/llm";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
-import { M0_TEMPLATE, templateStore } from "@/app/templates";
+import { DEFAULT_TEMPLATE, templateStore } from "@/app/templates";
 
 /** Reads the optional resume language from a request body; `error` when it isn't a known code. */
 export function readLanguage(value: unknown): { language: string | null } | { error: Response } {
@@ -41,7 +41,7 @@ export async function streamRun(start: RunInput["start"], language: string | nul
             replace: (id, file, content) => store.replaceApplicationFile(slug, id, file, content),
           },
           loadTemplate: (country) => templateStore().loadTemplate(country),
-          template: M0_TEMPLATE,
+          template: DEFAULT_TEMPLATE,
           start,
           language,
           now: () => new Date(),

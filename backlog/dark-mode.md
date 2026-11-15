@@ -1,5 +1,6 @@
 ---
 title: Dark mode
+id: F34
 version: next version
 reported: 2026-11-14
 ---
@@ -16,4 +17,3 @@ The app only has a light look.
 ## Notes
 
 - Decided 2026-11-15: a toggle button, not following the system setting.
-- Not listed in constitution Art. X yet; it needs an amendment before it is built.

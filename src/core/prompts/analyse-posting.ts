@@ -1,5 +1,5 @@
 // Prompt for pipeline steps 2–3, run as one call: analyse the posting and match it
-// against the profile (constitution Art. VI, ROADMAP F12).
+// against the profile (constitution Art. VI, backlog F12).
 
 export const ANALYSE_POSTING_SYSTEM = `You analyse a job posting against a candidate's profile for a resume tool.
 

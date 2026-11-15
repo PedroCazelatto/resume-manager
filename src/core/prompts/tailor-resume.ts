@@ -1,5 +1,5 @@
 // Prompt for pipeline step 4: write the resume content for one posting, following the
-// country template (constitution Art. VI.4, VII; ROADMAP F13, F14, F16).
+// country template (constitution Art. VI.4, VII; backlog F13, F14, F16).
 
 export interface TailorPromptInput {
   files: { file: string; source: string }[];

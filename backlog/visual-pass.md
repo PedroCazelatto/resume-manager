@@ -1,5 +1,6 @@
 ---
 title: Make the interface look good
+id: F35
 version: next version
 reported: 2026-11-14
 ---
@@ -18,4 +19,3 @@ The interface works but is ugly: plain stacked sections with little structure.
 
 - Decided 2026-11-15: direction "clean and minimal".
 - Best done together with [dark-mode](dark-mode.md), since both touch every component's colours.
-- Not listed in constitution Art. X yet; it needs an amendment before it is built.

@@ -1,5 +1,6 @@
 ---
 title: Give a link to the job posting instead of pasting it
+id: F10
 version: next version
 reported: 2026-11-14
 ---
@@ -15,6 +16,5 @@ The posting has to be copied and pasted. The user wants a field for the link to 
 
 ## Notes
 
-- This is roadmap feature F10, already in the backlog of constitution Art. X.
 - Art. V.10 sets the rules: http/https only, no private or loopback addresses, size and time limits, and no headless-browser scraping.
 - Open risk: Indeed may refuse plain automated requests. This has not been checked. If it does, links from Indeed would always fall back to pasting.

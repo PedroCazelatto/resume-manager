@@ -1,5 +1,6 @@
 ---
 title: Show the run timer as MMmSSs
+id: F36
 version: implemented
 reported: 2026-11-14
 ---
