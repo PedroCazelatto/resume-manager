@@ -20,3 +20,6 @@ next-env.d.ts
 # Logs and OS files
 *.log
 .DS_Store
+
+# Worktrees of assistants working in parallel
+.claude/worktrees/

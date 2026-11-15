@@ -71,6 +71,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Worktrees of assistants working in parallel; each is linted in its own checkout.
+    ".claude/**",
   ]),
 ]);
 
