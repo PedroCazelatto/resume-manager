@@ -5,10 +5,19 @@ version: implemented
 reported: 2026-11-14
 ---
 
-## Problem
+## What it does
 
-The timer next to the running step counted plain seconds, e.g. `(125 s)`.
+- The timer next to the running step reads `02m05s` instead of plain seconds.
 
-## What was built
+## Where it lives
 
-- The timer reads `02m05s` (commit `8eafab6`).
+- `src/lib/utils.ts`: `formatElapsed`.
+- `src/components/use-run.tsx`.
+
+## Tests
+
+- `src/lib/utils.test.ts`.
+
+## Rules it follows
+
+- Art. V.8.

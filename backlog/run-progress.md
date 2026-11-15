@@ -6,4 +6,21 @@ version: implemented
 
 ## What it does
 
-While a run works, the page lists each step with a timer and what the model is doing (thinking or writing, with a token count).
+- While a run works, the page lists each step: analysing, saving, writing the resume, checking, reviewing.
+- The running step shows a timer as `MMmSSs` and what the model is doing: `thinking, 1,234 tokens`, then `writing, 310 tokens`.
+- The server streams progress as one JSON event per line.
+
+## Where it lives
+
+- `src/core/pipeline/run.ts`: `RunEvent`, `RunStep`.
+- `src/app/run.ts`: `streamRun`.
+- `src/components/use-run.tsx`: `useRun`, `RunProgress`.
+- `src/lib/utils.ts`: `formatElapsed`.
+
+## Tests
+
+- `src/core/pipeline/run.test.ts`, `src/lib/utils.test.ts`, `src/adapters/ollama-client.test.ts` (progress reports).
+
+## Rules it follows
+
+- Art. V.8 (progress per step, never blocking without feedback).
