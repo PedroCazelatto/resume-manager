@@ -8,7 +8,7 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: run-queue, cancel-a-run, reconnect-to-a-run, posting-by-url, list-of-posting-urls, browser-extension; then dark-mode and visual-pass together; the rest in any order.
+Suggested order, from what each task depends on: cancel-a-run, reconnect-to-a-run, posting-by-url, list-of-posting-urls, browser-extension; then dark-mode and visual-pass together; the rest in any order.
 
 - [write-back-implied-skills.md](write-back-implied-skills.md) — Write approved implied skills back to the profile (F07)
 - [posting-by-url.md](posting-by-url.md) — Give a link to the job posting instead of pasting it (F10)
@@ -19,7 +19,6 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [notify-when-run-ends.md](notify-when-run-ends.md) — Notify when a run ends (F38)
 - [reconnect-to-a-run.md](reconnect-to-a-run.md) — Reconnect to a running generation (F39)
 - [context-size-warning.md](context-size-warning.md) — Warn when a model call won't fit the context window (F40)
-- [run-queue.md](run-queue.md) — Queue runs and track them on the server (F42)
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 
 ## Future version
@@ -60,6 +59,7 @@ Suggested order, from what each task depends on: run-queue, cancel-a-run, reconn
 - [timer-format.md](timer-format.md) — Show the run timer as MMmSSs (F36)
 - [model-timeout.md](model-timeout.md) — The model timed out before writing the resume (F37)
 - [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
+- [run-queue.md](run-queue.md) — Queue runs and track them on the server (F42)
 
 ## Out of scope
 

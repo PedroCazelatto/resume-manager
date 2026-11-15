@@ -13,7 +13,7 @@ version: implemented
 ## Where it lives
 
 - `src/core/pipeline/run.ts`: `RunEvent`, `RunStep`.
-- `src/app/run.ts`: `streamRun`.
+- `src/app/api/runs/[runId]/events/route.ts`: the run's event stream (see [run-queue](run-queue.md)).
 - `src/components/use-run.tsx`: `useRun`, `RunProgress`.
 - `src/lib/utils.ts`: `formatElapsed`.
 
