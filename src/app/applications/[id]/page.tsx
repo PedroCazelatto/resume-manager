@@ -12,7 +12,8 @@ import { isApplicationId } from "@/core/application/folder";
 import { analysisSchema, jobSchema } from "@/core/application/schemas";
 import { languageName } from "@/core/application/languages";
 import { validateMarkdownFile, type FileError } from "@/core/markdown/validate";
-import { listProfileFiles } from "@/core/profile/profile";
+import { impliedSkillPlacement, type SkillPlacement } from "@/core/profile/add-skill";
+import { listProfileFiles, type Profile } from "@/core/profile/profile";
 import { contentYaml } from "@/core/resume/edit";
 import { renderResume } from "@/core/resume/render";
 import { resumeFileSchema, type ResumeFile } from "@/core/resume/schema";
@@ -112,7 +113,11 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
             files={citedFiles}
             className="xl:absolute xl:top-0 xl:left-full xl:ml-6 xl:w-64"
           />
-          <InferenceList id={id} inferences={resume.data.inferences} />
+          <InferenceList
+            id={id}
+            inferences={resume.data.inferences}
+            placements={profile?.ok ? skillPlacements(resume.data, profile.profile) : {}}
+          />
           {verification?.ok && <VerificationView id={id} verification={verification.data} />}
         </section>
       )}
@@ -128,6 +133,16 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
       </details>
     </div>
   );
+}
+
+/** Where each approved implied skill that skills.md doesn't list yet would go in it (F07). */
+function skillPlacements(resume: ResumeFile, profile: Profile): Record<string, SkillPlacement> {
+  const placements: Record<string, SkillPlacement> = {};
+  for (const { skill } of resume.inferences) {
+    const placement = impliedSkillPlacement(resume, profile.skills.source, skill);
+    if (placement) placements[skill] = placement;
+  }
+  return placements;
 }
 
 /** Why the resume is still a draft, in the user's words (F24). */
