@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { RunEvent, RunStep } from "@/core/pipeline/run";
-import type { QueueEvent } from "@/core/runs/queue";
+import type { QueueEvent, RunKind } from "@/core/runs/queue";
 import { askToNotify, tellRunEnded, watchRun } from "@/components/run-notifications";
 import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/lib/utils";
@@ -35,17 +35,27 @@ export interface Run {
   cancelled: boolean;
   /** The application folder, once it exists; a failed run can be tried again from it (F19). */
   savedId: string | null;
-  /** Queues a run through a run endpoint and follows it; resolves with the application's ID when the run finishes. */
-  start(url: string, body: Record<string, string>): Promise<string | null>;
+  /**
+   * Queues a run through a run endpoint and follows it; resolves with the application's ID
+   * when the run finishes. `kind` is what the endpoint queues.
+   */
+  start(url: string, body: Record<string, string>, kind: RunKind): Promise<string | null>;
   /**
    * Follows a queued run through its event stream, which replays what already happened.
-   * `language` is the run's resume language, remembered once the application exists.
+   * `kind` chooses the words that tell its end (F38); `language` is the run's resume
+   * language, remembered once the application exists.
    */
-  follow(runId: string, options?: { language?: string; signal?: AbortSignal }): Promise<string | null>;
+  follow(runId: string, options: FollowOptions): Promise<string | null>;
   /** Asks the server to stop the run being followed; the run's stream says when it has stopped (F32). */
   cancel(): void;
   /** True once Cancel was asked for, until the run ends. */
   cancelling: boolean;
+}
+
+interface FollowOptions {
+  kind: RunKind;
+  language?: string;
+  signal?: AbortSignal;
 }
 
 /** Tells the Runs list that a run was queued or removed, so it doesn't wait for its next refresh. */
@@ -104,7 +114,7 @@ export function useRun(): Run {
     return () => clearInterval(timer);
   }, [running, waiting]);
 
-  const follow = useCallback(async (runId: string, options: { language?: string; signal?: AbortSignal } = {}) => {
+  const follow = useCallback(async (runId: string, options: FollowOptions) => {
     setRunning(true);
     setWaiting(true);
     setElapsed(0);
@@ -150,7 +160,7 @@ export function useRun(): Run {
         }
       }
       // A cancelled or removed run, or a lost connection, is not told about (F38).
-      if (finished !== null || failed) tellRunEnded(runId, { status: failed ? "failed" : "done", ...job });
+      if (finished !== null || failed) tellRunEnded(runId, { kind: options.kind, status: failed ? "failed" : "done", ...job });
     } catch {
       // Not an error when the page itself stopped following.
       if (!options.signal?.aborted) setError("Lost the connection to the app while the run was in progress.");
@@ -162,7 +172,7 @@ export function useRun(): Run {
     return finished;
   }, []);
 
-  async function start(url: string, body: Record<string, string>): Promise<string | null> {
+  async function start(url: string, body: Record<string, string>, kind: RunKind): Promise<string | null> {
     setRunning(true);
     setSteps([]);
     setError(null);
@@ -173,7 +183,7 @@ export function useRun(): Run {
       setRunning(false);
       return null;
     }
-    return follow(queued.runId, { language: body.language });
+    return follow(queued.runId, { kind, language: body.language });
   }
 
   function cancel() {

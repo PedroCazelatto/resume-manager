@@ -1,4 +1,4 @@
-import { endedRuns, noticeTabTitle, runNotice, type EndedRun } from "@/core/runs/notice";
+import { endedRuns, noticeTabTitle, runNotice, showsNotification, type EndedRun } from "@/core/runs/notice";
 
 // Tells the user that a run ended, with a system notification and the tab title (F38).
 // Everything happens in the open page: no service worker and no request (Art. III.2).
@@ -48,6 +48,8 @@ export function tellRunEnded(runId: string, run: EndedRun) {
     window.addEventListener("focus", restoreTitle, { once: true });
   }
 
+  // Someone looking at the tab sees the run end there, so nothing is shown.
+  if (!showsNotification({ hidden: document.hidden, focused: document.hasFocus() })) return;
   if (!canNotify() || Notification.permission !== "granted") return;
   try {
     // The tag keeps two tabs of the app from stacking two notifications for the same run.

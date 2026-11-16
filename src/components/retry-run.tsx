@@ -23,7 +23,7 @@ export function RetryRun({ id, needsResume }: { id: string; needsResume: boolean
   const language = chosen ?? remembered;
 
   async function retry() {
-    if (await run.start(`/api/applications/${id}`, { language })) router.refresh();
+    if (await run.start(`/api/applications/${id}`, { language }, "retry")) router.refresh();
   }
 
   return (

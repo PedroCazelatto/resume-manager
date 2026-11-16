@@ -68,7 +68,7 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
 
   async function verify() {
     setProblems([]);
-    if (await verification.start(`/api/applications/${id}/verification`, {})) router.refresh();
+    if (await verification.start(`/api/applications/${id}/verification`, {}, "verify")) router.refresh();
   }
 
   const busy = saving || verifying;
