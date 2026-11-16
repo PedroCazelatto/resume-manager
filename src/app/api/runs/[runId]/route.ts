@@ -1,4 +1,4 @@
-import { runRegistry, selectedProfile } from "@/app/run";
+import { retryRun, runRegistry, selectedProfile } from "@/app/run";
 
 /**
  * Stops a run of the selected profile: a waiting run leaves the queue (F42), the running
@@ -14,4 +14,13 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/runs
   if (result === "ended") return Response.json({ error: "This run has already ended." }, { status: 409 });
   // The cancelled run's stream says when it has stopped.
   return new Response(null, { status: result === "cancelling" ? 202 : 204 });
+}
+
+/**
+ * "Try again" for a run of the selected profile that failed or was cancelled before its
+ * application was saved: queues a new run with the same posting and language (F19).
+ */
+export async function POST(_request: Request, context: RouteContext<"/api/runs/[runId]">): Promise<Response> {
+  const { runId } = await context.params;
+  return retryRun(runId);
 }

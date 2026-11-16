@@ -1,6 +1,7 @@
-import type { RunEvent, RunInput } from "@/core/pipeline/run";
+import type { RunEvent, RunInput, RunStep } from "@/core/pipeline/run";
 import {
   cancelRun,
+  canTryAgain,
   enqueue,
   findRun,
   finishRun,
@@ -8,17 +9,22 @@ import {
   recordEvent,
   removeWaiting,
   runsOf,
+  runSteps,
   startRun,
   type QueueEvent,
   type QueuedRun,
   type RunKind,
   type RunStatus,
+  type RunStepState,
 } from "@/core/runs/queue";
 
 // The runs the server knows about (F42). They live in memory only and are gone after a
 // restart (Art. IV.1). One run uses the model at a time; the others wait their turn.
 
-/** What a run was asked to do. The posting it may hold is never logged (Art. III.4). */
+/**
+ * What a run was asked to do. It stays with the run after it ends, so "Try again" can queue
+ * the same posting and language. The posting is never logged or listed (Art. III.4).
+ */
 export interface RunRequest {
   start: RunInput["start"];
   /** The user's choice of resume language; null means the posting's language. */
@@ -43,7 +49,13 @@ export interface RunSummary {
   company?: string;
   role?: string;
   error?: string;
+  /** The resume language chosen when the run was queued; null means the posting's language. */
   language: string | null;
+  /** The steps the run went through and their context-size warnings (F30, F40). */
+  steps: RunStepState[];
+  warnings: Partial<Record<RunStep, string>>;
+  /** The Runs list offers "Try again" on the run itself: it ended before its application was saved (F19). */
+  retryable: boolean;
 }
 
 /** Receives a run's events; `close` is called once, after the last one. */
@@ -102,28 +114,43 @@ export function createRunRegistry(execute: ExecuteRun) {
     }
   }
 
+  /** Adds a run to the queue and returns its ID right away; it starts when its turn comes. */
+  function add(profile: string, kind: RunKind, input: RunRequest): string {
+    const runId = crypto.randomUUID();
+    const applicationId = "id" in input.start ? input.start.id : undefined;
+    runs = enqueue(runs, { runId, profile, kind, input, applicationId });
+    void work();
+    return runId;
+  }
+
   return {
-    /** Adds a run to the queue and returns its ID right away; it starts when its turn comes. */
-    enqueue(profile: string, kind: RunKind, input: RunRequest): string {
-      const runId = crypto.randomUUID();
-      const applicationId = "id" in input.start ? input.start.id : undefined;
-      runs = enqueue(runs, { runId, profile, kind, input, applicationId });
-      void work();
-      return runId;
-    },
+    enqueue: add,
 
     /** The profile's own runs, in the order the Runs list shows them (Art. III.7). */
     list(profile: string): RunSummary[] {
-      return runsOf(runs, profile).map(({ runId, kind, status, applicationId, company, role, error, input }) => ({
-        runId,
-        kind,
-        status,
-        applicationId,
-        company,
-        role,
-        error,
-        language: input.language,
+      return runsOf(runs, profile).map((run) => ({
+        runId: run.runId,
+        kind: run.kind,
+        status: run.status,
+        applicationId: run.applicationId,
+        company: run.company,
+        role: run.role,
+        error: run.error,
+        language: run.input.language,
+        ...runSteps(run.events),
+        retryable: canTryAgain(run),
       }));
+    },
+
+    /**
+     * "Try again" for a run of this profile that ended before its application was saved:
+     * queues a new run with the same posting and language, and returns its ID (F19).
+     */
+    retry(profile: string, runId: string): { runId: string } | "refused" | "unknown" {
+      const run = findRun(runs, profile, runId);
+      if (!run) return "unknown";
+      if (!canTryAgain(run)) return "refused";
+      return { runId: add(profile, "new", run.input) };
     },
 
     /**

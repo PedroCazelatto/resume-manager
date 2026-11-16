@@ -72,15 +72,36 @@ export async function selectedProfile(): Promise<{ slug: string } | { error: Res
   return slug ? { slug } : { error: Response.json({ error: "Choose a profile first." }, { status: 400 }) };
 }
 
+/** The selected profile once its files load, or the response that says what is wrong. */
+async function readyProfile(): Promise<{ slug: string } | { error: Response }> {
+  const selected = await selectedProfile();
+  if ("error" in selected) return selected;
+  const loaded = await profileStore().loadProfile(selected.slug);
+  if (!loaded.ok) return { error: Response.json({ error: "Fix the profile's problems first." }, { status: 400 }) };
+  return selected;
+}
+
 /**
  * Queues a run for the selected profile and answers `{ runId }` right away; its progress
  * arrives through the run's event stream (F42).
  */
 export async function enqueueRun(kind: RunKind, input: RunRequest): Promise<Response> {
-  const selected = await selectedProfile();
-  if ("error" in selected) return selected.error;
-  const loaded = await profileStore().loadProfile(selected.slug);
-  if (!loaded.ok) return Response.json({ error: "Fix the profile's problems first." }, { status: 400 });
+  const profile = await readyProfile();
+  if ("error" in profile) return profile.error;
 
-  return Response.json({ runId: runRegistry().enqueue(selected.slug, kind, input) }, { status: 202 });
+  return Response.json({ runId: runRegistry().enqueue(profile.slug, kind, input) }, { status: 202 });
+}
+
+/**
+ * "Try again" for a run that ended before its application was saved: queues a new run with
+ * the posting and language the server kept with it, and answers `{ runId }` (F19).
+ */
+export async function retryRun(runId: string): Promise<Response> {
+  const profile = await readyProfile();
+  if ("error" in profile) return profile.error;
+
+  const result = runRegistry().retry(profile.slug, runId);
+  if (result === "unknown") return Response.json({ error: "Unknown run." }, { status: 404 });
+  if (result === "refused") return Response.json({ error: "This run can't be tried again from here." }, { status: 409 });
+  return Response.json(result, { status: 202 });
 }

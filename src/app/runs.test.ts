@@ -32,6 +32,13 @@ function followed(registry: RunRegistry, profile: string, runId: string): Promis
   });
 }
 
+/** A run whose model call hangs until the run's signal aborts it, like the Ollama client's. */
+const untilCancelled: ExecuteRun = (_run, send, signal) =>
+  new Promise((_, reject) => {
+    send({ type: "step", step: "analyse", status: "running" });
+    signal.addEventListener("abort", () => reject(new LlmError("cancelled", "The run was cancelled.")));
+  });
+
 const statuses = (registry: RunRegistry, profile = "jane-doe") => registry.list(profile).map((run) => run.status);
 
 describe("run registry", () => {
@@ -45,8 +52,8 @@ describe("run registry", () => {
     const second = registry.enqueue("jane-doe", "retry", { start: { id: ID }, language: "pt" });
 
     expect(registry.list("jane-doe")).toEqual([
-      { runId: first, kind: "new", status: "running", applicationId: undefined, error: undefined, language: null },
-      { runId: second, kind: "retry", status: "queued", applicationId: ID, error: undefined, language: "pt" },
+      { runId: first, kind: "new", status: "running", language: null, steps: [], warnings: {}, retryable: false },
+      { runId: second, kind: "retry", status: "queued", applicationId: ID, language: "pt", steps: [], warnings: {}, retryable: false },
     ]);
     expect(started.map((run) => run.runId)).toEqual([first]);
 
@@ -211,13 +218,6 @@ describe("run registry", () => {
   });
 
   describe("cancelling the running run (F32)", () => {
-    /** A run whose model call hangs until the run's signal aborts it, like the Ollama client's. */
-    const untilCancelled: ExecuteRun = (_run, send, signal) =>
-      new Promise((_, reject) => {
-        send({ type: "step", step: "analyse", status: "running" });
-        signal.addEventListener("abort", () => reject(new LlmError("cancelled", "The run was cancelled.")));
-      });
-
     it("aborts the run's signal, ends it as cancelled and starts the next one", async () => {
       const started: string[] = [];
       const registry = createRunRegistry((run, send, signal) => {
@@ -298,6 +298,118 @@ describe("run registry", () => {
       expect(registry.remove("john-roe", runId)).toBe("unknown");
       expect(signals.get(runId)!.aborted).toBe(false);
       expect(statuses(registry)).toEqual(["running"]);
+    });
+  });
+
+  it("keeps the steps and the context warning of a run that ended, for as long as it is listed", async () => {
+    const { execute, ends, sends } = manualRuns();
+    const registry = createRunRegistry(execute);
+    const warning = "This step's prompt is about 8193 tokens.";
+    const steps = [
+      { step: "analyse", status: "done" },
+      { step: "save", status: "running" },
+    ];
+
+    for (const end of ["resolve", "reject"] as const) {
+      const runId = registry.enqueue("jane-doe", "new", posting());
+      const ended = followed(registry, "jane-doe", runId);
+      const send = sends.get(runId)!;
+      send({ type: "step", step: "analyse", status: "running" });
+      send({ type: "warning", step: "analyse", message: warning });
+      send({ type: "step", step: "analyse", status: "done" });
+      send({ type: "step", step: "save", status: "running" });
+      expect(registry.list("jane-doe")[0]).toMatchObject({ runId, status: "running", steps, warnings: { analyse: warning } });
+
+      ends.get(runId)![end](new Error("The model took too long."));
+      await ended;
+      expect(registry.list("jane-doe")[0]).toMatchObject({
+        runId,
+        status: end === "resolve" ? "done" : "failed",
+        steps,
+        warnings: { analyse: warning },
+      });
+    }
+  });
+
+  describe("trying a run without an application again (F19)", () => {
+    /** A new run in German that failed before its application was saved. */
+    async function failedRun() {
+      const runs = manualRuns();
+      const registry = createRunRegistry(runs.execute);
+      const runId = registry.enqueue("jane-doe", "new", { start: { posting: POSTING }, language: "de" });
+      const ended = followed(registry, "jane-doe", runId);
+      runs.ends.get(runId)!.reject(new Error("Can't reach Ollama."));
+      await ended;
+      return { ...runs, registry, runId };
+    }
+
+    it("queues a new run with the same posting and language", async () => {
+      const { registry, runId, started } = await failedRun();
+      expect(registry.list("jane-doe")).toMatchObject([{ runId, status: "failed", retryable: true }]);
+
+      const again = registry.retry("jane-doe", runId);
+
+      if (typeof again === "string") throw new Error(again);
+      expect(again.runId).not.toBe(runId);
+      expect(registry.list("jane-doe")).toMatchObject([
+        { runId: again.runId, kind: "new", status: "running", language: "de", retryable: false },
+        { runId, status: "failed", language: "de", retryable: true },
+      ]);
+      expect(started[1]).toMatchObject({ runId: again.runId, input: { start: { posting: POSTING }, language: "de" } });
+      // The posting stays on the server (Art. III.4).
+      expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
+    });
+
+    it("tries a run again that was cancelled in its first step", async () => {
+      const registry = createRunRegistry(untilCancelled);
+      const runId = registry.enqueue("jane-doe", "new", posting());
+      const events = followed(registry, "jane-doe", runId);
+      registry.remove("jane-doe", runId);
+      await events;
+
+      expect(registry.list("jane-doe")).toMatchObject([{ runId, status: "cancelled", retryable: true }]);
+      expect(registry.retry("jane-doe", runId)).toEqual({ runId: expect.any(String) });
+      expect(statuses(registry)).toEqual(["running", "cancelled"]);
+    });
+
+    it("refuses a run that has an application, is still waiting or running, or finished", async () => {
+      const { execute, ends, sends } = manualRuns();
+      const registry = createRunRegistry(execute);
+      const saved = registry.enqueue("jane-doe", "new", posting());
+      const finished = registry.enqueue("jane-doe", "new", posting());
+      const running = registry.enqueue("jane-doe", "new", posting());
+      const waiting = registry.enqueue("jane-doe", "new", posting());
+
+      let ended = followed(registry, "jane-doe", saved);
+      sends.get(saved)!({ type: "saved", id: ID });
+      ends.get(saved)!.reject(new Error("The model took too long."));
+      await ended;
+      ended = followed(registry, "jane-doe", finished);
+      ends.get(finished)!.resolve();
+      await ended;
+
+      for (const runId of [saved, finished, running, waiting]) expect(registry.retry("jane-doe", runId)).toBe("refused");
+      expect(registry.retry("jane-doe", "no-such-run")).toBe("unknown");
+      expect(registry.list("jane-doe").map((run) => run.retryable)).toEqual([false, false, false, false]);
+    });
+
+    it("never tries another profile's run again (Art. III.7)", async () => {
+      const { registry, runId } = await failedRun();
+
+      expect(registry.retry("john-roe", runId)).toBe("unknown");
+      expect(registry.list("john-roe")).toEqual([]);
+      expect(statuses(registry)).toEqual(["failed"]);
+    });
+
+    it("logs nothing (Art. III.4)", async () => {
+      const logs = (["log", "info", "warn", "error", "debug"] as const).map((method) =>
+        vi.spyOn(console, method).mockImplementation(() => {}),
+      );
+      const { registry, runId } = await failedRun();
+
+      registry.retry("jane-doe", runId);
+
+      for (const log of logs) expect(log).not.toHaveBeenCalled();
     });
   });
 
