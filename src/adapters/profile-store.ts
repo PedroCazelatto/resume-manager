@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, link, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { access, link, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isApplicationId, withCollisionSuffix, type ApplicationFile } from "@/core/application/folder";
 import {
@@ -9,7 +9,7 @@ import {
   type AssembleProfileResult,
   type SourceFile,
 } from "@/core/profile/profile";
-import type { ProfileFileError } from "@/core/profile/validate";
+import { profileFileKind, type ProfileFileError } from "@/core/profile/validate";
 
 export interface ProfileList {
   slugs: string[];
@@ -21,6 +21,12 @@ export interface ProfileStore {
   listProfiles(): Promise<ProfileList>;
   /** Reads and validates one profile. Never touches another profile's folder (Art. III.7). */
   loadProfile(slug: string): Promise<AssembleProfileResult>;
+  /**
+   * Replaces one file of the profile atomically (Art. IV.8). `file` is relative to the profile
+   * folder and must be part of the profile layout, so applications/ and imports/ are out of
+   * reach. Only for changes the user confirmed in the UI. Fails if the file doesn't exist.
+   */
+  replaceProfileFile(slug: string, file: string, content: string): Promise<void>;
   /**
    * Creates applications/<baseName>/ in the profile, or <baseName>-2, -3… when that exists,
    * writes the files, and returns the folder name (F25).
@@ -78,6 +84,18 @@ export function createFsProfileStore(profilesDir: string): ProfileStore {
         ...unsupported.map((file) => ({ file, problems: ["only regular files and folders are supported"] })),
       ];
       return { ok: false, errors: errors.sort((a, b) => a.file.localeCompare(b.file)) };
+    },
+
+    async replaceProfileFile(slug, file, content) {
+      const folder = profileFolder(slug);
+      if (!profileFileKind(file) || isSkippedProfilePath(file)) throw new Error("Not a profile file");
+      // Each part must be a real folder or file: a symlink could lead into another profile (Art. III.7).
+      const parts = file.split("/");
+      for (let depth = 1; depth <= parts.length; depth++) {
+        const stats = await lstat(path.join(/* turbopackIgnore: true */ folder, ...parts.slice(0, depth))).catch(() => null);
+        if (!(depth < parts.length ? stats?.isDirectory() : stats?.isFile())) throw new Error(`${file} doesn't exist`);
+      }
+      await writeFileAtomic(path.join(/* turbopackIgnore: true */ folder, ...parts), content);
     },
 
     async createApplication(slug, baseName, files) {

@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +9,7 @@ import { contentYaml } from "@/core/resume/edit";
 import { resumeFixture } from "@/core/resume/fixture.testing";
 import type { ResumeFile } from "@/core/resume/schema";
 import type { Failure, Verification } from "@/core/verification/schema";
-import { decideInference, previewResume, saveResume, setFailureDismissed } from "./actions";
+import { addSkillToProfile, decideInference, previewResume, saveResume, setFailureDismissed } from "./actions";
 
 // The actions run against a scratch copy of the fictional profile (Art. III.5); the
 // cookie and the cache are replaced.
@@ -127,6 +127,85 @@ describe("application actions", () => {
       await application();
 
       await expect(decideInference(id, "Go", "approved")).rejects.toThrow("Unknown implied skill");
+    });
+  });
+
+  describe("addSkillToProfile", () => {
+    const approved = (): ResumeFile => ({ ...resume(), inferences: [{ ...resume().inferences[0], status: "approved" }] });
+    const profileDir = () => path.join(app.profilesDir, "jane-doe");
+    const skillsFile = () => readFile(path.join(profileDir(), "skills.md"), "utf8");
+
+    /** Every file of the profile except skills.md and the applications, with its content. */
+    async function otherFiles() {
+      const files: Record<string, string> = {};
+      for (const entry of await readdir(profileDir(), { recursive: true, withFileTypes: true })) {
+        const file = path.relative(profileDir(), path.join(entry.parentPath, entry.name));
+        if (!entry.isFile() || file === "skills.md" || file.startsWith("applications")) continue;
+        files[file] = await readFile(path.join(profileDir(), file), "utf8");
+      }
+      return files;
+    }
+
+    it("adds one bullet under the heading of the resume's category and touches no other file", async () => {
+      await application({ resume: approved() });
+      const [before, others, resumeBefore] = [await skillsFile(), await otherFiles(), await read("resume.md")];
+      // A second profile that must stay out of reach (Art. III.7).
+      await cp(profileDir(), path.join(app.profilesDir, "john-roe"), { recursive: true });
+
+      expect(await addSkillToProfile(id, "Kubernetes", "Languages")).toEqual({ ok: true });
+
+      expect(await skillsFile()).toBe(before.replace("- SQL\n", "- SQL\n- Kubernetes\n"));
+      expect(await otherFiles()).toEqual(others);
+      expect(await read("resume.md")).toEqual(resumeBefore);
+      expect(await readFile(path.join(app.profilesDir, "john-roe", "skills.md"), "utf8")).toBe(before);
+      expect((await store.loadProfile("jane-doe")).ok).toBe(true);
+    });
+
+    it("adds a new heading at the end when skills.md has none for the category", async () => {
+      await application({ resume: { ...approved(), skills: [{ category: "Orquestração", items: ["Kubernetes"] }] } });
+      const before = await skillsFile();
+
+      expect(await addSkillToProfile(id, "Kubernetes", "Orquestração")).toEqual({ ok: true });
+
+      expect(await skillsFile()).toBe(`${before}\n## Orquestração\n- Kubernetes\n`);
+    });
+
+    it("doesn't add the skill twice", async () => {
+      await application({ resume: approved() });
+      await addSkillToProfile(id, "Kubernetes", "Languages");
+      const once = await skillsFile();
+
+      expect(await addSkillToProfile(id, "Kubernetes", "Languages")).toMatchObject({ ok: false });
+      expect(await skillsFile()).toBe(once);
+    });
+
+    it.each(["pending", "rejected"] as const)("writes nothing for a %s skill", async (status) => {
+      await application({ resume: { ...resume(), inferences: [{ ...resume().inferences[0], status }] } });
+      const before = await skillsFile();
+
+      expect(await addSkillToProfile(id, "Kubernetes", "Languages")).toMatchObject({ ok: false });
+      expect(await skillsFile()).toBe(before);
+    });
+
+    it("writes nothing for a skill that isn't implied, or when the heading isn't the one confirmed", async () => {
+      await application({ resume: approved() });
+      const before = await skillsFile();
+
+      expect(await addSkillToProfile(id, "Go", "Languages")).toMatchObject({ ok: false });
+      expect(await addSkillToProfile(id, "Kubernetes", "Data")).toEqual({
+        ok: false,
+        problems: ["Your profile or this resume changed. Reload the page."],
+      });
+      expect(await skillsFile()).toBe(before);
+    });
+
+    it("writes nothing when the profile has problems", async () => {
+      await application({ resume: approved() });
+      await writeFile(path.join(profileDir(), "personal.md"), "---\n---\n");
+      const before = await skillsFile();
+
+      expect(await addSkillToProfile(id, "Kubernetes", "Languages")).toMatchObject({ ok: false });
+      expect(await skillsFile()).toBe(before);
     });
   });
 

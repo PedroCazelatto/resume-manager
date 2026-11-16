@@ -10,7 +10,6 @@ How the next task is chosen: use the app for real applications, write down what 
 
 Suggested order, from what each task depends on: reconnect-to-a-run, posting-by-url, list-of-posting-urls, browser-extension; then visual-pass; the rest in any order.
 
-- [write-back-implied-skills.md](write-back-implied-skills.md) — Write approved implied skills back to the profile (F07)
 - [posting-by-url.md](posting-by-url.md) — Give a link to the job posting instead of pasting it (F10)
 - [list-of-posting-urls.md](list-of-posting-urls.md) — Accept a list of job links at once (F33)
 - [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
@@ -36,6 +35,7 @@ Suggested order, from what each task depends on: reconnect-to-a-run, posting-by-
 - [profile-schemas-and-validation.md](profile-schemas-and-validation.md) — Profile schemas and validation (F01)
 - [example-profile.md](example-profile.md) — Fictional example profile (F02)
 - [profile-picker.md](profile-picker.md) — Profile picker (F03)
+- [write-back-implied-skills.md](write-back-implied-skills.md) — Write approved implied skills back to the profile (F07)
 - [paste-posting.md](paste-posting.md) — Paste the job posting (F09)
 - [ireland-template.md](ireland-template.md) — Ireland resume template (F11)
 - [posting-analysis-and-fit-gap.md](posting-analysis-and-fit-gap.md) — Posting analysis and fit/gap (F12)

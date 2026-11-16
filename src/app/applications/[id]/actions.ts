@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { isApplicationId } from "@/core/application/folder";
 import { patchFrontmatter } from "@/core/markdown/frontmatter";
 import { validateMarkdownFile } from "@/core/markdown/validate";
+import { addSkill, impliedSkillPlacement, resumeSkillCategory } from "@/core/profile/add-skill";
 import { contentYaml, parseContentYaml } from "@/core/resume/edit";
 import { renderResume } from "@/core/resume/render";
 import { resumeFileSchema, type Inference } from "@/core/resume/schema";
@@ -49,6 +50,27 @@ export async function decideInference(id: string, skill: string, status: Inferen
     patchFrontmatter(resumeSource, { inferences, status: resumeStatus({ inferences }, verification) }),
   );
   revalidatePath(`/applications/${id}`);
+}
+
+/**
+ * Adds an approved implied skill to the profile's skills.md as one bullet (Art. II.3, IV.9, F07).
+ * Only called after the user confirmed it; `heading` is the heading the confirmation named.
+ */
+export async function addSkillToProfile(id: string, skill: string, heading: string): Promise<ActionResult> {
+  const { store, slug, resume } = await loadReview(id);
+  const profile = await store.loadProfile(slug);
+  if (!profile.ok) return { ok: false, problems: ["Your profile has problems. Fix its files first."] };
+
+  const skillsSource = profile.profile.skills.source;
+  const placement = impliedSkillPlacement(resume, skillsSource, skill);
+  const category = resumeSkillCategory(resume, skill);
+  // `heading` guards against a page that is older than the files.
+  const next = placement?.heading === heading && category !== undefined ? addSkill(skillsSource, category, skill) : null;
+  if (next === null) return { ok: false, problems: ["Your profile or this resume changed. Reload the page."] };
+
+  await store.replaceProfileFile(slug, "skills.md", next);
+  revalidatePath(`/applications/${id}`);
+  return { ok: true };
 }
 
 /** Dismisses a verification failure as a false alarm, or restores it (Art. II.5), then updates the status. */
