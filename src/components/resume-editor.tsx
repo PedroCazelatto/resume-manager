@@ -91,7 +91,7 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
           <span className="text-sm text-muted-foreground">Printing unlocks when: {printBlockers.join("; ")}.</span>
         )}
       </div>
-      <RunProgress run={verification} />
+      <RunProgress run={verification} removable />
       <details className="space-y-2">
         <summary className="cursor-pointer text-sm text-muted-foreground">Edit the resume</summary>
         <Textarea
