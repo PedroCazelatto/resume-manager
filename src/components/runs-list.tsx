@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { RunSummary } from "@/app/runs";
 import { tellEndedRuns } from "@/components/run-notifications";
 import { Button } from "@/components/ui/button";
-import { RUNS_CHANGED, RunProgress, useRun } from "@/components/use-run";
+import { RUNS_CHANGED, RunProgress, RunSteps, enqueueRun, useRun } from "@/components/use-run";
 
 const REFRESH_MS = 2000;
 
@@ -25,10 +25,12 @@ const STATUS_LABELS: Record<RunSummary["status"], string> = {
 
 /**
  * The selected profile's runs since the app started: the active one with its steps, the
- * waiting ones in order, then the finished ones (F42).
+ * waiting ones in order, then the finished ones with the steps they went through (F42).
  */
 export function RunsList() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
+  /** Why the last "Try again" of a run wasn't queued. */
+  const [refused, setRefused] = useState<{ runId: string; error: string } | null>(null);
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/runs").catch(() => null);
@@ -53,6 +55,12 @@ export function RunsList() {
   async function remove(runId: string) {
     await fetch(`/api/runs/${runId}`, { method: "DELETE" }).catch(() => null);
     await refresh();
+  }
+
+  /** Queues the run's posting and language again; the server kept them with the run (F19). */
+  async function tryAgain(runId: string) {
+    const reply = await enqueueRun(`/api/runs/${runId}`, {});
+    setRefused("error" in reply ? { runId, error: reply.error } : null);
   }
 
   if (runs.length === 0) return null;
@@ -80,9 +88,17 @@ export function RunsList() {
                   Remove
                 </Button>
               )}
+              {/* A run with an application is tried again from its page. */}
+              {run.retryable && (
+                <Button variant="outline" size="sm" onClick={() => tryAgain(run.runId)}>
+                  Try again
+                </Button>
+              )}
             </div>
             {run.status === "running" && <ActiveRun run={run} onEnd={refresh} />}
+            {run.status !== "running" && run.steps.length > 0 && <RunSteps steps={run.steps} warnings={run.warnings} />}
             {run.error && <p className="text-destructive">{run.error}</p>}
+            {refused?.runId === run.runId && <p className="text-destructive">{refused.error}</p>}
           </li>
         ))}
       </ul>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { RunEvent, RunStep } from "@/core/pipeline/run";
-import type { QueueEvent, RunKind } from "@/core/runs/queue";
+import type { QueueEvent, RunKind, RunStepState } from "@/core/runs/queue";
 import { askToNotify, tellRunEnded, watchRun } from "@/components/run-notifications";
 import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/lib/utils";
@@ -15,7 +15,6 @@ const STEP_LABELS: Record<RunStep, string> = {
   review: "Reviewing every claim against its sources",
 };
 
-type StepState = { step: RunStep; status: "running" | "done" };
 type Progress = Extract<RunEvent, { type: "progress" }>;
 
 export interface Run {
@@ -23,7 +22,7 @@ export interface Run {
   running: boolean;
   /** The run is in the queue behind another one (F42). */
   waiting: boolean;
-  steps: StepState[];
+  steps: RunStepState[];
   /** Seconds since the run started. */
   elapsed: number;
   /** What the model is doing in the running step, once it has sent tokens. */
@@ -46,9 +45,12 @@ export interface Run {
    * language, remembered once the application exists.
    */
   follow(runId: string, options: FollowOptions): Promise<string | null>;
-  /** Asks the server to stop the run being followed; the run's stream says when it has stopped (F32). */
+  /**
+   * Asks the server to stop the run being followed: a waiting run leaves the queue (F42), the
+   * running one is cancelled, and the run's stream says when it has stopped (F32).
+   */
   cancel(): void;
-  /** True once Cancel was asked for, until the run ends. */
+  /** True once Cancel or Remove was asked for, until the run ends. */
   cancelling: boolean;
 }
 
@@ -97,7 +99,7 @@ function rememberLanguage(id: string, language: string) {
 export function useRun(): Run {
   const [running, setRunning] = useState(false);
   const [waiting, setWaiting] = useState(false);
-  const [steps, setSteps] = useState<StepState[]>([]);
+  const [steps, setSteps] = useState<RunStepState[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [warnings, setWarnings] = useState<Partial<Record<RunStep, string>>>({});
@@ -200,33 +202,71 @@ export function useRun(): Run {
   return { running, waiting, steps, elapsed, progress, warnings, error, cancelled, savedId, start, follow, cancel, cancelling };
 }
 
-export function RunProgress({ run }: { run: Run }) {
-  if (run.waiting) return <p className="text-sm text-muted-foreground">Waiting for another run to finish…</p>;
+/**
+ * A run's steps, each with its context-size warning (F40). `live` adds what belongs next to
+ * the step that is running; without it the steps are shown as the run left them.
+ */
+export function RunSteps({
+  steps,
+  warnings,
+  live,
+}: {
+  steps: RunStepState[];
+  warnings: Partial<Record<RunStep, string>>;
+  live?: (step: RunStep) => ReactNode;
+}) {
+  return (
+    <ol className="space-y-1">
+      {steps.map(({ step, status }) => (
+        <li key={step}>
+          {status === "done" ? "✓" : "…"} {STEP_LABELS[step]}
+          {status === "running" && live?.(step)}
+          {warnings[step] && <p className="text-amber-900 dark:text-amber-100">{warnings[step]}</p>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** `removable` offers "Remove" while the run waits, where no Runs list sits next to it (F42). */
+export function RunProgress({ run, removable = false }: { run: Run; removable?: boolean }) {
+  if (run.waiting) {
+    return (
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <span>Waiting for another run to finish…</span>
+        {removable && (
+          <Button variant="outline" size="sm" disabled={run.cancelling} onClick={run.cancel}>
+            Remove
+          </Button>
+        )}
+      </div>
+    );
+  }
   if (run.steps.length === 0 && !run.cancelled) return null;
   return (
     <div className="space-y-1 text-sm">
-      <ol className="space-y-1">
-        {run.steps.map(({ step, status }) => (
-          <li key={step}>
-            {status === "done" ? "✓" : "…"} {STEP_LABELS[step]}
-            {status === "running" && run.running && (
-              <>
-                <span className="text-muted-foreground">
-                  {" "}
-                  ({formatElapsed(run.elapsed)}
-                  {run.progress?.step === step &&
-                    ` · ${run.progress.phase}, ${run.progress.tokens.toLocaleString("en")} tokens`}
-                  )
-                </span>
-                <Button variant="outline" size="xs" className="ml-2" disabled={run.cancelling} onClick={run.cancel}>
-                  {run.cancelling ? "Cancelling…" : "Cancel"}
-                </Button>
-              </>
-            )}
-            {run.warnings[step] && <p className="text-amber-900 dark:text-amber-100">{run.warnings[step]}</p>}
-          </li>
-        ))}
-      </ol>
+      <RunSteps
+        steps={run.steps}
+        warnings={run.warnings}
+        live={
+          run.running
+            ? (step) => (
+                <>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    ({formatElapsed(run.elapsed)}
+                    {run.progress?.step === step &&
+                      ` · ${run.progress.phase}, ${run.progress.tokens.toLocaleString("en")} tokens`}
+                    )
+                  </span>
+                  <Button variant="outline" size="xs" className="ml-2" disabled={run.cancelling} onClick={run.cancel}>
+                    {run.cancelling ? "Cancelling…" : "Cancel"}
+                  </Button>
+                </>
+              )
+            : undefined
+        }
+      />
       {run.cancelled && <p className="text-muted-foreground">This run was cancelled. The finished steps stay saved.</p>}
     </div>
   );
