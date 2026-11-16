@@ -14,7 +14,7 @@ The posting has to be copied and pasted. The user wants to give the link to the 
 - The new-application form has two tabs: "From links" and "Paste text". This task makes "From links" accept one link; [list-of-posting-urls](list-of-posting-urls.md) extends it to several.
 - The run gets a first step, "Fetching the posting": the app downloads the page, extracts its text and uses it as the posting.
 - `job.md` is saved with `source: url`, the `url`, and the extracted text as its body.
-- If the fetch fails or the page yields no text at all, the run fails with the reason, and the form switches to "Paste text" with the link kept. A run then started from pasted text saves `source: paste` and the kept `url`.
+- If the fetch fails or the page yields no text at all, the run fails with the reason. The form only queues runs and does not follow them, so the failure appears on the run's row in the Runs list, which gets a "Paste the text instead" button: it opens the "Paste text" tab with the link kept in a small "Link" field. A run then started from pasted text saves `source: paste` and the kept `url`.
 - There is no minimum amount of text: any non-empty result is used.
 
 ## Acceptance criteria
@@ -23,7 +23,7 @@ The posting has to be copied and pasted. The user wants to give the link to the 
 - [ ] Only `http` and `https` links are accepted. Links to loopback, private and link-local addresses are refused, including when a public name resolves to such an address and when a redirect leads to one.
 - [ ] The fetch gives up after 30 seconds and refuses more than 5 MB; both show a clear reason.
 - [ ] At most 5 redirects are followed, each one checked like the first link.
-- [ ] A failed fetch leaves the form on "Paste text" with the link still there.
+- [ ] A run whose fetch failed offers "Paste the text instead" in the Runs list, which opens the "Paste text" tab with the link still there.
 - [ ] Unit tests cover URL checks, HTML-to-text and the fetcher (with a fake `fetch` and a fake resolver); no test touches the network.
 - [ ] `npm run typecheck`, `npm run lint` and `npm test` pass; new core logic has unit tests with the model mocked (Art. IX).
 - [ ] This file's header says `version: implemented` and `backlog/index.md` lists it under Implemented.
@@ -39,17 +39,19 @@ The posting has to be copied and pasted. The user wants to give the link to the 
 - Tabs: add the shadcn/ui `tabs` component.
 - LinkedIn job pages are large (about 260 KB) and full of other jobs. The posting's text is inside the element with class `show-more-less-html__markup` (inside `description__text`); when the page is on `linkedin.com`, take the text from that element, and fall back to the general rules if it is missing.
 - LinkedIn links copied while logged in often look like `linkedin.com/jobs/collections/...?currentJobId=<id>` or `linkedin.com/jobs/search/?currentJobId=<id>`. Rewrite them to `https://www.linkedin.com/jobs/view/<id>` before fetching; this is a pure function with unit tests.
-- Indeed links (`indeed.com` and its country subdomains) are never fetched by the server. Until [browser-extension](browser-extension.md) is built, the form refuses them with "Indeed blocks automated requests" and switches to "Paste text" with the link kept. Recognising an Indeed link is a pure function with unit tests.
+- Indeed links (`indeed.com` and its country subdomains) are never fetched by the server. Until [browser-extension](browser-extension.md) is built, the form refuses them before queueing with "Indeed blocks automated requests" and switches to "Paste text" with the link kept. Recognising an Indeed link is a pure function with unit tests.
+- How runs work today: the form posts to `POST /api/applications`, which queues a run and answers `{ runId }` (`src/app/run.ts`, `src/app/runs.ts`, `src/core/runs/queue.ts`); the Runs list (`src/components/runs-list.tsx`) shows progress, errors, "Try again" and the link to the application. A link run must keep its link with the run so "Try again" fetches it again, and the list must not send posting text to the browser.
 - Art. II.7 (fetched text is untrusted, like pasted text), Art. III.2 (outbound requests only to links the user submits), Art. V.10 (fetcher rules).
 
 ## Depends on
 
-- [run-queue](run-queue.md): the fetch is a step of a queued run.
+- [run-queue](run-queue.md) (implemented): the fetch is a step of a queued run.
 
 ## Decisions
 
 - Decided 2026-11-15: plain fetch with the paste fallback; no headless browser.
 - Decided 2026-11-15: two tabs on the form.
+- Decided 2026-11-16: the form stays on screen after queueing and does not follow or open the run, so a failed fetch is handled from the Runs list.
 - Decided 2026-11-15: 30 seconds, 5 MB, no minimum text length.
 - Checked 2026-11-15 with a plain request labelled as this app: LinkedIn's public job page answered 200 with the full description in the HTML. Indeed answered 403 "Security Check" on a search page and on a real job link, and 401 "Authenticating" on another job link.
 - Indeed is handled from the user's browser instead: see [browser-extension](browser-extension.md). This task covers LinkedIn and other sites that answer plain requests.
