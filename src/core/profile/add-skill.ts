@@ -44,11 +44,27 @@ function bodyLines(source: string): Line[] {
   return close === -1 ? [] : lines.slice(close + 1);
 }
 
-/** True when a bullet of skills.md is this skill, ignoring case and surrounding spaces. */
+/** True when the text holds the phrase as whole words: no letter or digit touches either end of it. */
+function holdsPhrase(text: string, phrase: string): boolean {
+  const wordChar = /[\p{L}\p{N}]/u;
+  for (let at = text.indexOf(phrase); at !== -1; at = text.indexOf(phrase, at + 1)) {
+    const before = text.slice(0, at).at(-1);
+    const after = text.slice(at + phrase.length)[0];
+    if (!(before && wordChar.test(before)) && !(after && wordChar.test(after))) return true;
+  }
+  return false;
+}
+
+/**
+ * True when a bullet of skills.md holds this skill as a whole word or phrase, ignoring case:
+ * `AWS (Lambda, RDS, SQS)` lists "Lambda" and "AWS", but not "Lamb" or "SQ".
+ */
 export function listsSkill(skillsSource: string, skill: string): boolean {
+  const phrase = skill.trim().toLowerCase();
+  if (phrase === "") return false;
   return bodyLines(skillsSource).some((line) => {
     const bullet = BULLET.exec(line.text);
-    return bullet !== null && same(bullet[3], skill);
+    return bullet !== null && holdsPhrase(bullet[3].toLowerCase(), phrase);
   });
 }
 

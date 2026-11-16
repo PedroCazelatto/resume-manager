@@ -68,10 +68,33 @@ describe("addSkill", () => {
     expect(addSkill(once, "Other", "redis")).toBeNull();
   });
 
-  it("only counts whole bullets of the body as listed", () => {
-    expect(listsSkill(SKILLS, "Lambda")).toBe(false);
+  it("counts a skill inside a bullet as listed when it is a whole word or phrase", () => {
+    expect(listsSkill(SKILLS, "Lambda")).toBe(true);
+    expect(listsSkill(SKILLS, "aws")).toBe(true);
+    expect(listsSkill(SKILLS, " sqs ")).toBe(true);
+    expect(listsSkill(SKILLS, "Lambda, RDS")).toBe(true);
+    expect(listsSkill(SKILLS, "AWS (Lambda, RDS, SQS)")).toBe(true);
+    expect(addSkill(SKILLS, "Cloud and infrastructure", "Lambda")).toBeNull();
+    expect(addSkill(SKILLS, "Data", "RDS")).toBeNull();
+  });
+
+  it("doesn't count part of a word as listed", () => {
+    expect(listsSkill(SKILLS, "SQ")).toBe(false);
+    expect(listsSkill(SKILLS, "Lamb")).toBe(false);
+    expect(listsSkill(SKILLS, "ambda")).toBe(false);
+    expect(listsSkill(SKILLS, "Type")).toBe(false);
+    expect(listsSkill("## Data\n- PostgreSQL 16\n- Redis7\n", "PostgreSQL")).toBe(true);
+    expect(listsSkill("## Data\n- PostgreSQL 16\n- Redis7\n", "Redis")).toBe(false);
+    // An accented letter is a letter, so "Caf" is only part of the word.
+    expect(listsSkill("## Other\n- Café management\n", "Caf")).toBe(false);
+    expect(listsSkill("## Other\n- Café management\n", "CAFÉ")).toBe(true);
+  });
+
+  it("only counts bullets of the body as listed", () => {
     expect(listsSkill(SKILLS, "Data")).toBe(false);
+    expect(listsSkill(SKILLS, "")).toBe(false);
     expect(listsSkill("---\ntags:\n  - Redis\n---\n\n## Data\n", "Redis")).toBe(false);
+    expect(listsSkill("## Data\nI also know Redis.\n", "Redis")).toBe(false);
   });
 
   it("keeps a file that ends without a line break ending without one", () => {
