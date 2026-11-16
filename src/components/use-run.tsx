@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RunEvent, RunStep } from "@/core/pipeline/run";
 import type { QueueEvent } from "@/core/runs/queue";
+import { askToNotify, tellRunEnded, watchRun } from "@/components/run-notifications";
 import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/lib/utils";
 
@@ -50,8 +51,9 @@ export interface Run {
 /** Tells the Runs list that a run was queued or removed, so it doesn't wait for its next refresh. */
 export const RUNS_CHANGED = "runs-changed";
 
-/** Queues a run through a run endpoint (F42). */
+/** Queues a run through a run endpoint (F42). Starting a run is when the notification permission is asked (F38). */
 export async function enqueueRun(url: string, body: Record<string, string>): Promise<{ runId: string } | { error: string }> {
+  askToNotify();
   try {
     const response = await fetch(url, {
       method: "POST",
@@ -60,6 +62,7 @@ export async function enqueueRun(url: string, body: Record<string, string>): Pro
     });
     const reply = (await response.json().catch(() => null)) as { runId?: string; error?: string } | null;
     if (!response.ok || !reply?.runId) return { error: reply?.error ?? `The server answered ${response.status}.` };
+    watchRun(reply.runId);
     window.dispatchEvent(new Event(RUNS_CHANGED));
     return { runId: reply.runId };
   } catch {
@@ -113,6 +116,8 @@ export function useRun(): Run {
     setCancelling(false);
     setFollowedId(runId);
     let finished: string | null = null;
+    let failed = false;
+    let job: { company?: string; role?: string } = {};
     try {
       const response = await fetch(`/api/runs/${runId}/events`, { signal: options.signal });
       if (!response.ok || !response.body) {
@@ -135,13 +140,17 @@ export function useRun(): Run {
           setWarnings((current) => ({ ...current, [event.step]: event.message }));
         } else if (event.type === "saved") {
           setSavedId(event.id);
+          job = { company: event.company, role: event.role };
           if (options.language !== undefined) rememberLanguage(event.id, options.language);
         } else if (event.type === "error") {
           setError(event.message);
+          failed = true;
         } else {
           finished = event.id;
         }
       }
+      // A cancelled or removed run, or a lost connection, is not told about (F38).
+      if (finished !== null || failed) tellRunEnded(runId, { status: failed ? "failed" : "done", ...job });
     } catch {
       // Not an error when the page itself stopped following.
       if (!options.signal?.aborted) setError("Lost the connection to the app while the run was in progress.");

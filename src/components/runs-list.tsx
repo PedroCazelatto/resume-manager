@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { RunSummary } from "@/app/runs";
+import { tellEndedRuns } from "@/components/run-notifications";
 import { Button } from "@/components/ui/button";
 import { RUNS_CHANGED, RunProgress, useRun } from "@/components/use-run";
 
@@ -32,7 +33,10 @@ export function RunsList() {
   const refresh = useCallback(async () => {
     const response = await fetch("/api/runs").catch(() => null);
     if (!response?.ok) return;
-    setRuns(((await response.json()) as { runs: RunSummary[] }).runs);
+    const { runs } = (await response.json()) as { runs: RunSummary[] };
+    setRuns(runs);
+    // A run that ended since this tab saw it waiting or running is told about (F38).
+    tellEndedRuns(runs);
   }, []);
 
   useEffect(() => {
