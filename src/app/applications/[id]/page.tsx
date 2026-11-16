@@ -73,10 +73,13 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
   }
   if (!job.ok) return null;
 
-  // Only the files this resume cites reach the browser (F18).
+  // Only the files this resume cites, in its items or its implied skills, reach the browser (F18).
   const sourcedItems = resume?.ok ? listSourcedItems(resume.data) : [];
   const profile = resume?.ok ? await store.loadProfile(slug) : null;
-  const citedFiles = profile?.ok ? citedFileTexts(sourcedItems, listProfileFiles(profile.profile)) : null;
+  const citedFiles =
+    resume?.ok && profile?.ok
+      ? citedFileTexts([...sourcedItems, ...resume.data.inferences], listProfileFiles(profile.profile))
+      : null;
 
   return (
     <div className="space-y-6">
@@ -117,6 +120,7 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
             id={id}
             inferences={resume.data.inferences}
             options={profile?.ok ? skillOptions(resume.data, profile.profile) : {}}
+            files={citedFiles}
           />
           {verification?.ok && <VerificationView id={id} verification={verification.data} />}
         </section>

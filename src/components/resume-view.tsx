@@ -5,6 +5,7 @@ import { addSkillToProfile, decideInference } from "@/app/applications/[id]/acti
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SourceFiles, type CitedFiles } from "@/components/source-list";
 import { hasHeading, type SkillOptions } from "@/core/profile/add-skill";
 import type { Inference } from "@/core/resume/schema";
 
@@ -13,10 +14,12 @@ interface Props {
   inferences: Inference[];
   /** The headings each approved skill that skills.md doesn't list yet can go under, by skill (F07). */
   options: Record<string, SkillOptions>;
+  /** The text of the profile files the skills cite; null when the profile can't be read (F18). */
+  files: CitedFiles;
 }
 
 /** Skills the model inferred; they stay out of the resume until approved (Art. II.3, F16). */
-export function InferenceList({ id, inferences, options }: Props) {
+export function InferenceList({ id, inferences, options, files }: Props) {
   if (inferences.length === 0) return null;
   return (
     <section className="space-y-2">
@@ -29,7 +32,7 @@ export function InferenceList({ id, inferences, options }: Props) {
           <li key={inference.skill}>
             <strong>{inference.skill}</strong> · {inference.status}
             <div>{inference.reason}</div>
-            <div className="font-mono text-xs text-muted-foreground">{inference.sources.join(", ")}</div>
+            <SourceFiles sources={inference.sources} files={files} />
             <div className="mt-1 flex gap-2">
               <form action={decideInference.bind(null, id, inference.skill, "approved")}>
                 <Button type="submit" variant="outline" size="sm" disabled={inference.status === "approved"}>
