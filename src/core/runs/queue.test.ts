@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   cancelRun,
+  canTryAgain,
   enqueue,
   findRun,
   finishRun,
+  latestGeneration,
   nextRun,
   recordEvent,
   removeWaiting,
   runsOf,
+  runSteps,
   startRun,
   type QueuedRun,
 } from "./queue";
@@ -144,5 +147,70 @@ describe("run queue", () => {
 
     expect(statuses(runsOf(runs, "jane-doe"))).toEqual(["d:running", "e:queued", "b:failed", "a:done"]);
     expect(statuses(runsOf(runs, "john-roe"))).toEqual(["john-c:done"]);
+  });
+
+  it("offers \"Try again\" on a new run that failed or was cancelled before its application was saved", () => {
+    const run = { kind: "new", status: "failed" } as const;
+    expect(canTryAgain(run)).toBe(true);
+    expect(canTryAgain({ ...run, status: "cancelled" })).toBe(true);
+
+    // With a folder, the application's page tries again.
+    expect(canTryAgain({ ...run, applicationId: "2026-11-10-globex-backend-engineer" })).toBe(false);
+    expect(canTryAgain({ ...run, status: "queued" })).toBe(false);
+    expect(canTryAgain({ ...run, status: "running" })).toBe(false);
+    expect(canTryAgain({ ...run, status: "done" })).toBe(false);
+    expect(canTryAgain({ ...run, kind: "retry" })).toBe(false);
+    expect(canTryAgain({ ...run, kind: "verify" })).toBe(false);
+  });
+
+  it("reads a run's steps and context warnings from its events, leaving an unfinished step running", () => {
+    expect(
+      runSteps([
+        { type: "started" },
+        { type: "step", step: "analyse", status: "running" },
+        { type: "warning", step: "analyse", message: "This step's prompt is large." },
+        { type: "progress", step: "analyse", phase: "writing", tokens: 3 },
+        { type: "step", step: "analyse", status: "done" },
+        { type: "step", step: "save", status: "running" },
+        { type: "step", step: "save", status: "done" },
+        { type: "saved", id: "2026-11-10-globex-backend-engineer" },
+        { type: "step", step: "tailor", status: "running" },
+        { type: "error", message: "The model took too long." },
+      ]),
+    ).toEqual({
+      steps: [
+        { step: "analyse", status: "done" },
+        { step: "save", status: "done" },
+        { step: "tailor", status: "running" },
+      ],
+      warnings: { analyse: "This step's prompt is large." },
+    });
+    expect(runSteps([])).toEqual({ steps: [], warnings: {} });
+  });
+
+  it("finds the run that last asked for an application's resume, never a \"Verify again\"", () => {
+    const id = "2026-11-10-globex-backend-engineer";
+    const run = (runId: string, kind: QueuedRun["kind"], status: QueuedRun["status"], applicationId = id) => ({
+      runId,
+      kind,
+      status,
+      applicationId,
+    });
+
+    // As `runsOf` lists them: running, waiting in order, then the latest finished first.
+    const finished = [run("retry-1", "retry", "failed"), run("new", "new", "failed")];
+    expect(latestGeneration(finished, id)?.runId).toBe("retry-1");
+    expect(latestGeneration([run("verify", "verify", "done"), ...finished], id)?.runId).toBe("retry-1");
+    expect(latestGeneration([run("retry-2", "retry", "running"), ...finished], id)?.runId).toBe("retry-2");
+    expect(
+      latestGeneration(
+        [run("retry-2", "retry", "running"), run("retry-3", "retry", "queued"), run("retry-4", "retry", "queued"), ...finished],
+        id,
+      )?.runId,
+    ).toBe("retry-4");
+
+    expect(latestGeneration([run("other", "new", "done", "2026-11-11-initech-developer")], id)).toBeNull();
+    expect(latestGeneration([run("verify", "verify", "done")], id)).toBeNull();
+    expect(latestGeneration([], id)).toBeNull();
   });
 });

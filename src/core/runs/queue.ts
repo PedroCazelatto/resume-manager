@@ -1,4 +1,4 @@
-import type { RunEvent } from "../pipeline/run";
+import type { RunEvent, RunStep } from "../pipeline/run";
 
 // The run queue (F42): one run uses the model at a time, the others wait in order. These
 // functions only compute the next list of runs; the app keeps the list in memory (Art. IV.1).
@@ -27,6 +27,12 @@ export interface QueuedRun<Input = unknown> {
   events: QueueEvent[];
   /** Why the run failed. */
   error?: string;
+}
+
+/** A step of a run and how far it got. */
+export interface RunStepState {
+  step: RunStep;
+  status: "running" | "done";
 }
 
 export const MAX_FINISHED_RUNS = 50;
@@ -130,4 +136,47 @@ export function runsOf<I>(runs: readonly QueuedRun<I>[], profile: string): Queue
     ...own.filter((run) => run.status === "queued"),
     ...own.filter(isFinished).reverse(),
   ];
+}
+
+/**
+ * Whether the Runs list offers "Try again" on a run itself: a new application that failed or
+ * was cancelled before its folder existed. One with a folder is tried again from its page (F19).
+ */
+export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "applicationId">): boolean {
+  return run.kind === "new" && (run.status === "failed" || run.status === "cancelled") && run.applicationId === undefined;
+}
+
+/**
+ * The steps a run went through, in the order they started, and the context-size warning of
+ * each (F40), read from its events. A step the run didn't finish stays `running`.
+ */
+export function runSteps(events: readonly QueueEvent[]): {
+  steps: RunStepState[];
+  warnings: Partial<Record<RunStep, string>>;
+} {
+  const steps: RunStepState[] = [];
+  const warnings: Partial<Record<RunStep, string>> = {};
+  for (const event of events) {
+    if (event.type === "warning") warnings[event.step] = event.message;
+    if (event.type !== "step") continue;
+    const known = steps.find((state) => state.step === event.step);
+    if (known) known.status = event.status;
+    else steps.push({ step: event.step, status: event.status });
+  }
+  return { steps, warnings };
+}
+
+/**
+ * The run that last asked for an application's resume (a new application or "Try again",
+ * not "Verify again"), or null. `runs` is one profile's list in the order of `runsOf`.
+ * Its resume language is what "Try again" starts from.
+ */
+export function latestGeneration<Run extends Pick<QueuedRun, "kind" | "status" | "applicationId">>(
+  runs: readonly Run[],
+  applicationId: string,
+): Run | null {
+  const own = runs.filter((run) => run.applicationId === applicationId && run.kind !== "verify");
+  // Waiting runs are listed in the order they were queued, after the running one; the
+  // finished ones follow, latest first.
+  return own.findLast((run) => run.status === "queued") ?? own[0] ?? null;
 }
