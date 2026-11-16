@@ -146,13 +146,17 @@ describe("application actions", () => {
       return files;
     }
 
-    it("adds one bullet under the heading of the resume's category and touches no other file", async () => {
+    const STALE = { ok: false, problems: ["Your profile or this resume changed. Reload the page."] };
+    const under = (heading: string) => ({ heading, isNew: false });
+    const inNew = (heading: string) => ({ heading, isNew: true });
+
+    it("adds one bullet under the chosen heading and touches no other file", async () => {
       await application({ resume: approved() });
       const [before, others, resumeBefore] = [await skillsFile(), await otherFiles(), await read("resume.md")];
       // A second profile that must stay out of reach (Art. III.7).
       await cp(profileDir(), path.join(app.profilesDir, "john-roe"), { recursive: true });
 
-      expect(await addSkillToProfile(id, "Kubernetes", "Languages")).toEqual({ ok: true });
+      expect(await addSkillToProfile(id, "Kubernetes", under("Languages"))).toEqual({ ok: true });
 
       expect(await skillsFile()).toBe(before.replace("- SQL\n", "- SQL\n- Kubernetes\n"));
       expect(await otherFiles()).toEqual(others);
@@ -161,41 +165,78 @@ describe("application actions", () => {
       expect((await store.loadProfile("jane-doe")).ok).toBe(true);
     });
 
-    it("adds a new heading at the end when skills.md has none for the category", async () => {
-      await application({ resume: { ...approved(), skills: [{ category: "Orquestração", items: ["Kubernetes"] }] } });
+    it("adds the bullet under another heading than the resume's category when the user chose it", async () => {
+      await application({ resume: approved() });
       const before = await skillsFile();
 
-      expect(await addSkillToProfile(id, "Kubernetes", "Orquestração")).toEqual({ ok: true });
+      expect(await addSkillToProfile(id, "Kubernetes", under("Cloud and infrastructure"))).toEqual({ ok: true });
+
+      expect(await skillsFile()).toBe(before.replace("- Docker\n", "- Docker\n- Kubernetes\n"));
+    });
+
+    it("adds a new section at the end, under the name the user gave it", async () => {
+      await application({ resume: approved() });
+      const before = await skillsFile();
+
+      expect(await addSkillToProfile(id, "Kubernetes", inNew("Orquestração"))).toEqual({ ok: true });
 
       expect(await skillsFile()).toBe(`${before}\n## Orquestração\n- Kubernetes\n`);
     });
 
     it("doesn't add the skill twice", async () => {
       await application({ resume: approved() });
-      await addSkillToProfile(id, "Kubernetes", "Languages");
+      await addSkillToProfile(id, "Kubernetes", under("Languages"));
       const once = await skillsFile();
 
-      expect(await addSkillToProfile(id, "Kubernetes", "Languages")).toMatchObject({ ok: false });
+      expect(await addSkillToProfile(id, "Kubernetes", under("Languages"))).toEqual(STALE);
+      expect(await addSkillToProfile(id, "Kubernetes", inNew("Tools"))).toEqual(STALE);
       expect(await skillsFile()).toBe(once);
+    });
+
+    it("writes nothing for a skill a bullet of skills.md already holds", async () => {
+      // The example profile lists `AWS (Lambda, RDS, SQS)`.
+      const lambda = { ...resume().inferences[0], skill: "Lambda", status: "approved" as const };
+      await application({ resume: { ...resume(), skills: [{ category: "Data", items: ["Lambda"] }], inferences: [lambda] } });
+      const before = await skillsFile();
+
+      expect(await addSkillToProfile(id, "Lambda", under("Data"))).toEqual(STALE);
+      expect(await skillsFile()).toBe(before);
     });
 
     it.each(["pending", "rejected"] as const)("writes nothing for a %s skill", async (status) => {
       await application({ resume: { ...resume(), inferences: [{ ...resume().inferences[0], status }] } });
       const before = await skillsFile();
 
-      expect(await addSkillToProfile(id, "Kubernetes", "Languages")).toMatchObject({ ok: false });
+      expect(await addSkillToProfile(id, "Kubernetes", under("Languages"))).toMatchObject({ ok: false });
       expect(await skillsFile()).toBe(before);
     });
 
-    it("writes nothing for a skill that isn't implied, or when the heading isn't the one confirmed", async () => {
+    it("writes nothing for a skill that isn't implied", async () => {
       await application({ resume: approved() });
       const before = await skillsFile();
 
-      expect(await addSkillToProfile(id, "Go", "Languages")).toMatchObject({ ok: false });
-      expect(await addSkillToProfile(id, "Kubernetes", "Data")).toEqual({
-        ok: false,
-        problems: ["Your profile or this resume changed. Reload the page."],
-      });
+      expect(await addSkillToProfile(id, "Go", under("Languages"))).toEqual(STALE);
+      expect(await skillsFile()).toBe(before);
+    });
+
+    it("writes nothing when the chosen heading is no longer in skills.md", async () => {
+      await application({ resume: approved() });
+      // The file changed after the confirmation was opened.
+      const renamed = (await skillsFile()).replace("## Data", "## Databases");
+      await writeFile(path.join(profileDir(), "skills.md"), renamed);
+
+      expect(await addSkillToProfile(id, "Kubernetes", under("Data"))).toEqual(STALE);
+      expect(await addSkillToProfile(id, "Kubernetes", under("Tools"))).toEqual(STALE);
+      expect(await skillsFile()).toBe(renamed);
+    });
+
+    it("writes nothing for a new section without a name or named like an existing heading", async () => {
+      await application({ resume: approved() });
+      const before = await skillsFile();
+
+      expect(await addSkillToProfile(id, "Kubernetes", inNew("  "))).toEqual(STALE);
+      expect(await addSkillToProfile(id, "Kubernetes", inNew("data"))).toEqual(STALE);
+      expect(await addSkillToProfile(id, "Kubernetes", inNew("Tools\n## More"))).toEqual(STALE);
       expect(await skillsFile()).toBe(before);
     });
 
@@ -204,7 +245,7 @@ describe("application actions", () => {
       await writeFile(path.join(profileDir(), "personal.md"), "---\n---\n");
       const before = await skillsFile();
 
-      expect(await addSkillToProfile(id, "Kubernetes", "Languages")).toMatchObject({ ok: false });
+      expect(await addSkillToProfile(id, "Kubernetes", under("Languages"))).toMatchObject({ ok: false });
       expect(await skillsFile()).toBe(before);
     });
   });

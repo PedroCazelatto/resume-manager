@@ -4,18 +4,19 @@ import { useState, useTransition } from "react";
 import { addSkillToProfile, decideInference } from "@/app/applications/[id]/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { SkillPlacement } from "@/core/profile/add-skill";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { hasHeading, type SkillOptions } from "@/core/profile/add-skill";
 import type { Inference } from "@/core/resume/schema";
 
 interface Props {
   id: string;
   inferences: Inference[];
-  /** Where each approved skill that skills.md doesn't list yet would go, by skill (F07). */
-  placements: Record<string, SkillPlacement>;
+  /** The headings each approved skill that skills.md doesn't list yet can go under, by skill (F07). */
+  options: Record<string, SkillOptions>;
 }
 
 /** Skills the model inferred; they stay out of the resume until approved (Art. II.3, F16). */
-export function InferenceList({ id, inferences, placements }: Props) {
+export function InferenceList({ id, inferences, options }: Props) {
   if (inferences.length === 0) return null;
   return (
     <section className="space-y-2">
@@ -40,8 +41,8 @@ export function InferenceList({ id, inferences, placements }: Props) {
                   Reject
                 </Button>
               </form>
-              {inference.status === "approved" && placements[inference.skill] && (
-                <AddToProfile id={id} skill={inference.skill} placement={placements[inference.skill]} />
+              {inference.status === "approved" && options[inference.skill] && (
+                <AddToProfile id={id} skill={inference.skill} options={options[inference.skill]} />
               )}
             </div>
           </li>
@@ -51,15 +52,40 @@ export function InferenceList({ id, inferences, placements }: Props) {
   );
 }
 
-/** Writes an approved skill into skills.md, only after the user confirms it in the dialog (Art. II.3, F07). */
-function AddToProfile({ id, skill, placement }: { id: string; skill: string; placement: SkillPlacement }) {
+const NEW_SECTION = "new";
+
+/**
+ * Writes an approved skill into skills.md under the heading the user picks, only after they
+ * confirm it in the dialog (Art. II.3, F07).
+ */
+function AddToProfile({ id, skill, options }: { id: string; skill: string; options: SkillOptions }) {
+  const { headings } = options;
   const [open, setOpen] = useState(false);
+  // An existing heading by its position in the list, or a new section.
+  const [choice, setChoice] = useState(() =>
+    options.preselected === null ? NEW_SECTION : String(headings.indexOf(options.preselected)),
+  );
+  const [newHeading, setNewHeading] = useState(options.newHeading);
   const [problems, setProblems] = useState<string[]>([]);
   const [adding, startAdding] = useTransition();
 
+  const isNew = choice === NEW_SECTION;
+  const heading = isNew ? newHeading.trim() : headings[Number(choice)];
+  const nameProblem = !isNew
+    ? null
+    : heading === ""
+      ? "Give the new section a name."
+      : hasHeading(headings, heading)
+        ? "skills.md already has this heading. Choose it in the list instead."
+        : null;
+  const items = [
+    ...headings.map((label, index) => ({ value: String(index), label })),
+    { value: NEW_SECTION, label: "New section" },
+  ];
+
   function confirm() {
     startAdding(async () => {
-      const result = await addSkillToProfile(id, skill, placement.heading);
+      const result = await addSkillToProfile(id, skill, { heading, isNew });
       setProblems(result.ok ? [] : result.problems);
       if (result.ok) setOpen(false);
     });
@@ -76,12 +102,40 @@ function AddToProfile({ id, skill, placement }: { id: string; skill: string; pla
             <DialogTitle>Add {skill} to your profile?</DialogTitle>
             <DialogDescription>
               <strong className="text-foreground">{skill}</strong> will be added as one line to{" "}
-              <span className="font-mono text-foreground">skills.md</span>, under the{" "}
-              {placement.isNew ? "new heading" : "heading"}{" "}
-              <strong className="text-foreground">{placement.heading}</strong>
-              {placement.isNew && ", at the end of the file"}. Nothing else in the file changes.
+              <span className="font-mono text-foreground">skills.md</span>, under the heading you choose. Nothing else
+              in the file changes.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-2">
+            <Select items={items} value={choice} disabled={adding} onValueChange={(next) => next && setChoice(next)}>
+              <SelectTrigger aria-label="Heading in skills.md" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {items.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isNew && (
+              <>
+                <input
+                  type="text"
+                  aria-label="Name of the new section"
+                  aria-invalid={nameProblem !== null}
+                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive dark:bg-input/30"
+                  value={newHeading}
+                  disabled={adding}
+                  onChange={(event) => setNewHeading(event.target.value)}
+                />
+                <p className={nameProblem ? "text-destructive" : "text-muted-foreground"}>
+                  {nameProblem ?? "The new section goes at the end of the file."}
+                </p>
+              </>
+            )}
+          </div>
           {problems.length > 0 && (
             <ul className="text-sm text-destructive">
               {problems.map((problem) => (
@@ -93,7 +147,7 @@ function AddToProfile({ id, skill, placement }: { id: string; skill: string; pla
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={adding}>
               Cancel
             </Button>
-            <Button type="button" onClick={confirm} disabled={adding}>
+            <Button type="button" onClick={confirm} disabled={adding || nameProblem !== null}>
               {adding ? "Adding…" : "Add to my profile"}
             </Button>
           </DialogFooter>
