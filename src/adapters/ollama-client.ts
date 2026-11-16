@@ -9,6 +9,7 @@ const PROGRESS_INTERVAL_MS = 1000;
 export function createOllamaClient(settings: OllamaSettings, fetchImpl: typeof fetch = fetch): LlmClient {
   return {
     model: settings.model,
+    contextTokens: settings.numCtx,
 
     async generate<T>(request: LlmRequest<T>): Promise<T> {
       // The timeout is an idle limit: it restarts with every token, so a model that is

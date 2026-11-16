@@ -55,6 +55,7 @@ describe("createOllamaClient", () => {
     const client = createOllamaClient(settings, fetchImpl);
 
     expect(client.model).toBe("test-model");
+    expect(client.contextTokens).toBe(4096);
     expect(await client.generate(request)).toEqual({ company: "Globex" });
   });
 

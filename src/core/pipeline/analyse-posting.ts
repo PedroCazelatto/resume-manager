@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { IMPORTANCE, MATCH_STATUS, languageCode, type Analysis, type Job } from "../application/schemas";
-import { LlmError, type LlmClient, type LlmRequest } from "../llm";
+import { generateWithWarning, LlmError, type LlmClient, type LlmRequest } from "../llm";
 import { listProfileFiles, type Profile } from "../profile/profile";
 import { ANALYSE_POSTING_SYSTEM, buildAnalysePostingPrompt } from "../prompts/analyse-posting";
 
@@ -30,11 +30,13 @@ export interface AnalysePostingInput {
   posting: string;
   now: () => Date;
   onProgress?: LlmRequest<unknown>["onProgress"];
+  /** Called before the model call when the prompt takes more than half of the context window (F40). */
+  onWarning?: (message: string) => void;
   signal?: AbortSignal;
 }
 
 /** Pipeline steps 2–3 in one model call: analyse the posting, then fit/gap against the profile (F12). */
-export async function analysePosting({ llm, profile, posting, now, onProgress, signal }: AnalysePostingInput): Promise<{
+export async function analysePosting({ llm, profile, posting, now, onProgress, onWarning, signal }: AnalysePostingInput): Promise<{
   job: Job;
   analysis: Analysis;
 }> {
@@ -43,14 +45,18 @@ export async function analysePosting({ llm, profile, posting, now, onProgress, s
 
   const files = listProfileFiles(profile);
   const paths = files.map((f) => f.file) as [string, ...string[]];
-  const reply = await llm.generate({
-    system: ANALYSE_POSTING_SYSTEM,
-    prompt: buildAnalysePostingPrompt(files, posting),
-    schema: analysePostingReplySchema(paths),
-    temperature: 0.1,
-    onProgress,
-    signal,
-  });
+  const reply = await generateWithWarning(
+    llm,
+    {
+      system: ANALYSE_POSTING_SYSTEM,
+      prompt: buildAnalysePostingPrompt(files, posting),
+      schema: analysePostingReplySchema(paths),
+      temperature: 0.1,
+      onProgress,
+      signal,
+    },
+    onWarning,
+  );
 
   // A match needs evidence and a gap has none (Art. II.6); report the reply instead of fixing it.
   const inconsistent = reply.requirements.filter((r) =>

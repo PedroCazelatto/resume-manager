@@ -78,6 +78,7 @@ function fakeLlm(answer: unknown) {
   const requests: LlmRequest<unknown>[] = [];
   const llm: LlmClient = {
     model: "fake-model",
+    contextTokens: 1_000_000,
     async generate<T>(request: LlmRequest<T>): Promise<T> {
       requests.push(request as LlmRequest<unknown>);
       return request.schema.parse(answer);

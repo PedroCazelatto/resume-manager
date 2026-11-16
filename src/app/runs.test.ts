@@ -67,6 +67,7 @@ describe("run registry", () => {
     let calls = 0;
     const llm: LlmClient = {
       model: "fake-model",
+      contextTokens: 1_000_000,
       async generate(request) {
         calls += 1;
         active += 1;

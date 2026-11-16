@@ -51,6 +51,7 @@ export async function verifyApplication({ llm, profile, files, id, now, send, si
     resume,
     now,
     onProgress: (progress: LlmProgress) => send({ type: "progress", step: "review", ...progress }),
+    onWarning: (message: string) => send({ type: "warning", step: "review", message }),
     signal,
   });
   const next = withFullVerification(previous?.data ?? null, [...found, ...reviewed.failures], checkedAt, reviewed.review);

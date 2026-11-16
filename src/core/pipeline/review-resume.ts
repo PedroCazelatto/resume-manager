@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { LlmClient, LlmRequest } from "../llm";
+import { generateWithWarning, type LlmClient, type LlmRequest } from "../llm";
 import { languageName } from "../application/languages";
 import { listProfileFiles, type Profile } from "../profile/profile";
 import { buildReviewResumePrompt, reviewResumeSystem } from "../prompts/review-resume";
@@ -20,25 +20,31 @@ export interface ReviewResumeInput {
   resume: ResumeFile;
   now: () => Date;
   onProgress?: LlmRequest<unknown>["onProgress"];
+  /** Called before the model call when the prompt takes more than half of the context window (F40). */
+  onWarning?: (message: string) => void;
   signal?: AbortSignal;
 }
 
 /** Pipeline step 5, model part: lists the claims the profile doesn't support (Art. II.5, F17). */
-export async function reviewResume({ llm, profile, resume, now, onProgress, signal }: ReviewResumeInput): Promise<{
+export async function reviewResume({ llm, profile, resume, now, onProgress, onWarning, signal }: ReviewResumeInput): Promise<{
   review: NonNullable<Verification["review"]>;
   failures: Failure[];
 }> {
   const claims = resumeClaims(resume, resume.inferences);
   const ids = claims.map((claim) => claim.where) as [string, ...string[]];
 
-  const reply = await llm.generate({
-    system: reviewResumeSystem({ code: resume.language, name: languageName(resume.language) }),
-    prompt: buildReviewResumePrompt(listProfileFiles(profile), claims),
-    schema: reviewReplySchema(ids),
-    temperature: 0.1,
-    onProgress,
-    signal,
-  });
+  const reply = await generateWithWarning(
+    llm,
+    {
+      system: reviewResumeSystem({ code: resume.language, name: languageName(resume.language) }),
+      prompt: buildReviewResumePrompt(listProfileFiles(profile), claims),
+      schema: reviewReplySchema(ids),
+      temperature: 0.1,
+      onProgress,
+      signal,
+    },
+    onWarning,
+  );
 
   const text = new Map(claims.map((claim) => [claim.where, claim.text]));
   return {

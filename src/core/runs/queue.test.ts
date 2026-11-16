@@ -48,9 +48,10 @@ describe("run queue", () => {
     expect(statuses(runs)).toEqual(["a:done", "john-b:done", "c:done"]);
   });
 
-  it("records the events of a run, keeping only the latest progress of a step", () => {
+  it("records the events of a run, keeping only the latest progress of a step and its warning", () => {
     let runs = startRun(queued("a"), "a");
     runs = recordEvent(runs, "a", { type: "step", step: "analyse", status: "running" });
+    runs = recordEvent(runs, "a", { type: "warning", step: "analyse", message: "This step's prompt is large." });
     runs = recordEvent(runs, "a", { type: "progress", step: "analyse", phase: "thinking", tokens: 10 });
     runs = recordEvent(runs, "a", { type: "progress", step: "analyse", phase: "writing", tokens: 3 });
     runs = recordEvent(runs, "a", { type: "step", step: "analyse", status: "done" });
@@ -59,6 +60,7 @@ describe("run queue", () => {
     expect(runs[0].events).toEqual([
       { type: "started" },
       { type: "step", step: "analyse", status: "running" },
+      { type: "warning", step: "analyse", message: "This step's prompt is large." },
       { type: "progress", step: "analyse", phase: "writing", tokens: 3 },
       { type: "step", step: "analyse", status: "done" },
       { type: "saved", id: "2026-11-10-globex-backend-engineer" },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ApplicationFile } from "../application/folder";
-import { LlmError, type LlmClient, type LlmRequest } from "../llm";
+import { contextWarning, estimatePromptTokens, LlmError, type LlmClient, type LlmRequest } from "../llm";
 import { parseFrontmatter, patchFrontmatter } from "../markdown/frontmatter";
 import { assembleProfile, type Profile, type SourceFile } from "../profile/profile";
 import { resumeFixture } from "../resume/fixture.testing";
@@ -61,10 +61,11 @@ function tailorReply(inferences: unknown[] = []) {
 const kubernetes = { skill: "Kubernetes", sources: [ACME], reason: "EKS is managed Kubernetes." };
 
 /** Answers each model call with the next reply; an Error reply fails that call. */
-function fakeLlm(replies: unknown[]) {
+function fakeLlm(replies: unknown[], contextTokens = 1_000_000) {
   const requests: LlmRequest<unknown>[] = [];
   const llm: LlmClient = {
     model: "fake-model",
+    contextTokens,
     async generate<T>(request: LlmRequest<T>): Promise<T> {
       requests.push(request as LlmRequest<unknown>);
       const reply = replies.shift();
@@ -164,6 +165,31 @@ describe("runApplication", () => {
     expect(events.filter((e) => e.type === "progress")).toEqual(
       ["analyse", "tailor", "review"].map((step) => ({ type: "progress", step, phase: "thinking", tokens: 12 })),
     );
+  });
+
+  it("warns in each step whose prompt is above half of the context window, and still finishes (F40)", async () => {
+    const { llm, requests } = fakeLlm([analysisReply, tailorReply(), { unsupported: [] }], 100);
+    const { run, events } = input({ llm, files: memoryFiles().files });
+
+    expect(await runApplication(run)).toBe(ID);
+
+    expect(requests).toHaveLength(3);
+    const warnings = events.filter((e) => e.type === "warning");
+    expect(warnings.map((e) => e.step)).toEqual(["analyse", "tailor", "review"]);
+    for (const [i, warning] of warnings.entries()) {
+      expect(warning.message).toBe(contextWarning(estimatePromptTokens(requests[i]), 100));
+    }
+    // Each warning comes while its step runs, before the model's first progress.
+    expect(events.slice(0, 4).map((e) => e.type)).toEqual(["step", "warning", "progress", "step"]);
+  });
+
+  it("sends no warning when the prompts are below the threshold (F40)", async () => {
+    const { llm } = fakeLlm([analysisReply, tailorReply(), { unsupported: [] }]);
+    const { run, events } = input({ llm, files: memoryFiles().files });
+
+    await runApplication(run);
+
+    expect(events.filter((e) => e.type === "warning")).toEqual([]);
   });
 
   it("leaves the resume a draft when a check fails or a skill is pending", async () => {
@@ -404,6 +430,21 @@ describe("verifyApplication", () => {
     expect(data("resume.md").data).toMatchObject({ status: "ready", my_note: "keep me" });
     expect(steps(events)).toEqual(["check:running", "check:done", "review:running", "review:done", "done"]);
     expect(events).toContainEqual({ type: "progress", step: "review", phase: "thinking", tokens: 12 });
+  });
+
+  it("warns when the review's prompt is above half of the context window (F40)", async () => {
+    const { files, data } = await application();
+    const { llm, requests } = fakeLlm([{ unsupported: [] }], 100);
+    const events: RunEvent[] = [];
+
+    await verifyApplication({ llm, profile: profile(), files, id: ID, now, send: (e) => events.push(e) });
+
+    expect(events).toContainEqual({
+      type: "warning",
+      step: "review",
+      message: contextWarning(estimatePromptTokens(requests[0]), 100),
+    });
+    expect(data("resume.md").data).toMatchObject({ status: "ready" });
   });
 
   it("keeps a dismissal when the model flags the same claim again", async () => {

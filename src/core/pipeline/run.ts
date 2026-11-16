@@ -22,6 +22,8 @@ export type RunEvent =
   | { type: "step"; step: RunStep; status: "running" | "done" }
   /** The model is thinking or writing in this step (Art. V.8). */
   | ({ type: "progress"; step: RunStep } & LlmProgress)
+  /** The step's prompt may not leave room for the reply; the run continues (F40). */
+  | { type: "warning"; step: RunStep; message: string }
   /** The application folder exists from here on, even if a later step fails. */
   | { type: "saved"; id: string }
   | { type: "done"; id: string }
@@ -65,6 +67,7 @@ export async function runApplication(input: RunInput): Promise<string> {
   const { llm, profile, files, send, now, signal } = input;
   const step = (name: RunStep, status: "running" | "done") => send({ type: "step", step: name, status });
   const progress = (name: RunStep) => (p: LlmProgress) => send({ type: "progress", step: name, ...p });
+  const warning = (name: RunStep) => (message: string) => send({ type: "warning", step: name, message });
 
   let id: string;
   let posting: string;
@@ -74,7 +77,7 @@ export async function runApplication(input: RunInput): Promise<string> {
     posting = input.start.posting;
     stopIfCancelled(signal);
     step("analyse", "running");
-    ({ job, analysis } = await analysePosting({ llm, profile, posting, now, onProgress: progress("analyse"), signal }));
+    ({ job, analysis } = await analysePosting({ llm, profile, posting, now, onProgress: progress("analyse"), onWarning: warning("analyse"), signal }));
     step("analyse", "done");
 
     stopIfCancelled(signal);
@@ -119,6 +122,7 @@ export async function runApplication(input: RunInput): Promise<string> {
       language: input.language ?? job.language,
       now,
       onProgress: progress("tailor"),
+      onWarning: warning("tailor"),
       signal,
     });
     await files.add(id, "resume.md", stringifyFrontmatter(resume));
@@ -138,7 +142,15 @@ export async function runApplication(input: RunInput): Promise<string> {
 
     stopIfCancelled(signal);
     step("review", "running");
-    const { review, failures } = await reviewResume({ llm, profile, resume, now, onProgress: progress("review"), signal });
+    const { review, failures } = await reviewResume({
+      llm,
+      profile,
+      resume,
+      now,
+      onProgress: progress("review"),
+      onWarning: warning("review"),
+      signal,
+    });
     const verification: Verification = { checked_at, review, failures: [...found, ...failures] };
     await files.add(id, "verification.md", stringifyFrontmatter(verification));
     const status = resumeStatus(resume, verification);

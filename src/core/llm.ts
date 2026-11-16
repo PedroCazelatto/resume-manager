@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 
 // The model interface pipeline steps depend on. The Ollama implementation lives in
 // src/adapters; tests use fakes (Art. IX.2).
@@ -27,6 +27,8 @@ export interface LlmProgress {
 export interface LlmClient {
   /** The configured model name, recorded in generated files. */
   readonly model: string;
+  /** Size of the model's context window in tokens (OLLAMA_NUM_CTX). */
+  readonly contextTokens: number;
   generate<T>(request: LlmRequest<T>): Promise<T>;
 }
 
@@ -46,6 +48,36 @@ export class LlmError extends Error {
 /** Stops a run between two steps once the user has cancelled it (F32). */
 export function stopIfCancelled(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new LlmError("cancelled", "The run was cancelled.");
+}
+
+/**
+ * Roughly how many tokens a call sends to the model: the characters of the system prompt,
+ * the prompt and the JSON schema, divided by 3. An estimate with a margin, not a count.
+ */
+export function estimatePromptTokens(request: Pick<LlmRequest<unknown>, "system" | "prompt" | "schema">): number {
+  const schema = JSON.stringify(z.toJSONSchema(request.schema));
+  return Math.ceil((request.system.length + request.prompt.length + schema.length) / 3);
+}
+
+/**
+ * The warning for a prompt that takes more than half of the context window, or null (F40).
+ * The other half is for the model's thinking and reply, whose size can't be known in advance.
+ */
+export function contextWarning(promptTokens: number, contextTokens: number): string | null {
+  if (promptTokens * 2 <= contextTokens) return null;
+  const n = (tokens: number) => tokens.toLocaleString("en");
+  return `This step's prompt is about ${n(promptTokens)} tokens, more than half of the ${n(contextTokens)}-token context window. If the step fails, raise OLLAMA_NUM_CTX.`;
+}
+
+/** Calls the model, after warning when the prompt may not leave room for the reply (F40). The call is made either way. */
+export function generateWithWarning<T>(
+  llm: LlmClient,
+  request: LlmRequest<T>,
+  onWarning?: (message: string) => void,
+): Promise<T> {
+  const warning = contextWarning(estimatePromptTokens(request), llm.contextTokens);
+  if (warning) onWarning?.(warning);
+  return llm.generate(request);
 }
 
 /** Parses the model's JSON reply and validates it against the request schema. */

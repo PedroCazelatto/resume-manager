@@ -1,7 +1,7 @@
 import { stringify } from "yaml";
 import { z } from "zod";
 import type { Analysis } from "../application/schemas";
-import { LlmError, type LlmClient, type LlmRequest } from "../llm";
+import { generateWithWarning, LlmError, type LlmClient, type LlmRequest } from "../llm";
 import { languageName } from "../application/languages";
 import { listProfileFiles, type Profile } from "../profile/profile";
 import { buildTailorResumePrompt, tailorResumeSystem } from "../prompts/tailor-resume";
@@ -49,6 +49,8 @@ export interface TailorResumeInput {
   language: string;
   now: () => Date;
   onProgress?: LlmRequest<unknown>["onProgress"];
+  /** Called before the model call when the prompt takes more than half of the context window (F40). */
+  onWarning?: (message: string) => void;
   signal?: AbortSignal;
 }
 
@@ -62,28 +64,33 @@ export async function tailorResume({
   language,
   now,
   onProgress,
+  onWarning,
   signal,
 }: TailorResumeInput): Promise<ResumeFile> {
   const files = listProfileFiles(profile);
   const paths = files.map((f) => f.file) as [string, ...string[]];
   const name = languageName(language);
 
-  const reply = await llm.generate({
-    system: tailorResumeSystem({ language: { code: language, name }, maxPages: template.maxPages }),
-    prompt: buildTailorResumePrompt({
-      files,
-      posting,
-      analysis: stringify({ requirements: analysis.requirements, keywords: analysis.keywords }, { lineWidth: 0 }),
-      rules: template.rules,
-      layout: template.layout,
-      language: { code: language, name },
-      maxPages: template.maxPages,
-    }),
-    schema: tailorReplySchema(paths),
-    temperature: 0.3,
-    onProgress,
-    signal,
-  });
+  const reply = await generateWithWarning(
+    llm,
+    {
+      system: tailorResumeSystem({ language: { code: language, name }, maxPages: template.maxPages }),
+      prompt: buildTailorResumePrompt({
+        files,
+        posting,
+        analysis: stringify({ requirements: analysis.requirements, keywords: analysis.keywords }, { lineWidth: 0 }),
+        rules: template.rules,
+        layout: template.layout,
+        language: { code: language, name },
+        maxPages: template.maxPages,
+      }),
+      schema: tailorReplySchema(paths),
+      temperature: 0.3,
+      onProgress,
+      signal,
+    },
+    onWarning,
+  );
 
   const personal = profile.personal.data;
   const { inferences, ...content } = reply;
