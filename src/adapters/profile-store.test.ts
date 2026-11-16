@@ -87,6 +87,83 @@ describe("createFsProfileStore in a scratch folder", () => {
     });
   });
 
+  describe("replaceProfileFile", () => {
+    it("replaces a profile file and leaves no temp file and no other change behind", async () => {
+      const store = createFsProfileStore(profilesDir);
+      const before = await readdir(profileDir, { recursive: true });
+      const summary = await readFile(path.join(profileDir, "summary.md"), "utf8");
+
+      await store.replaceProfileFile("jane-doe", "skills.md", "---\n---\n\n## Data\n- Redis\n");
+
+      expect(await readFile(path.join(profileDir, "skills.md"), "utf8")).toBe("---\n---\n\n## Data\n- Redis\n");
+      expect(await readdir(profileDir, { recursive: true })).toEqual(before);
+      expect(await readFile(path.join(profileDir, "summary.md"), "utf8")).toBe(summary);
+    });
+
+    it("replaces a file in an item folder", async () => {
+      const store = createFsProfileStore(profilesDir);
+      const [file] = await readdir(path.join(profileDir, "experience"));
+
+      await store.replaceProfileFile("jane-doe", `experience/${file}`, "changed");
+
+      expect(await readFile(path.join(profileDir, "experience", file), "utf8")).toBe("changed");
+    });
+
+    it.each([
+      "../jane-doe/skills.md",
+      "../other/skills.md",
+      "/etc/hosts",
+      "applications/2026-11-09-globex-dev/resume.md",
+      "applications/resume.md",
+      "imports/cv.md",
+      "experience/../skills.md",
+      "experience/.hidden.md",
+      "notes.md",
+      "skills.txt",
+      "",
+    ])("refuses the path %j", async (file) => {
+      await mkdir(path.join(profilesDir, "other"));
+      await writeFile(path.join(profilesDir, "other", "skills.md"), "theirs");
+
+      await expect(createFsProfileStore(profilesDir).replaceProfileFile("jane-doe", file, "x")).rejects.toThrow(
+        "Not a profile file",
+      );
+      expect(await readFile(path.join(profilesDir, "other", "skills.md"), "utf8")).toBe("theirs");
+    });
+
+    it("refuses an invalid profile name", async () => {
+      await expect(createFsProfileStore(profilesDir).replaceProfileFile("../other", "skills.md", "x")).rejects.toThrow(
+        "Invalid profile name",
+      );
+    });
+
+    it("doesn't create a file that doesn't exist", async () => {
+      await rm(path.join(profileDir, "skills.md"));
+
+      await expect(createFsProfileStore(profilesDir).replaceProfileFile("jane-doe", "skills.md", "x")).rejects.toThrow(
+        "skills.md doesn't exist",
+      );
+      expect(await readdir(profileDir)).not.toContain("skills.md");
+    });
+
+    it("doesn't write through a symlink into another profile", async () => {
+      const other = path.join(profilesDir, "other");
+      await mkdir(path.join(other, "experience"), { recursive: true });
+      await writeFile(path.join(other, "skills.md"), "theirs");
+      await writeFile(path.join(other, "experience", "2020-01-x.md"), "theirs");
+      await rm(path.join(profileDir, "skills.md"));
+      await symlink(path.join(other, "skills.md"), path.join(profileDir, "skills.md"));
+      await rm(path.join(profileDir, "experience"), { recursive: true });
+      await symlink(path.join(other, "experience"), path.join(profileDir, "experience"));
+      const store = createFsProfileStore(profilesDir);
+
+      await expect(store.replaceProfileFile("jane-doe", "skills.md", "x")).rejects.toThrow("doesn't exist");
+      await expect(store.replaceProfileFile("jane-doe", "experience/2020-01-x.md", "x")).rejects.toThrow("doesn't exist");
+      expect(await readFile(path.join(other, "skills.md"), "utf8")).toBe("theirs");
+      expect(await readFile(path.join(other, "experience", "2020-01-x.md"), "utf8")).toBe("theirs");
+    });
+  });
+
   describe("applications", () => {
     const files = { "job.md": "---\nsource: paste\n---\nPosting\n", "analysis.md": "---\nmodel: m\n---\n" };
 
