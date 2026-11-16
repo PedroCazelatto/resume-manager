@@ -8,6 +8,7 @@ version: implemented
 
 - While a run works, the page lists each step: analysing, saving, writing the resume, checking, reviewing.
 - The running step shows a timer as `MMmSSs` and what the model is doing: `thinking, 1,234 tokens`, then `writing, 310 tokens`.
+- A step whose prompt may not fit the context window shows a warning under its line; see [context-size-warning](context-size-warning.md).
 - The server streams progress as one JSON event per line.
 
 ## Where it lives
