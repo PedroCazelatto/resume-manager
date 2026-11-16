@@ -24,8 +24,11 @@ export type RunEvent =
   | ({ type: "progress"; step: RunStep } & LlmProgress)
   /** The step's prompt may not leave room for the reply; the run continues (F40). */
   | { type: "warning"; step: RunStep; message: string }
-  /** The application folder exists from here on, even if a later step fails. */
-  | { type: "saved"; id: string }
+  /**
+   * The application folder exists from here on, even if a later step fails. The posting's
+   * company and role come along when job.md gave them (F38).
+   */
+  | { type: "saved"; id: string; company?: string; role?: string }
   | { type: "done"; id: string }
   | { type: "error"; message: string };
 
@@ -103,7 +106,7 @@ export async function runApplication(input: RunInput): Promise<string> {
     step("analyse", "done");
     step("save", "done");
   }
-  send({ type: "saved", id });
+  send({ type: "saved", id, company: job.company, role: job.role });
 
   let resume;
   const resumeSource = await files.read(id, "resume.md");

@@ -230,7 +230,7 @@ describe("runApplication", () => {
 
     expect(requests).toHaveLength(1);
     expect([...saved.keys()].sort()).toEqual([`${ID}/analysis.md`, `${ID}/job.md`]);
-    expect(events).toContainEqual({ type: "saved", id: ID });
+    expect(events).toContainEqual({ type: "saved", id: ID, company: "Globex", role: "Backend Engineer" });
   });
 
   describe("trying again (F19)", () => {
@@ -428,7 +428,9 @@ describe("verifyApplication", () => {
       failures: [],
     });
     expect(data("resume.md").data).toMatchObject({ status: "ready", my_note: "keep me" });
-    expect(steps(events)).toEqual(["check:running", "check:done", "review:running", "review:done", "done"]);
+    expect(steps(events)).toEqual(["saved", "check:running", "check:done", "review:running", "review:done", "done"]);
+    // The run names its application, so its end can be told with the company and role (F38).
+    expect(events[0]).toEqual({ type: "saved", id: ID, company: "Globex", role: "Backend Engineer" });
     expect(events).toContainEqual({ type: "progress", step: "review", phase: "thinking", tokens: 12 });
   });
 

@@ -39,6 +39,9 @@ export interface RunSummary {
   kind: RunKind;
   status: RunStatus;
   applicationId?: string;
+  /** The posting's company and role, once known (F38). */
+  company?: string;
+  role?: string;
   error?: string;
   language: string | null;
 }
@@ -111,11 +114,13 @@ export function createRunRegistry(execute: ExecuteRun) {
 
     /** The profile's own runs, in the order the Runs list shows them (Art. III.7). */
     list(profile: string): RunSummary[] {
-      return runsOf(runs, profile).map(({ runId, kind, status, applicationId, error, input }) => ({
+      return runsOf(runs, profile).map(({ runId, kind, status, applicationId, company, role, error, input }) => ({
         runId,
         kind,
         status,
         applicationId,
+        company,
+        role,
         error,
         language: input.language,
       }));

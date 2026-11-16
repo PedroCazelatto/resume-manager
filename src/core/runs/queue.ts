@@ -20,6 +20,9 @@ export interface QueuedRun<Input = unknown> {
   status: RunStatus;
   /** The application folder, once it exists. */
   applicationId?: string;
+  /** The posting's company and role, once the run has told them (F38). */
+  company?: string;
+  role?: string;
   /** Every event sent so far, so a stream opened late can replay them. */
   events: QueueEvent[];
   /** Why the run failed. */
@@ -55,7 +58,13 @@ export function recordEvent<I>(runs: readonly QueuedRun<I>[], runId: string, eve
     const replaces = event.type === "progress" && last?.type === "progress" && last.step === event.step;
     const events = [...(replaces ? run.events.slice(0, -1) : run.events), event];
     const applicationId = event.type === "saved" || event.type === "done" ? event.id : run.applicationId;
-    return { ...run, events, ...(applicationId === undefined ? {} : { applicationId }) };
+    const named = event.type === "saved" && event.company !== undefined && event.role !== undefined;
+    return {
+      ...run,
+      events,
+      ...(applicationId === undefined ? {} : { applicationId }),
+      ...(named ? { company: event.company, role: event.role } : {}),
+    };
   });
 }
 

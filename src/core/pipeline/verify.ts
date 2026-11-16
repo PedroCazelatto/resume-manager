@@ -1,3 +1,4 @@
+import { jobSchema } from "../application/schemas";
 import { stopIfCancelled, type LlmClient, type LlmProgress } from "../llm";
 import { patchFrontmatter, stringifyFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile } from "../markdown/validate";
@@ -36,6 +37,11 @@ export async function verifyApplication({ llm, profile, files, id, now, send, si
   const previous =
     verificationSource === null ? null : validateMarkdownFile(verificationSchema, "verification.md", verificationSource);
   if (previous && !previous.ok) throw new Error("verification.md has problems. Fix the file first.");
+
+  // Only to name the application when the run ends (F38); verifying doesn't need job.md.
+  const jobSource = await files.read(id, "job.md");
+  const job = jobSource === null ? null : validateMarkdownFile(jobSchema, "job.md", jobSource);
+  send({ type: "saved", id, ...(job?.ok ? { company: job.data.company, role: job.data.role } : {}) });
 
   stopIfCancelled(signal);
   send({ type: "step", step: "check", status: "running" });
