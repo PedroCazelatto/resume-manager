@@ -28,6 +28,8 @@ export interface AnalysePostingInput {
   llm: LlmClient;
   profile: Profile;
   posting: string;
+  /** Where the posting came from, for job.md; a pasted posting when left out. */
+  origin?: Pick<Job, "source" | "url">;
   now: () => Date;
   onProgress?: LlmRequest<unknown>["onProgress"];
   /** Called before the model call when the prompt takes more than half of the context window (F40). */
@@ -36,7 +38,7 @@ export interface AnalysePostingInput {
 }
 
 /** Pipeline steps 2–3 in one model call: analyse the posting, then fit/gap against the profile (F12). */
-export async function analysePosting({ llm, profile, posting, now, onProgress, onWarning, signal }: AnalysePostingInput): Promise<{
+export async function analysePosting({ llm, profile, posting, origin, now, onProgress, onWarning, signal }: AnalysePostingInput): Promise<{
   job: Job;
   analysis: Analysis;
 }> {
@@ -71,7 +73,8 @@ export async function analysePosting({ llm, profile, posting, now, onProgress, o
 
   return {
     job: {
-      source: "paste",
+      source: origin?.source ?? "paste",
+      ...(origin?.url ? { url: origin.url } : {}),
       fetched_at: submittedAt,
       company: reply.company,
       role: reply.role,

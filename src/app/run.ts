@@ -3,6 +3,7 @@ import { LlmError } from "@/core/llm";
 import { runApplication } from "@/core/pipeline/run";
 import { verifyApplication } from "@/core/pipeline/verify";
 import type { RunKind } from "@/core/runs/queue";
+import { createJobFetcher } from "@/adapters/job-fetcher";
 import { llmClient } from "@/app/llm";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "@/app/runs";
@@ -44,6 +45,7 @@ const executeRun: ExecuteRun = async (run: AppRun, send, signal) => {
         loadTemplate: (country) => templateStore().loadTemplate(country),
         template: DEFAULT_TEMPLATE,
         start,
+        fetchPosting: (url, cancel) => createJobFetcher().fetchPosting(url, cancel),
         language,
         now: () => new Date(),
         // Today's date on this machine, as YYYY-MM-DD.

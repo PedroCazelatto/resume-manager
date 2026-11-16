@@ -3,6 +3,7 @@ import {
   cancelRun,
   canTryAgain,
   enqueue,
+  fetchFailed,
   findRun,
   finishRun,
   latestGeneration,
@@ -161,6 +162,17 @@ describe("run queue", () => {
     expect(canTryAgain({ ...run, status: "done" })).toBe(false);
     expect(canTryAgain({ ...run, kind: "retry" })).toBe(false);
     expect(canTryAgain({ ...run, kind: "verify" })).toBe(false);
+  });
+
+  it("tells a run whose fetch failed from one that failed later or was cancelled (F10)", () => {
+    const fetching = [{ type: "started" }, { type: "step", step: "fetch", status: "running" }] as const;
+    const fetchedThen = [...fetching, { type: "step", step: "fetch", status: "done" }, { type: "step", step: "analyse", status: "running" }] as const;
+
+    expect(fetchFailed({ status: "failed", events: [...fetching, { type: "error", message: "The page answered 403." }] })).toBe(true);
+    expect(fetchFailed({ status: "failed", events: [...fetchedThen] })).toBe(false);
+    expect(fetchFailed({ status: "failed", events: [{ type: "started" }, { type: "step", step: "analyse", status: "running" }] })).toBe(false);
+    expect(fetchFailed({ status: "cancelled", events: [...fetching] })).toBe(false);
+    expect(fetchFailed({ status: "running", events: [...fetching] })).toBe(false);
   });
 
   it("reads a run's steps and context warnings from its events, leaving an unfinished step running", () => {

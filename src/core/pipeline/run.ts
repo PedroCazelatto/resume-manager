@@ -1,8 +1,9 @@
 import { applicationFolderName, type ApplicationFile } from "../application/folder";
-import { analysisSchema, jobSchema } from "../application/schemas";
+import { analysisSchema, jobSchema, type Job } from "../application/schemas";
 import { stopIfCancelled, type LlmClient, type LlmProgress } from "../llm";
 import { patchFrontmatter, stringifyFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile } from "../markdown/validate";
+import { MAX_POSTING_CHARS, type JobFetcher } from "../posting/job-fetcher";
 import type { Profile } from "../profile/profile";
 import { resumeFileSchema } from "../resume/schema";
 import type { ParseTemplateResult } from "../template/template";
@@ -12,11 +13,12 @@ import { analysePosting } from "./analyse-posting";
 import { reviewResume } from "./review-resume";
 import { tailorResume } from "./tailor-resume";
 
-// One run of the pipeline (Art. VI), from the posting to the verified resume. Each step's
+// One run of the pipeline (Art. VI), from the posting to the verified resume. A run started
+// from a link fetches the posting first (F10). Each step's
 // output is saved; a step whose output file already exists is skipped (F19). A cancelled
 // run stops its model call, or stops before the next step; what is saved stays (F32).
 
-export type RunStep = "analyse" | "save" | "tailor" | "check" | "review";
+export type RunStep = "fetch" | "analyse" | "save" | "tailor" | "check" | "review";
 
 export type RunEvent =
   | { type: "step"; step: RunStep; status: "running" | "done" }
@@ -48,8 +50,13 @@ export interface RunInput {
   loadTemplate: (country: string) => Promise<ParseTemplateResult>;
   /** The template every new resume uses. */
   template: string;
-  /** A new run starts from a pasted posting; a retry continues the application with this ID. */
-  start: { posting: string } | { id: string };
+  /**
+   * A new run starts from a pasted posting (with its link, when the user kept one) or from
+   * a link to fetch (F10); a retry continues the application with this ID.
+   */
+  start: { posting: string; url?: string } | { url: string } | { id: string };
+  /** Downloads the posting of a run started from a link. */
+  fetchPosting: JobFetcher["fetchPosting"];
   /** The user's choice of resume language; null means the posting's language (Art. VIII.1). */
   language: string | null;
   now: () => Date;
@@ -76,11 +83,38 @@ export async function runApplication(input: RunInput): Promise<string> {
   let posting: string;
   let job;
   let analysis;
-  if ("posting" in input.start) {
-    posting = input.start.posting;
+  if (!("id" in input.start)) {
+    let origin: Pick<Job, "source" | "url">;
+    if ("posting" in input.start) {
+      posting = input.start.posting;
+      origin = { source: "paste", url: input.start.url };
+    } else {
+      stopIfCancelled(signal);
+      step("fetch", "running");
+      const fetched = await input.fetchPosting(input.start.url, signal);
+      stopIfCancelled(signal);
+      if (!fetched.ok) throw new Error(fetched.reason);
+      // Fetched text is held to the limit of pasted text, and never cut silently.
+      if (fetched.text.length > MAX_POSTING_CHARS) {
+        throw new Error(`The page's text is longer than ${MAX_POSTING_CHARS} characters. Paste the posting's own text instead.`);
+      }
+      posting = fetched.text;
+      origin = { source: "url", url: fetched.url };
+      step("fetch", "done");
+    }
+
     stopIfCancelled(signal);
     step("analyse", "running");
-    ({ job, analysis } = await analysePosting({ llm, profile, posting, now, onProgress: progress("analyse"), onWarning: warning("analyse"), signal }));
+    ({ job, analysis } = await analysePosting({
+      llm,
+      profile,
+      posting,
+      origin,
+      now,
+      onProgress: progress("analyse"),
+      onWarning: warning("analyse"),
+      signal,
+    }));
     step("analyse", "done");
 
     stopIfCancelled(signal);

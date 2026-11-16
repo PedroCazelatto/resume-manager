@@ -52,8 +52,18 @@ describe("run registry", () => {
     const second = registry.enqueue("jane-doe", "retry", { start: { id: ID }, language: "pt" });
 
     expect(registry.list("jane-doe")).toEqual([
-      { runId: first, kind: "new", status: "running", language: null, steps: [], warnings: {}, retryable: false },
-      { runId: second, kind: "retry", status: "queued", applicationId: ID, language: "pt", steps: [], warnings: {}, retryable: false },
+      { runId: first, kind: "new", status: "running", language: null, steps: [], warnings: {}, retryable: false, fetchFailed: false },
+      {
+        runId: second,
+        kind: "retry",
+        status: "queued",
+        applicationId: ID,
+        language: "pt",
+        steps: [],
+        warnings: {},
+        retryable: false,
+        fetchFailed: false,
+      },
     ]);
     expect(started.map((run) => run.runId)).toEqual([first]);
 
@@ -410,6 +420,73 @@ describe("run registry", () => {
       registry.retry("jane-doe", runId);
 
       for (const log of logs) expect(log).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("a run started from a link (F10)", () => {
+    const LINK = "https://jobs.example.com/backend-engineer";
+
+    /** A link run whose fetch step failed. */
+    async function failedFetch() {
+      const { execute, started, ends, sends } = manualRuns();
+      const registry = createRunRegistry(execute);
+      const runId = registry.enqueue("jane-doe", "new", { start: { url: LINK }, language: "de" });
+      const ended = followed(registry, "jane-doe", runId);
+      sends.get(runId)!({ type: "step", step: "fetch", status: "running" });
+      ends.get(runId)!.reject(new Error("The page answered 403."));
+      await ended;
+      return { registry, runId, started, ends, sends };
+    }
+
+    it("lists the link, and offers the paste fallback and Try again once its fetch failed", async () => {
+      const { registry, runId } = await failedFetch();
+
+      expect(registry.list("jane-doe")).toEqual([
+        {
+          runId,
+          kind: "new",
+          status: "failed",
+          error: "The page answered 403.",
+          language: "de",
+          steps: [{ step: "fetch", status: "running" }],
+          warnings: {},
+          retryable: true,
+          url: LINK,
+          fetchFailed: true,
+        },
+      ]);
+    });
+
+    it("fetches the same link again on Try again", async () => {
+      const { registry, runId, started } = await failedFetch();
+
+      const again = registry.retry("jane-doe", runId);
+
+      expect(again).not.toBe("refused");
+      expect(started.at(-1)!.input).toEqual({ start: { url: LINK }, language: "de" });
+    });
+
+    it("doesn't offer the paste fallback for a link run that failed after its fetch", async () => {
+      const { execute, ends, sends } = manualRuns();
+      const registry = createRunRegistry(execute);
+      const runId = registry.enqueue("jane-doe", "new", { start: { url: LINK }, language: null });
+      const ended = followed(registry, "jane-doe", runId);
+      sends.get(runId)!({ type: "step", step: "fetch", status: "running" });
+      sends.get(runId)!({ type: "step", step: "fetch", status: "done" });
+      sends.get(runId)!({ type: "step", step: "analyse", status: "running" });
+      ends.get(runId)!.reject(new Error("Can't reach Ollama."));
+      await ended;
+
+      expect(registry.list("jane-doe")[0]).toMatchObject({ url: LINK, fetchFailed: false, retryable: true });
+    });
+
+    it("lists the link kept with a pasted posting, never the posting", () => {
+      const { execute } = manualRuns();
+      const registry = createRunRegistry(execute);
+      registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: LINK }, language: null });
+
+      expect(registry.list("jane-doe")[0]).toMatchObject({ url: LINK, fetchFailed: false });
+      expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
     });
   });
 

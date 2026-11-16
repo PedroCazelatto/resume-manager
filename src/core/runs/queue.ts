@@ -5,7 +5,7 @@ import type { RunEvent, RunStep } from "../pipeline/run";
 
 export type RunStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
-/** A new application from a pasted posting, "Try again" or "Verify again" on a saved one. */
+/** A new application from a pasted posting or a link, "Try again" or "Verify again" on a saved one. */
 export type RunKind = "new" | "retry" | "verify";
 
 /** What a run's event stream carries: the pipeline's events, plus what the queue did with the run. */
@@ -144,6 +144,14 @@ export function runsOf<I>(runs: readonly QueuedRun<I>[], profile: string): Queue
  */
 export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "applicationId">): boolean {
   return run.kind === "new" && (run.status === "failed" || run.status === "cancelled") && run.applicationId === undefined;
+}
+
+/**
+ * Whether a failed run stopped while fetching its posting from a link, so the Runs list
+ * offers "Paste the text instead" (F10).
+ */
+export function fetchFailed(run: Pick<QueuedRun, "status" | "events">): boolean {
+  return run.status === "failed" && runSteps(run.events).steps.some((s) => s.step === "fetch" && s.status === "running");
 }
 
 /**

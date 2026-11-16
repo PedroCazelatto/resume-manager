@@ -3,6 +3,7 @@ import {
   cancelRun,
   canTryAgain,
   enqueue,
+  fetchFailed,
   findRun,
   finishRun,
   nextRun,
@@ -23,7 +24,7 @@ import {
 
 /**
  * What a run was asked to do. It stays with the run after it ends, so "Try again" can queue
- * the same posting and language. The posting is never logged or listed (Art. III.4).
+ * the same posting or link and language. The posting is never logged or listed (Art. III.4).
  */
 export interface RunRequest {
   start: RunInput["start"];
@@ -56,6 +57,10 @@ export interface RunSummary {
   warnings: Partial<Record<RunStep, string>>;
   /** The Runs list offers "Try again" on the run itself: it ended before its application was saved (F19). */
   retryable: boolean;
+  /** The posting's link: the one a link run fetches, or the one kept with a pasted posting (F10). */
+  url?: string;
+  /** The run failed while fetching its link; the list offers "Paste the text instead" (F10). */
+  fetchFailed: boolean;
 }
 
 /** Receives a run's events; `close` is called once, after the last one. */
@@ -139,6 +144,8 @@ export function createRunRegistry(execute: ExecuteRun) {
         language: run.input.language,
         ...runSteps(run.events),
         retryable: canTryAgain(run),
+        url: "url" in run.input.start ? run.input.start.url : undefined,
+        fetchFailed: fetchFailed(run),
       }));
     },
 

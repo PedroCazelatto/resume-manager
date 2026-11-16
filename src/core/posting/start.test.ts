@@ -1,0 +1,46 @@
+import { describe, expect, it } from "vitest";
+import { MAX_POSTING_CHARS } from "./job-fetcher";
+import { readNewRunStart } from "./start";
+
+describe("readNewRunStart", () => {
+  it("starts from pasted text", () => {
+    expect(readNewRunStart({ posting: "  Globex is hiring.  " })).toEqual({ start: { posting: "Globex is hiring." } });
+  });
+
+  it("starts from a link when no text was pasted", () => {
+    expect(readNewRunStart({ url: " https://jobs.example.com/7 " })).toEqual({ start: { url: "https://jobs.example.com/7" } });
+    expect(readNewRunStart({ posting: "  ", url: "https://jobs.example.com/7" })).toEqual({
+      start: { url: "https://jobs.example.com/7" },
+    });
+  });
+
+  it("keeps the link with pasted text, an Indeed link included, without fetching it", () => {
+    expect(readNewRunStart({ posting: "Globex is hiring.", url: "https://ie.indeed.com/viewjob?jk=1" })).toEqual({
+      start: { posting: "Globex is hiring.", url: "https://ie.indeed.com/viewjob?jk=1" },
+    });
+  });
+
+  it("refuses an empty request and a posting over the limit", () => {
+    for (const body of [null, {}, { posting: 7, url: null }, { posting: " ", url: "" }]) {
+      expect(readNewRunStart(body)).toEqual({ error: "Give the posting's link or paste its text first." });
+    }
+    expect(readNewRunStart({ posting: "x".repeat(MAX_POSTING_CHARS) })).toHaveProperty("start");
+    expect(readNewRunStart({ posting: "x".repeat(MAX_POSTING_CHARS + 1) })).toEqual({
+      error: "The posting is longer than 50000 characters.",
+    });
+  });
+
+  it("refuses a link the server must not fetch", () => {
+    expect(readNewRunStart({ url: "ftp://jobs.example.com/7" })).toEqual({ error: "Only http and https links are accepted." });
+    expect(readNewRunStart({ url: "http://127.0.0.1:11434/api/tags" })).toHaveProperty("error");
+    expect(readNewRunStart({ url: "http://192.168.1.1/" })).toHaveProperty("error");
+    expect(readNewRunStart({ url: "https://ie.indeed.com/viewjob?jk=1" })).toEqual({
+      error: "Indeed blocks automated requests. Paste the posting's text instead.",
+    });
+  });
+
+  it("refuses a kept link that isn't an http or https link", () => {
+    expect(readNewRunStart({ posting: "Globex is hiring.", url: "javascript:alert(1)" })).toHaveProperty("error");
+    expect(readNewRunStart({ posting: "Globex is hiring.", url: "not a link" })).toHaveProperty("error");
+  });
+});
