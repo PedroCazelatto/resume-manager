@@ -27,6 +27,8 @@ export interface Run {
   elapsed: number;
   /** What the model is doing in the running step, once it has sent tokens. */
   progress: Progress | null;
+  /** Steps whose prompt may not fit the context window, with the message to show (F40). */
+  warnings: Partial<Record<RunStep, string>>;
   error: string | null;
   /** The user cancelled the run; that is not an error (F32). */
   cancelled: boolean;
@@ -85,6 +87,7 @@ export function useRun(): Run {
   const [steps, setSteps] = useState<StepState[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [warnings, setWarnings] = useState<Partial<Record<RunStep, string>>>({});
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [cancelled, setCancelled] = useState(false);
@@ -104,6 +107,7 @@ export function useRun(): Run {
     setElapsed(0);
     setSteps([]);
     setProgress(null);
+    setWarnings({});
     setError(null);
     setCancelled(false);
     setCancelling(false);
@@ -127,6 +131,8 @@ export function useRun(): Run {
           setSteps((current) => [...current.filter((s) => s.step !== event.step), { step: event.step, status: event.status }]);
         } else if (event.type === "progress") {
           setProgress(event);
+        } else if (event.type === "warning") {
+          setWarnings((current) => ({ ...current, [event.step]: event.message }));
         } else if (event.type === "saved") {
           setSavedId(event.id);
           if (options.language !== undefined) rememberLanguage(event.id, options.language);
@@ -172,7 +178,7 @@ export function useRun(): Run {
       .catch(() => setCancelling(false));
   }
 
-  return { running, waiting, steps, elapsed, progress, error, cancelled, savedId, start, follow, cancel, cancelling };
+  return { running, waiting, steps, elapsed, progress, warnings, error, cancelled, savedId, start, follow, cancel, cancelling };
 }
 
 export function RunProgress({ run }: { run: Run }) {
@@ -198,6 +204,7 @@ export function RunProgress({ run }: { run: Run }) {
                 </Button>
               </>
             )}
+            {run.warnings[step] && <p className="text-amber-900 dark:text-amber-100">{run.warnings[step]}</p>}
           </li>
         ))}
       </ol>
