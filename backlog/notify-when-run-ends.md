@@ -1,39 +1,50 @@
 ---
 title: Notify when a run ends
 id: F38
-version: next version
+version: implemented
 reported: 2026-11-15
 ---
 
-## Problem
+## What it does
 
-A run can take more than half an hour, and the only way to know it ended is to keep looking at the page.
+- When a run of the selected profile finishes or fails, the browser shows a system notification: "Resume ready" or "Run failed", with the company and role ("Globex · Backend Engineer") when the run got far enough to know them. Clicking it focuses the tab.
+- If the tab isn't focused at that moment, its title starts with "Done" or "Failed" ("Done · Resume Manager") until the tab is focused again.
+- Permission for notifications is asked when a run is started ("Generate resume", "Try again", "Verify again") and the browser has no answer yet. Once it is granted or denied the app never asks again. Without the permission only the tab title changes, and no error appears.
+- A run the user cancelled, or removed from the queue, produces no notification and no title change.
+- It works wherever a run is watched: the Runs list on the home page (for every run of the queue, also the ones started in another tab) and "Try again" / "Verify again" on the application page. Each run is told about once per tab.
+- A run that was already over when the page was opened is not told about.
+- There is no sound, no service worker and no push service; the open page creates the notification.
 
-## Behaviour
+## Where it lives
 
-- When a run finishes or fails, the browser shows a system notification: "Resume ready" or "Run failed", with the company and role when known.
-- The tab title changes to start with "Done" or "Failed" until the tab is focused again.
-- Permission for notifications is asked the first time a run is started. If it is denied, only the tab title changes; the app doesn't ask again.
+- `src/core/runs/notice.ts`: the pure logic. `runNotice` (the notification's title and body and the tab prefix for a run's end, or null when there is nothing to tell), `noticeTabTitle`, and `endedRuns` (which runs of the Runs list ended since the tab saw them waiting or running).
+- `src/components/run-notifications.ts`: the browser side, a small module next to `use-run.tsx`. `askToNotify` (the permission), `watchRun`, `tellRunEnded` (the `Notification` and `document.title`, once per run) and `tellEndedRuns` (for the Runs list).
+- `src/components/use-run.tsx`: `enqueueRun` asks for the permission and watches the run it queued; `useRun().follow` tells when the stream it follows ends with `done` or `error`.
+- `src/components/runs-list.tsx`: every refresh of the list hands the runs to `tellEndedRuns`.
+- The company and role reach the browser with the run: the stream's `saved` event carries `company` and `role` (`src/core/pipeline/run.ts`; `src/core/pipeline/verify.ts` now sends `saved` too, reading them from `job.md`), `recordEvent` keeps them on the run (`src/core/runs/queue.ts`), and `GET /api/runs` lists them (`RunSummary` in `src/app/runs.ts`).
 
-## Acceptance criteria
+## Tests
 
-- [ ] With permission granted, finishing a run in a background tab shows a notification; clicking it focuses the tab.
-- [ ] With permission denied, no error appears and the tab title still changes.
-- [ ] The title returns to normal when the tab gets focus.
-- [ ] A run cancelled by the user produces no notification.
-- [ ] `npm run typecheck`, `npm run lint` and `npm test` pass; new core logic has unit tests with the model mocked (Art. IX).
-- [ ] This file's header says `version: implemented` and `backlog/index.md` lists it under Implemented.
+- `src/core/runs/notice.test.ts`: the words for a finished and a failed run, with and without the company and role; nothing for a cancelled, waiting or running run; the tab title; a run is returned once, only after it was seen waiting or running (or queued by this tab), never when it was already over.
+- `src/core/runs/queue.test.ts`: the run keeps the company and role of its `saved` event, also when it fails afterwards.
+- `src/core/pipeline/run.test.ts`: the `saved` event carries the company and role, for a generation and for "Verify again".
+- Not checked in a real browser yet: the permission prompt, the system notification and its click, and the title coming back on focus. Vitest runs in Node, without `Notification` or `document`.
 
-## Technical notes
+## Rules it follows
 
-- Client only, in `src/components/use-run.tsx` (or a small hook next to it), using the browser's `Notification` API and `document.title`.
-- No service worker and no push service: the notification is created by the open page (Art. III.2: no outbound requests).
-- Put the message-building logic in a pure function with a unit test.
+- Art. III.2 (no outbound request: the notification is created by the open page).
+- Art. III.7 (a tab only learns about runs of the selected profile, through `GET /api/runs` and the run's own stream).
+- Art. III.4 (nothing is logged; the company and role only travel to the profile's own page).
+- Art. V.3 (the words and the choice of runs are pure core code; the browser APIs stay in `src/components/`).
+- Art. IX.2 (the core logic has unit tests).
 
-## Depends on
-
-- Works on its own; with [run-queue](run-queue.md) it fires for every run of the queue.
-
-## Decisions
+## Notes
 
 - Decided 2026-11-15: system notification plus tab title; no sound.
+- The notification is shown whether or not the tab is focused; the title only changes while the tab isn't focused, since focus puts it back.
+- A permission prompt the user closes without answering leaves the browser without an answer, so the next started run asks again. Browsers stop showing the prompt by themselves after a few dismissals.
+- A finished "Verify again" also says "Resume ready".
+- A run that fails in its first step has no company and role yet, so its notification has no body.
+- With the app open in two tabs, both tell about the run; the notifications share a tag, so the system shows one.
+- On the home page the running run is followed through its stream, so its end is told at once. A waiting run that ends without ever being seen running is noticed by the list's refresh, which browsers slow down in a background tab (up to a minute).
+- After a reload the tab only knows the runs the Runs list still shows as waiting or running; following a run again on the application page is [reconnect-to-a-run](reconnect-to-a-run.md).
