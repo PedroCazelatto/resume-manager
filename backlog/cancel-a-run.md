@@ -12,8 +12,10 @@ reported: 2026-11-14
 - The run ends as `cancelled` and the next waiting run starts. A run that is between two steps stops before the next one.
 - Files of finished steps stay saved. Nothing is deleted or offered for deletion.
 - A cancelled run that has an application folder links to it from the Runs list; the application page offers "Try again", which skips the finished steps, as with a failed run.
+- A new run cancelled before its application was saved has "Try again" in the Runs list, which queues its posting and language again; see [try-again-failed-run](try-again-failed-run.md).
+- A cancelled run keeps its steps in the Runs list, as it left them; see [run-queue](run-queue.md).
 - Cancelling is not an error: the Runs list says "cancelled", and the page that was following the run says "This run was cancelled. The finished steps stay saved." No error message is shown or stored.
-- A waiting run is still taken off the queue with "Remove" and leaves the list, as before.
+- A waiting run is still taken off the queue with "Remove" and leaves the list, as before. On the application page the button sits next to "Waiting for another run to finish…".
 
 ## Where it lives
 
@@ -24,14 +26,14 @@ reported: 2026-11-14
 - `src/app/runs.ts`: the registry keeps the running run's `AbortController` and hands its signal to the executor; `remove` aborts it for a running run. The run becomes `cancelled` only when its work has stopped, so two runs never use the model at once.
 - `src/app/run.ts`: the executor passes the signal to `runApplication` and `verifyApplication`.
 - `DELETE /api/runs/[runId]`: 204 for a waiting run (removed), 202 for the running run (cancelling; its stream ends with `cancelled`), 409 for a run that has already ended, 404 for an unknown or another profile's run.
-- `src/components/use-run.tsx`: `useRun().cancel`, `.cancelling` and `.cancelled`; `RunProgress` shows the button and the cancelled line.
+- `src/components/use-run.tsx`: `useRun().cancel`, `.cancelling` and `.cancelled`; `RunProgress` shows the button and the cancelled line. `cancel` is also what "Remove" on a waiting run calls.
 
 ## Tests
 
 - `src/adapters/ollama-client.test.ts`: the signal reaches the client's fetch; an abort before or in the middle of the stream becomes `cancelled`; an idle timeout is still `timeout`.
 - `src/core/pipeline/run.test.ts` ("cancelling a run"): the signal reaches every model call; no call when already cancelled; the run stops before the next step and keeps the saved files; a cancelled run continues with "Try again" without analysing again; "Verify again" stops before the review.
 - `src/core/runs/queue.test.ts`: a cancelled run has no error, ends with the `cancelled` event, lets the next one start and counts as finished.
-- `src/app/runs.test.ts` ("cancelling the running run"): the signal is aborted, the run ends as `cancelled` and the next one starts; the next one waits until the cancelled one has really stopped; the application ID is kept; a run that still got to its end is `done`; another profile can't cancel it.
+- `src/app/runs.test.ts` ("cancelling the running run"): the signal is aborted, the run ends as `cancelled` and the next one starts; the next one waits until the cancelled one has really stopped; the application ID is kept; a run that still got to its end is `done`; another profile can't cancel it. In "trying a run without an application again": a run cancelled in its first step can be tried again.
 - Checked by hand on 2026-11-15 with the real model: two runs queued, the running one cancelled after 30 seconds. Its status was `cancelled` within the same second, Ollama's log showed the chat call ending at that moment, the second run started by itself, and Ollama answered a new call at once.
 
 ## Rules it follows
@@ -46,5 +48,6 @@ reported: 2026-11-14
 
 - Decided 2026-11-15: cancelling keeps what was saved and offers "Try again"; it never deletes or asks to delete.
 - The home form shows no progress since [run-queue](run-queue.md); its runs are cancelled from the Runs list below it.
-- A run cancelled while its first step is running has no application folder yet, so there is nothing to try again; the posting has to be pasted again.
+- Decided 2026-11-16: a run cancelled while its first step is running has no application folder yet, but the server keeps its posting and language with the run, so the Runs list offers "Try again" (until the app restarts).
+- Decided 2026-11-16: a waiting run can be removed from the application page too, not only from the Runs list.
 - A run cancelled after its last model call has returned finishes normally and is listed as finished.
