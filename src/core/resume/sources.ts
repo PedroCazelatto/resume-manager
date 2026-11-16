@@ -47,9 +47,10 @@ export function listSourcedItems(resume: ResumeContent): SourcedItem[] {
 
 /**
  * The current text of every file the items cite, and of no other file; null when the
- * profile no longer has the file.
+ * profile no longer has the file. The items are the resume's sourced items and its implied
+ * skills, which cite files the same way.
  */
-export function citedFileTexts(items: SourcedItem[], profileFiles: SourceFile[]): Record<string, string | null> {
+export function citedFileTexts(items: { sources: string[] }[], profileFiles: SourceFile[]): Record<string, string | null> {
   const texts = new Map(profileFiles.map(({ file, source }) => [file, source]));
   const cited = new Set(items.flatMap((item) => item.sources));
   return Object.fromEntries([...cited].map((file) => [file, texts.get(file) ?? null]));

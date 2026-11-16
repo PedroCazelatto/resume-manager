@@ -69,6 +69,26 @@ describe("citedFileTexts", () => {
     expect(Object.keys(texts).sort()).toEqual(["languages.md", "projects/ledger-cli.md", "skills.md", "summary.md"]);
   });
 
+  it("also returns the files only implied skills cite", () => {
+    const inferences = [
+      { skill: "Kubernetes", sources: ["personal.md", "skills.md"], reason: "EKS.", status: "pending" },
+      { skill: "Go", sources: ["projects/gone.md"], reason: "A Go project.", status: "rejected" },
+    ];
+
+    const texts = citedFileTexts([...items, ...inferences], profileFiles);
+
+    expect(texts["personal.md"]).toBe("---\nname: Jane Doe\n---\n");
+    expect(texts["projects/gone.md"]).toBeNull();
+    expect(Object.keys(texts).sort()).toEqual([
+      "languages.md",
+      "personal.md",
+      "projects/gone.md",
+      "projects/ledger-cli.md",
+      "skills.md",
+      "summary.md",
+    ]);
+  });
+
   it("marks a cited file the profile no longer has as null, and keeps an empty file", () => {
     const texts = citedFileTexts(items, profileFiles);
     expect(texts["projects/ledger-cli.md"]).toBeNull();

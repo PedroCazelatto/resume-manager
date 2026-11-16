@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { isApplicationId } from "@/core/application/folder";
 import { patchFrontmatter } from "@/core/markdown/frontmatter";
 import { validateMarkdownFile } from "@/core/markdown/validate";
-import { addSkill, impliedSkillPlacement, resumeSkillCategory } from "@/core/profile/add-skill";
+import { addSkill, impliedSkillOptions, type SkillPlacement } from "@/core/profile/add-skill";
 import { contentYaml, parseContentYaml } from "@/core/resume/edit";
 import { renderResume } from "@/core/resume/render";
 import { resumeFileSchema, type Inference } from "@/core/resume/schema";
@@ -54,18 +54,18 @@ export async function decideInference(id: string, skill: string, status: Inferen
 
 /**
  * Adds an approved implied skill to the profile's skills.md as one bullet (Art. II.3, IV.9, F07).
- * Only called after the user confirmed it; `heading` is the heading the confirmation named.
+ * Only called after the user confirmed it; `placement` is the heading chosen in the confirmation.
  */
-export async function addSkillToProfile(id: string, skill: string, heading: string): Promise<ActionResult> {
+export async function addSkillToProfile(id: string, skill: string, placement: SkillPlacement): Promise<ActionResult> {
+  if (typeof placement?.heading !== "string" || typeof placement.isNew !== "boolean") throw new Error("Invalid heading");
   const { store, slug, resume } = await loadReview(id);
   const profile = await store.loadProfile(slug);
   if (!profile.ok) return { ok: false, problems: ["Your profile has problems. Fix its files first."] };
 
   const skillsSource = profile.profile.skills.source;
-  const placement = impliedSkillPlacement(resume, skillsSource, skill);
-  const category = resumeSkillCategory(resume, skill);
-  // `heading` guards against a page that is older than the files.
-  const next = placement?.heading === heading && category !== undefined ? addSkill(skillsSource, category, skill) : null;
+  // The skill must still be offered, and the chosen heading is checked against the file as
+  // it is now: both guard against a page that is older than the files.
+  const next = impliedSkillOptions(resume, skillsSource, skill) ? addSkill(skillsSource, placement, skill) : null;
   if (next === null) return { ok: false, problems: ["Your profile or this resume changed. Reload the page."] };
 
   await store.replaceProfileFile(slug, "skills.md", next);

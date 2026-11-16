@@ -12,7 +12,7 @@ import { isApplicationId } from "@/core/application/folder";
 import { analysisSchema, jobSchema } from "@/core/application/schemas";
 import { languageName } from "@/core/application/languages";
 import { validateMarkdownFile, type FileError } from "@/core/markdown/validate";
-import { impliedSkillPlacement, type SkillPlacement } from "@/core/profile/add-skill";
+import { impliedSkillOptions, type SkillOptions } from "@/core/profile/add-skill";
 import { listProfileFiles, type Profile } from "@/core/profile/profile";
 import { contentYaml } from "@/core/resume/edit";
 import { renderResume } from "@/core/resume/render";
@@ -73,10 +73,13 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
   }
   if (!job.ok) return null;
 
-  // Only the files this resume cites reach the browser (F18).
+  // Only the files this resume cites, in its items or its implied skills, reach the browser (F18).
   const sourcedItems = resume?.ok ? listSourcedItems(resume.data) : [];
   const profile = resume?.ok ? await store.loadProfile(slug) : null;
-  const citedFiles = profile?.ok ? citedFileTexts(sourcedItems, listProfileFiles(profile.profile)) : null;
+  const citedFiles =
+    resume?.ok && profile?.ok
+      ? citedFileTexts([...sourcedItems, ...resume.data.inferences], listProfileFiles(profile.profile))
+      : null;
 
   return (
     <div className="space-y-6">
@@ -116,7 +119,8 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
           <InferenceList
             id={id}
             inferences={resume.data.inferences}
-            placements={profile?.ok ? skillPlacements(resume.data, profile.profile) : {}}
+            options={profile?.ok ? skillOptions(resume.data, profile.profile) : {}}
+            files={citedFiles}
           />
           {verification?.ok && <VerificationView id={id} verification={verification.data} />}
         </section>
@@ -135,14 +139,14 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
   );
 }
 
-/** Where each approved implied skill that skills.md doesn't list yet would go in it (F07). */
-function skillPlacements(resume: ResumeFile, profile: Profile): Record<string, SkillPlacement> {
-  const placements: Record<string, SkillPlacement> = {};
+/** The headings of skills.md each approved implied skill it doesn't list yet can go under (F07). */
+function skillOptions(resume: ResumeFile, profile: Profile): Record<string, SkillOptions> {
+  const options: Record<string, SkillOptions> = {};
   for (const { skill } of resume.inferences) {
-    const placement = impliedSkillPlacement(resume, profile.skills.source, skill);
-    if (placement) placements[skill] = placement;
+    const offered = impliedSkillOptions(resume, profile.skills.source, skill);
+    if (offered) options[skill] = offered;
   }
-  return placements;
+  return options;
 }
 
 /** Why the resume is still a draft, in the user's words (F24). */
