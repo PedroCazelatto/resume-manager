@@ -65,8 +65,8 @@ export function estimatePromptTokens(request: Pick<LlmRequest<unknown>, "system"
  */
 export function contextWarning(promptTokens: number, contextTokens: number): string | null {
   if (promptTokens * 2 <= contextTokens) return null;
-  const n = (tokens: number) => tokens.toLocaleString("en");
-  return `This step's prompt is about ${n(promptTokens)} tokens, more than half of the ${n(contextTokens)}-token context window. If the step fails, raise OLLAMA_NUM_CTX.`;
+  // Plain digits, so the window reads like the value typed in `.env`.
+  return `This step's prompt is about ${promptTokens} tokens, more than half of the ${contextTokens}-token context window. If the step fails, raise OLLAMA_NUM_CTX.`;
 }
 
 /** Calls the model, after warning when the prompt may not leave room for the reply (F40). The call is made either way. */

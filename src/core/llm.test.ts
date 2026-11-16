@@ -82,14 +82,14 @@ describe("contextWarning", () => {
     expect(contextWarning(8192, 16_384)).toBeNull();
   });
 
-  it("warns above half of the context window, with the estimate, the window and the setting", () => {
+  it("warns above half of the context window, with the estimate and the window in plain digits, and the setting", () => {
     expect(contextWarning(8193, 16_384)).toBe(
-      "This step's prompt is about 8,193 tokens, more than half of the 16,384-token context window. If the step fails, raise OLLAMA_NUM_CTX.",
+      "This step's prompt is about 8193 tokens, more than half of the 16384-token context window. If the step fails, raise OLLAMA_NUM_CTX.",
     );
   });
 
   it("still only warns when the prompt is larger than the whole window", () => {
-    expect(contextWarning(20_000, 16_384)).toContain("about 20,000 tokens");
+    expect(contextWarning(20_000, 16_384)).toContain("about 20000 tokens");
   });
 });
 
