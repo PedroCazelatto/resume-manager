@@ -71,6 +71,15 @@ export const RUNS_CHANGED = "runs-changed";
 
 /** Queues a run through a run endpoint (F42). Starting a run is when the notification permission is asked (F38). */
 export async function enqueueRun(url: string, body: Record<string, string>): Promise<{ runId: string } | { error: string }> {
+  const reply = await enqueueRuns(url, body);
+  return "error" in reply ? reply : { runId: reply.runIds[0] };
+}
+
+/** Queues the runs an endpoint answers with: one, or one per link of a list (F33). */
+export async function enqueueRuns(
+  url: string,
+  body: Record<string, string | string[]>,
+): Promise<{ runIds: string[] } | { error: string }> {
   askToNotify();
   try {
     const response = await fetch(url, {
@@ -78,11 +87,12 @@ export async function enqueueRun(url: string, body: Record<string, string>): Pro
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const reply = (await response.json().catch(() => null)) as { runId?: string; error?: string } | null;
-    if (!response.ok || !reply?.runId) return { error: reply?.error ?? `The server answered ${response.status}.` };
-    watchRun(reply.runId);
+    const reply = (await response.json().catch(() => null)) as { runId?: string; runIds?: string[]; error?: string } | null;
+    const runIds = reply?.runIds ?? (reply?.runId ? [reply.runId] : []);
+    if (!response.ok || runIds.length === 0) return { error: reply?.error ?? `The server answered ${response.status}.` };
+    runIds.forEach(watchRun);
     window.dispatchEvent(new Event(RUNS_CHANGED));
-    return { runId: reply.runId };
+    return { runIds };
   } catch {
     return { error: "Can't reach the app." };
   }

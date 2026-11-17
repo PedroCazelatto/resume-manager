@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { readLinks, refusedMessage, splitLines } from "@/core/posting/links";
 import { INDEED_BLOCKED, isIndeedUrl } from "@/core/posting/sites";
 import { parseLink } from "@/core/posting/url";
 import { LanguageSelect } from "@/components/language-select";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { enqueueRun } from "@/components/use-run";
+import { enqueueRuns } from "@/components/use-run";
 
 type Tab = "links" | "paste";
 
@@ -28,12 +29,13 @@ interface FailedFetch {
 }
 
 /**
- * Give a posting's link or paste its text, and queue the run; the Runs list below follows
- * it (F09, F10, F42).
+ * Give postings' links, one per line, or paste one posting's text, and queue a run for
+ * each; the Runs list below follows them (F09, F10, F33, F42).
  */
 export function NewApplicationForm() {
   const [tab, setTab] = useState<Tab>("links");
-  const [link, setLink] = useState("");
+  /** The links as typed, one per line. */
+  const [links, setLinks] = useState("");
   const [posting, setPosting] = useState("");
   /** The link saved with a pasted posting. */
   const [keptLink, setKeptLink] = useState("");
@@ -41,7 +43,8 @@ export function NewApplicationForm() {
   const [replaces, setReplaces] = useState<string | null>(null);
   const [language, setLanguage] = useState("");
   const [sending, setSending] = useState(false);
-  const [queued, setQueued] = useState(false);
+  /** How many runs the last submission queued. */
+  const [queued, setQueued] = useState(0);
   const [error, setError] = useState<string | null>(null);
   /** Why the form moved to "Paste text" by itself. */
   const [notice, setNotice] = useState<string | null>(null);
@@ -62,40 +65,49 @@ export function NewApplicationForm() {
     setKeptLink(url);
     setReplaces(null);
     setNotice(why);
-    setQueued(false);
+    setQueued(0);
     setError(null);
   }
 
   /** One run per link or pasted posting: the button unlocks again when the input changes. */
   function change(set: (value: string) => void, value: string) {
     set(value);
-    setQueued(false);
+    setQueued(0);
   }
 
   async function generate() {
     setError(null);
+    const lines = splitLines(links);
     if (tab === "links") {
-      // Indeed answers the server with a security check, so its links aren't queued (F10).
-      const parsed = parseLink(link);
-      if (parsed.ok && isIndeedUrl(parsed.url)) {
-        openPaste(link.trim(), `${INDEED_BLOCKED} The link is kept with the application.`);
+      // Indeed answers the server with a security check, so its links aren't queued. One
+      // given alone moves to "Paste text" (F10); in a list it is refused like an invalid line.
+      const given = lines.map((line) => line.trim()).filter((line) => line !== "");
+      const only = given.length === 1 ? parseLink(given[0]) : null;
+      if (only?.ok && isIndeedUrl(only.url)) {
+        openPaste(given[0], `${INDEED_BLOCKED} The link is kept with the application.`);
+        return;
+      }
+      // Every line is checked before anything starts (F33).
+      const read = readLinks(lines);
+      if (!read.ok) {
+        setError(refusedMessage(read.refused));
         return;
       }
     }
     setSending(true);
     setNotice(null);
-    const body: Record<string, string> =
+    const body: Record<string, string | string[]> =
       tab === "links"
-        ? { url: link, language }
+        ? { urls: lines, language }
         : { posting, language, ...(keptLink.trim() ? { url: keptLink } : {}), ...(replaces ? { replaces } : {}) };
-    const reply = await enqueueRun("/api/applications", body);
+    const reply = await enqueueRuns("/api/applications", body);
     setSending(false);
-    setQueued("runId" in reply);
+    setQueued("runIds" in reply ? reply.runIds.length : 0);
     if ("error" in reply) setError(reply.error);
     else setReplaces(null);
   }
 
-  const empty = tab === "links" ? link.trim() === "" : posting.trim() === "";
+  const empty = tab === "links" ? links.trim() === "" : posting.trim() === "";
 
   return (
     <section id="new-application" className="space-y-3">
@@ -105,7 +117,7 @@ export function NewApplicationForm() {
         onValueChange={(next) => {
           setTab(next as Tab);
           setReplaces(null);
-          setQueued(false);
+          setQueued(0);
           setError(null);
           setNotice(null);
         }}
@@ -115,13 +127,12 @@ export function NewApplicationForm() {
           <TabsTrigger value="paste">Paste text</TabsTrigger>
         </TabsList>
         <TabsContent value="links">
-          <Input
-            type="url"
-            aria-label="Link to the job posting"
-            placeholder="https://… the job posting's page"
-            value={link}
+          <Textarea
+            aria-label="Links to the job postings, one per line"
+            placeholder="https://… the job postings' pages, one link per line"
+            value={links}
             disabled={sending}
-            onChange={(e) => change(setLink, e.target.value)}
+            onChange={(e) => change(setLinks, e.target.value)}
           />
         </TabsContent>
         <TabsContent value="paste" className="space-y-3">
@@ -148,12 +159,17 @@ export function NewApplicationForm() {
       </Tabs>
       <div className="flex flex-wrap items-center gap-3">
         <LanguageSelect value={language} disabled={sending} onChange={setLanguage} />
-        <Button disabled={sending || queued || empty} onClick={generate}>
+        <Button disabled={sending || queued > 0 || empty} onClick={generate}>
           Generate resume
         </Button>
-        {queued && <span className="text-sm text-muted-foreground">Added to the runs below.</span>}
+        {queued > 0 && (
+          <span className="text-sm text-muted-foreground">
+            {queued === 1 ? "Added to the runs below." : `Added ${queued} runs to the runs below.`}
+          </span>
+        )}
       </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* A refused list names one line per line of the message (F33). */}
+      {error && <p className="text-sm whitespace-pre-line text-destructive">{error}</p>}
     </section>
   );
 }

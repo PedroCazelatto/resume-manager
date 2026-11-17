@@ -731,6 +731,75 @@ describe("run registry", () => {
       for (const log of logs) expect(log).not.toHaveBeenCalled();
       expect(JSON.stringify([registry.list("jane-doe"), events])).not.toContain(POSTING);
     });
+
+    describe("a list of links (F33)", () => {
+      const LINKS = ["https://jobs.example.com/1", "https://jobs.example.com/2", "https://jobs.example.com/3"];
+      const page = (url: string): FetchedPosting => ({ ok: true, text: `${POSTING} ${url}`, url });
+
+      it("runs the links one after another in the order given, without further action", async () => {
+        const { execute, started, ends } = manualRuns();
+        const { fetchPosting, asked, answers } = manualFetches();
+        const registry = createRunRegistry(execute, fetchPosting);
+        const ids = LINKS.map((url) => registry.enqueue("jane-doe", "new", link(url)));
+
+        expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.url])).toEqual(ids.map((id, i) => [id, "fetching", LINKS[i]]));
+        for (const url of LINKS) {
+          answers.get(url)!(page(url));
+          await settled();
+        }
+        expect(asked).toEqual(LINKS);
+        expect(statuses(registry)).toEqual(["running", "queued", "queued"]);
+
+        for (const id of ids) {
+          expect(started.at(-1)!.runId).toBe(id);
+          const ended = followed(registry, "jane-doe", id);
+          ends.get(id)!.resolve();
+          await ended;
+        }
+
+        expect(started.map((run) => run.input)).toEqual(
+          LINKS.map((url) => ({ start: { posting: `${POSTING} ${url}`, url, fetched: true }, language: "de" })),
+        );
+        expect(statuses(registry)).toEqual(["done", "done", "done"]);
+      });
+
+      it("goes on with the next link when one fails to fetch, and lists the failed one with its reason and Try again", async () => {
+        const { execute, started, ends } = manualRuns();
+        const { fetchPosting, asked, answers } = manualFetches();
+        const registry = createRunRegistry(execute, fetchPosting);
+        const [first, second, third] = LINKS.map((url) => registry.enqueue("jane-doe", "new", link(url)));
+
+        answers.get(LINKS[0])!(page(LINKS[0]));
+        await settled();
+        answers.get(LINKS[1])!(refused);
+        await settled();
+        answers.get(LINKS[2])!(page(LINKS[2]));
+        await settled();
+        for (const id of [first, third]) {
+          const ended = followed(registry, "jane-doe", id);
+          ends.get(id)!.resolve();
+          await ended;
+        }
+
+        // The second link never reached the model.
+        expect(started.map((run) => run.runId)).toEqual([first, third]);
+        expect(registry.list("jane-doe").map((run) => [run.runId, run.status])).toEqual([
+          [third, "done"],
+          [first, "done"],
+          [second, "failed"],
+        ]);
+        expect(registry.list("jane-doe")[2]).toMatchObject({
+          error: "The page answered 403.",
+          url: LINKS[1],
+          retryable: true,
+          fetchFailed: true,
+        });
+
+        // "Try again" puts the same link in the fetch queue again.
+        expect(registry.retry("jane-doe", second)).not.toBe("refused");
+        expect(asked).toEqual([...LINKS, LINKS[1]]);
+      });
+    });
   });
 
   it("never logs the posting a run holds (Art. III.4)", async () => {

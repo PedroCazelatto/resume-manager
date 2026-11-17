@@ -1,4 +1,5 @@
 import { MAX_POSTING_CHARS, type FetchedPosting } from "./job-fetcher";
+import { readLinks, refusedMessage } from "./links";
 import { INDEED_BLOCKED, isIndeedUrl } from "./sites";
 import { checkPostingUrl, parseLink } from "./url";
 
@@ -41,4 +42,18 @@ export function readNewRunStart(body: { posting?: unknown; url?: unknown } | nul
   if (!checked.ok) return { error: checked.reason };
   if (isIndeedUrl(checked.url)) return { error: INDEED_BLOCKED };
   return { start: { url: checked.url.href } };
+}
+
+/**
+ * Reads a list of links sent by the "From links" tab (F33): one run per link, in the order
+ * given. Nothing starts when one of them can't be fetched; the error names each such line.
+ */
+export function readLinkStarts(urls: unknown): { starts: { url: string }[] } | { error: string } {
+  if (!Array.isArray(urls) || !urls.every((url): url is string => typeof url === "string")) {
+    return { error: "The links must be a list of lines of text." };
+  }
+  const read = readLinks(urls);
+  if (!read.ok) return { error: refusedMessage(read.refused) };
+  if (read.urls.length === 0) return { error: "Give the posting's link or paste its text first." };
+  return { starts: read.urls.map((url) => ({ url })) };
 }

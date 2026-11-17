@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_POSTING_CHARS } from "./job-fetcher";
-import { fetchedStart, readNewRunStart } from "./start";
+import { fetchedStart, readLinkStarts, readNewRunStart } from "./start";
 
 describe("fetchedStart", () => {
   const page = "https://jobs.example.com/7";
@@ -63,5 +63,30 @@ describe("readNewRunStart", () => {
   it("refuses a kept link that isn't an http or https link", () => {
     expect(readNewRunStart({ posting: "Globex is hiring.", url: "javascript:alert(1)" })).toHaveProperty("error");
     expect(readNewRunStart({ posting: "Globex is hiring.", url: "not a link" })).toHaveProperty("error");
+  });
+});
+
+describe("readLinkStarts", () => {
+  it("starts one run per link, in the order given, a link given twice once", () => {
+    expect(readLinkStarts(["https://jobs.example.com/2", "", " https://jobs.example.com/1 ", "https://jobs.example.com/2"])).toEqual({
+      starts: [{ url: "https://jobs.example.com/2" }, { url: "https://jobs.example.com/1" }],
+    });
+  });
+
+  it("starts nothing when one line can't be fetched, and names it", () => {
+    expect(readLinkStarts(["https://jobs.example.com/1", "not a link", "https://ie.indeed.com/viewjob?jk=1"])).toEqual({
+      error:
+        "Nothing was queued.\n" +
+        "Line 2 (not a link): This is not a link. It must start with http:// or https://.\n" +
+        "Line 3 (https://ie.indeed.com/viewjob?jk=1): Indeed blocks automated requests. Paste the posting's text instead.",
+    });
+  });
+
+  it("refuses a list without links and anything that isn't a list of text", () => {
+    expect(readLinkStarts([])).toEqual({ error: "Give the posting's link or paste its text first." });
+    expect(readLinkStarts(["", "  "])).toEqual({ error: "Give the posting's link or paste its text first." });
+    for (const urls of [undefined, null, "https://jobs.example.com/1", ["https://jobs.example.com/1", 7]]) {
+      expect(readLinkStarts(urls)).toEqual({ error: "The links must be a list of lines of text." });
+    }
   });
 });

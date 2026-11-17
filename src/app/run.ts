@@ -97,6 +97,18 @@ export async function enqueueRun(kind: RunKind, input: RunRequest, replaces?: st
 }
 
 /**
+ * Queues one new run per link of a list for the selected profile, in the order given, and
+ * answers their `{ runIds }` (F33).
+ */
+export async function enqueueRuns(inputs: RunRequest[]): Promise<Response> {
+  const profile = await readyProfile();
+  if ("error" in profile) return profile.error;
+
+  const registry = runRegistry();
+  return Response.json({ runIds: inputs.map((input) => registry.enqueue(profile.slug, "new", input)) }, { status: 202 });
+}
+
+/**
  * "Try again" for a run that ended before its application was saved: queues a new run with
  * the posting and language the server kept with it, and answers `{ runId }` (F19).
  */

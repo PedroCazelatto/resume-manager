@@ -83,6 +83,8 @@ export function RunsList() {
                     </Link>
                   </>
                 )}
+                {/* Until its application exists, a run from a link is told apart by the link (F33). */}
+                {!run.applicationId && run.url && <span className="break-all">{` · ${run.url}`}</span>}
               </span>
               <span className="text-muted-foreground">
                 {run.fetchFailed ? "needs the posting's text" : STATUS_LABELS[run.status]}
