@@ -157,6 +157,21 @@ describe("addSkill", () => {
     expect(listsSkill("## Other\n- Café management\n", "CAFÉ")).toBe(true);
   });
 
+  it("treats +, # and . as part of a skill's name", () => {
+    const skills = "## Languages\n- C++ and C#\n- Node.js, ASP.NET\n- Java/Kotlin\n- Scripting in Python.\n";
+
+    expect(listsSkill(skills, "C")).toBe(false);
+    expect(listsSkill(skills, "C++")).toBe(true);
+    expect(listsSkill(skills, "C#")).toBe(true);
+    expect(listsSkill(skills, "Node")).toBe(false);
+    expect(listsSkill(skills, "Node.js")).toBe(true);
+    expect(listsSkill(skills, "NET")).toBe(false);
+    expect(listsSkill(skills, "ASP.NET")).toBe(true);
+    expect(listsSkill(skills, "Java")).toBe(true);
+    // A full stop that ends a sentence is not part of the name.
+    expect(listsSkill(skills, "Python")).toBe(true);
+  });
+
   it("only counts bullets of the body as listed", () => {
     expect(listsSkill(SKILLS, "Data")).toBe(false);
     expect(listsSkill(SKILLS, "")).toBe(false);
