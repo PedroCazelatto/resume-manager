@@ -13,12 +13,14 @@ import {
   latestGeneration,
   nextFetch,
   nextRun,
+  offersTryAgain,
   recordEvent,
   removeWaiting,
   runsOf,
   runSteps,
   startFetch,
   startRun,
+  triedAgain,
   type QueuedRun,
 } from "./queue";
 
@@ -157,6 +159,23 @@ describe("run queue", () => {
 
     expect(statuses(runsOf(runs, "jane-doe"))).toEqual(["d:running", "e:queued", "b:failed", "a:done"]);
     expect(statuses(runsOf(runs, "john-roe"))).toEqual(["john-c:done"]);
+  });
+
+  it("offers \"Try again\" once, and again when the run it queued is no longer listed", () => {
+    let runs = finishRun(startRun(queued("a"), "a", STARTED), "a", "Can't reach Ollama.");
+    expect(offersTryAgain(runs, runs[0])).toBe(true);
+
+    runs = triedAgain(enqueue(runs, { runId: "b", profile: "jane-doe", kind: "new", input: null }), "a", "b");
+    expect(offersTryAgain(runs, findRun(runs, "jane-doe", "a")!)).toBe(false);
+
+    // The new run failed too: it has the button, the first one still doesn't.
+    const failedAgain = finishRun(startRun(runs, "b", STARTED), "b", "Can't reach Ollama.");
+    expect(offersTryAgain(failedAgain, findRun(failedAgain, "jane-doe", "b")!)).toBe(true);
+    expect(offersTryAgain(failedAgain, findRun(failedAgain, "jane-doe", "a")!)).toBe(false);
+
+    // The new run was removed while it waited: the posting can be tried again from the first.
+    const left = removeWaiting(runs, "jane-doe", "b").runs;
+    expect(offersTryAgain(left, findRun(left, "jane-doe", "a")!)).toBe(true);
   });
 
   it("offers \"Try again\" on a new run that failed or was cancelled before its application was saved", () => {

@@ -34,6 +34,8 @@ export interface Run {
   error: string | null;
   /** The user cancelled the run; that is not an error (F32). */
   cancelled: boolean;
+  /** The user removed the run while it waited; that is not an error either (F42). */
+  removed: boolean;
   /** The application folder, once it exists; a failed run can be tried again from it (F19). */
   savedId: string | null;
   /**
@@ -110,6 +112,7 @@ export function useRun(): Run {
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [cancelled, setCancelled] = useState(false);
+  const [removed, setRemoved] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [followedId, setFollowedId] = useState<string | null>(null);
   /** When the followed run started on the server, once its stream has told (F39). */
@@ -127,7 +130,9 @@ export function useRun(): Run {
     const mine = ++follows.current;
     setStartedAt(null);
     setRunning(true);
-    setWaiting(true);
+    // Not waiting until the stream says so: a run that starts at once never shows "Remove".
+    setWaiting(false);
+    setRemoved(false);
     setElapsed(0);
     setSteps([]);
     setProgress(null);
@@ -147,12 +152,14 @@ export function useRun(): Run {
         return null;
       }
       for await (const event of readEvents(response.body)) {
-        if (event.type === "started") {
+        if (event.type === "waiting") {
+          setWaiting(true);
+        } else if (event.type === "started") {
           setWaiting(false);
           setStartedAt(event.at);
           setElapsed(elapsedSeconds(event.at, Date.now()));
         } else if (event.type === "removed") {
-          setError("This run was removed from the queue.");
+          setRemoved(true);
         } else if (event.type === "cancelled") {
           setCancelled(true);
         } else if (event.type === "step") {
@@ -192,6 +199,7 @@ export function useRun(): Run {
     setSteps([]);
     setError(null);
     setCancelled(false);
+    setRemoved(false);
     const queued = await enqueueRun(url, body);
     if ("error" in queued) {
       setError(queued.error);
@@ -221,6 +229,7 @@ export function useRun(): Run {
     warnings,
     error,
     cancelled,
+    removed,
     savedId,
     start,
     follow,
@@ -232,22 +241,25 @@ export function useRun(): Run {
 
 /**
  * A run's steps, each with its context-size warning (F40). `live` adds what belongs next to
- * the step that is running; without it the steps are shown as the run left them.
+ * the step that is running; without it the steps are shown as the run left them. `ended` says
+ * the run is over, so a step it never finished shows as stopped.
  */
 export function RunSteps({
   steps,
   warnings,
   live,
+  ended = false,
 }: {
   steps: RunStepState[];
   warnings: Partial<Record<RunStep, string>>;
   live?: (step: RunStep) => ReactNode;
+  ended?: boolean;
 }) {
   return (
     <ol className="space-y-1">
       {steps.map(({ step, status }) => (
         <li key={step}>
-          {status === "done" ? "✓" : "…"} {STEP_LABELS[step]}
+          {status === "done" ? "✓" : ended ? "✗" : "…"} {STEP_LABELS[step]}
           {status === "running" && live?.(step)}
           {warnings[step] && <p className="text-amber-900 dark:text-amber-100">{warnings[step]}</p>}
         </li>
@@ -270,12 +282,14 @@ export function RunProgress({ run, removable = false }: { run: Run; removable?: 
       </div>
     );
   }
+  if (run.removed) return <p className="text-sm text-muted-foreground">This run was removed from the queue.</p>;
   if (run.steps.length === 0 && !run.cancelled) return null;
   return (
     <div className="space-y-1 text-sm">
       <RunSteps
         steps={run.steps}
         warnings={run.warnings}
+        ended={!run.running}
         live={
           run.running
             ? (step) => (

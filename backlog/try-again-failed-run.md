@@ -9,7 +9,7 @@ version: implemented
 - Each step's output is saved as soon as it exists, so a failed run can be continued instead of restarted.
 - "Try again" appears on the application page whenever `resume.md` or `verification.md` is missing.
 - Steps whose output file exists are skipped: a run with a saved analysis goes straight to the resume; one with a saved resume goes straight to verification.
-- A new run that failed or was cancelled before its analysis was saved has no application folder. The Runs list offers "Try again" on such a run: it queues a new run with the same posting text, or, for a run whose fetch failed, the same link in the fetch queue again ([posting-by-url](posting-by-url.md)), and the same language. A run that has an application links to its page instead, which has its own "Try again".
+- A new run that failed or was cancelled before its analysis was saved has no application folder. The Runs list offers "Try again" on such a run: it queues a new run with the same posting text, or, for a run whose fetch failed, the same link in the fetch queue again ([posting-by-url](posting-by-url.md)), and the same language. The button is used once: after that the run has no "Try again" while the run it queued is still listed. If that run fails too, it has its own button; if it was removed while waiting or has left the list, the button comes back on the first one. A run that has an application links to its page instead, which has its own "Try again".
 - The server keeps the posting and the chosen language in memory with the run, for as long as the run stays in the Runs list. After a restart they are gone, and the posting has to be pasted again.
 - The posting never leaves the server again: it is not logged and not part of `GET /api/runs`. The button sends only the run's ID.
 - The language field next to "Try again" on the application page is prefilled with the language of the application's latest run (a new application or a "Try again", not a "Verify again") while the server still lists one. Otherwise it is prefilled from the browser's local storage, where the chosen language is remembered per application.
@@ -42,6 +42,7 @@ version: implemented
 ## Notes
 
 - Decided 2026-11-16: a run with no application can be tried again from the Runs list, with the posting and language the server kept in memory; losing them on restart is accepted.
+- Decided 2026-11-17: "Try again" in the Runs list works once per run, so a posting isn't queued several times; the button reappears if the new run fails (on that run). The server refuses a second use (`offersTryAgain`, `triedAgain` in `src/core/runs/queue.ts`).
 - Decided 2026-11-16: the chosen language is kept with the run on the server and is what "Try again" starts from; the browser's local-storage copy stays as the fallback after a restart.
 - The run that was tried again stays in the list and keeps its button, so it can be queued more than once.
 - The application page reads the language from `GET /api/runs` when it opens. When the resume is already written, no language field is shown, because the language no longer matters.

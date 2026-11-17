@@ -147,6 +147,8 @@ describe("run registry", () => {
     ];
     // Whoever was following got every progress event; a replay only has the latest.
     expect(await fromTheQueue).toEqual([
+      // Told once, to the page that started following before the run did.
+      { type: "waiting" },
       ...replayed.slice(0, 2),
       { type: "progress", step: "analyse", phase: "thinking", tokens: 5 },
       ...replayed.slice(2),
@@ -244,7 +246,7 @@ describe("run registry", () => {
 
     expect(registry.remove("jane-doe", second)).toBe("removed");
 
-    expect(await events).toEqual([{ type: "removed" }]);
+    expect(await events).toEqual([{ type: "waiting" }, { type: "removed" }]);
     expect(registry.list("jane-doe").map((run) => run.runId)).toEqual([first, third]);
     expect(registry.follow("jane-doe", second, { event: () => {}, close: () => {} })).toBeNull();
 
@@ -403,8 +405,10 @@ describe("run registry", () => {
       expect(again.runId).not.toBe(runId);
       expect(registry.list("jane-doe")).toMatchObject([
         { runId: again.runId, kind: "new", status: "running", language: "de", retryable: false },
-        { runId, status: "failed", language: "de", retryable: true },
+        // Used once: the new run stands for it while it is listed.
+        { runId, status: "failed", language: "de", retryable: false },
       ]);
+      expect(registry.retry("jane-doe", runId)).toBe("refused");
       expect(started[1]).toMatchObject({ runId: again.runId, input: { start: { posting: POSTING }, language: "de" } });
       // The posting stays on the server (Art. III.4).
       expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);

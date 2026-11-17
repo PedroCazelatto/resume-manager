@@ -106,7 +106,11 @@ export function RunsList() {
               )}
             </div>
             {run.status === "running" && <ActiveRun run={run} onEnd={refresh} />}
-            {run.status !== "running" && run.steps.length > 0 && <RunSteps steps={run.steps} warnings={run.warnings} />}
+            {run.status !== "running" && run.steps.length > 0 && <RunSteps
+                steps={run.steps}
+                warnings={run.warnings}
+                ended={run.status === "done" || run.status === "failed" || run.status === "cancelled"}
+              />}
             {run.error && <p className="text-destructive">{run.error}</p>}
             {refused?.runId === run.runId && <p className="text-destructive">{refused.error}</p>}
           </li>

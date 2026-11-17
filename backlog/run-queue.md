@@ -11,9 +11,9 @@ version: implemented
 - A new application from a link passes through a second queue first, the fetch queue, which doesn't wait for the model; it joins this queue only when its posting was fetched ([posting-by-url](posting-by-url.md)).
 - Starting a run answers `{ runId }` immediately. Its progress arrives through the run's event stream, which can be opened more than once and at any time: it replays the events so far, then follows until the run ends.
 - The home page shows a "Runs" list for the selected profile: the active run with its steps and progress, the waiting ones in order, the ones whose posting is being fetched, and the ones that finished, failed or were cancelled since the app started, each linking to its application when it has one.
-- A run that finished, failed or was cancelled keeps its steps in the list, as the run left them (a step it didn't finish stays marked "…"), with any context-size warning under its step, for as long as the run stays in the list.
+- A run that finished, failed or was cancelled keeps its steps in the list, as the run left them (a step it didn't finish is marked "✗"; "…" is only for a step still running), with any context-size warning under its step, for as long as the run stays in the list.
 - A new run that failed or was cancelled before its application was saved has "Try again" in the list; see [try-again-failed-run](try-again-failed-run.md).
-- A waiting run can be removed from the queue with "Remove"; it never starts. The button is in the Runs list, and next to "Waiting for another run to finish…" on the application page.
+- A waiting run can be removed from the queue with "Remove"; it never starts. The button is in the Runs list, and next to "Waiting for another run to finish…" on the application page. The waiting line and its button appear only once the server has said the run is waiting (a `waiting` event at the start of its stream, sent to that page only and not kept in the run's history), so a run that starts at once never shows them. After "Remove" the page says "This run was removed from the queue." as a neutral grey line, like the cancelled message.
 - Every run keeps what it was asked to do (the posting or the application, and the chosen resume language) in memory for as long as it is listed.
 - The home form only queues the run and stays usable, so several runs can be started in a row. It no longer opens the application by itself when the run ends; the Runs list links to it.
 - "Try again" and "Verify again" on the application page follow their own run, show "Waiting for another run to finish…" while it is queued, and reload the page's content when it ends.
@@ -32,7 +32,7 @@ version: implemented
 
 - `src/core/runs/queue.test.ts`: order, one at a time, event history, failure, the 50-run limit, removing, profile isolation, the list's order; a run's steps and warnings read from its events, with an unfinished step left running.
 - `src/app/runs.test.ts`: the second run waits and starts by itself; a fake model that records overlap never gets two calls at once; replay at any time; another profile can't list, follow or remove a run; a removed run never starts; a run that finished or failed is still listed with its steps and warning; nothing is logged.
-- Not looked at in a browser: the steps under an ended run in the Runs list, and "Remove" next to the waiting line on the application page.
+- Not looked at in a browser: the "✗" on unfinished steps, the grey removed message, the steps under an ended run in the Runs list, and "Remove" next to the waiting line on the application page.
 - `src/core/pipeline/run.test.ts` ("verifyApplication").
 
 ## Rules it follows
@@ -53,4 +53,7 @@ version: implemented
 - A replay keeps only the latest progress event of each step.
 - Decided 2026-11-16: runs that finished, failed or were cancelled keep their steps and context-size warning in the Runs list while they stay in it. The list reads them from `GET /api/runs`, so an ended run's stream isn't opened again.
 - Decided 2026-11-16: "Try again" and "Verify again" on the application page show "Remove" while their run waits; it uses the same route as the Runs list's Remove. The page then says "This run was removed from the queue."
+- Decided 2026-11-17: that message is a neutral grey line, like the cancelled message, not an error.
+- Decided 2026-11-17: a step that an ended run never finished shows "✗", in the Runs list and on the application page.
+- Decided 2026-11-17: "Remove" is hidden until the page knows the run is really waiting.
 - Decided 2026-11-16: the home form keeps only queueing; it does not follow the run or open the application.

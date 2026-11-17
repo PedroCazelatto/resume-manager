@@ -13,7 +13,13 @@ export type RunStatus = "fetching" | "queued" | "running" | "done" | "failed" | 
 export type RunKind = "new" | "retry" | "verify";
 
 /** What a run's event stream carries: the pipeline's events, plus what the queue did with the run. */
-export type QueueEvent = RunEvent | { type: "started"; at: number } | { type: "removed" } | { type: "cancelled" };
+export type QueueEvent =
+  | RunEvent
+  /** Told to a page that starts following a run that hasn't started yet; never kept in the run's history. */
+  | { type: "waiting" }
+  | { type: "started"; at: number }
+  | { type: "removed" }
+  | { type: "cancelled" };
 
 export interface QueuedRun<Input = unknown> {
   runId: string;
@@ -33,6 +39,8 @@ export interface QueuedRun<Input = unknown> {
   events: QueueEvent[];
   /** Why the run failed. */
   error?: string;
+  /** The run that "Try again" queued in this one's place (F19). */
+  triedAgainAs?: string;
 }
 
 /** A step of a run and how far it got. */
@@ -213,6 +221,19 @@ export function runsOf<I>(runs: readonly QueuedRun<I>[], profile: string): Queue
  */
 export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "applicationId">): boolean {
   return run.kind === "new" && (run.status === "failed" || run.status === "cancelled") && run.applicationId === undefined;
+}
+
+/**
+ * Whether the Runs list offers "Try again" on a run now: once it was used, not again while the
+ * run it queued is still listed. That run has its own "Try again" if it fails too (F19).
+ */
+export function offersTryAgain(runs: readonly QueuedRun[], run: QueuedRun): boolean {
+  return canTryAgain(run) && !runs.some((other) => other.runId === run.triedAgainAs);
+}
+
+/** Notes that "Try again" on a run queued another one in its place. */
+export function triedAgain<I>(runs: readonly QueuedRun<I>[], runId: string, as: string): QueuedRun<I>[] {
+  return update(runs, runId, (run) => ({ ...run, triedAgainAs: as }));
 }
 
 /**

@@ -3,7 +3,8 @@ import type { FetchedPosting, JobFetcher } from "@/core/posting/job-fetcher";
 import { fetchedStart } from "@/core/posting/start";
 import {
   cancelRun,
-  canTryAgain,
+  offersTryAgain,
+  triedAgain,
   dropFetchFailed,
   enqueue,
   enqueueFetch,
@@ -223,7 +224,7 @@ export function createRunRegistry(
         error: run.error,
         language: run.input.language,
         ...runSteps(run.events),
-        retryable: canTryAgain(run),
+        retryable: offersTryAgain(runs, run),
         url: "url" in run.input.start ? run.input.start.url : undefined,
         fetchFailed: fetchFailed(run),
       }));
@@ -232,13 +233,16 @@ export function createRunRegistry(
     /**
      * "Try again" for a run of this profile that ended before its application was saved:
      * queues a new run with the same posting and language, and returns its ID (F19). A run
-     * whose fetch failed has its link fetched again (F10).
+     * whose fetch failed has its link fetched again (F10). The button is used once: it comes
+     * back only when the run it queued is no longer listed.
      */
     retry(profile: string, runId: string): { runId: string } | "refused" | "unknown" {
       const run = findRun(runs, profile, runId);
       if (!run) return "unknown";
-      if (!canTryAgain(run)) return "refused";
-      return { runId: add(profile, "new", run.input) };
+      if (!offersTryAgain(runs, run)) return "refused";
+      const again = add(profile, "new", run.input);
+      runs = triedAgain(runs, runId, again);
+      return { runId: again };
     },
 
     /**
@@ -253,6 +257,8 @@ export function createRunRegistry(
         follower.close();
         return () => {};
       }
+      // The page shows "Remove" only once it knows the run is really waiting (F42).
+      if (run.status === "queued") follower.event({ type: "waiting" });
       const following = followers.get(runId) ?? new Set();
       followers.set(runId, following.add(follower));
       return () => following.delete(follower);
