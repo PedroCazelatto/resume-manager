@@ -27,6 +27,7 @@ Suggested order, from what each task depends on: runs-list-changes and link-hand
 - [debug-logging.md](debug-logging.md) — Opt-in debug logging (F31)
 - [database-storage.md](database-storage.md) — Move all data into a local database (F43)
 - [indeed-postings.md](indeed-postings.md) — Send a posting from your browser with a bookmarklet (fallback for Indeed) (F44)
+- [posting-sufficiency-check.md](posting-sufficiency-check.md) — Check whether the posting says enough before writing the resume (F49)
 
 ## Implemented
 
