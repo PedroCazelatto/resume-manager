@@ -22,7 +22,7 @@ export interface RunNotice {
 
 /** The notice for a run's end, or null when there is nothing to tell: only a finished or failed run has one. */
 export function runNotice(run: EndedRun): RunNotice | null {
-  // A run the user cancelled is no news to them, and one still waiting or running hasn't ended.
+  // A run the user cancelled is no news to them, and one still fetching, waiting or running hasn't ended.
   if (run.status !== "done" && run.status !== "failed") return null;
   const body = [run.company, run.role].filter(Boolean).join(" · ");
   // "Verify again" writes no resume, so it has its own words.
@@ -61,7 +61,7 @@ export function endedRuns<Run extends { runId: string; status: RunStatus }>(
   const next = new Set(watched);
   const ended: Run[] = [];
   for (const run of runs) {
-    if (run.status === "queued" || run.status === "running") next.add(run.runId);
+    if (run.status === "fetching" || run.status === "queued" || run.status === "running") next.add(run.runId);
     else if (next.delete(run.runId)) ended.push(run);
   }
   return { watched: next, ended };

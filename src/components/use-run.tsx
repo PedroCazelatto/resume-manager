@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/lib/utils";
 
 const STEP_LABELS: Record<RunStep, string> = {
+  fetch: "Fetching the posting",
   analyse: "Analysing the posting and matching it to your profile",
   save: "Saving the application",
   tailor: "Writing the tailored resume",

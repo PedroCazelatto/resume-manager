@@ -1,15 +1,24 @@
 import type { RunEvent, RunInput, RunStep } from "@/core/pipeline/run";
+import type { FetchedPosting, JobFetcher } from "@/core/posting/job-fetcher";
+import { fetchedStart } from "@/core/posting/start";
 import {
   cancelRun,
   canTryAgain,
+  dropFetchFailed,
   enqueue,
+  enqueueFetch,
+  failFetch,
+  fetchDone,
+  fetchFailed,
   findRun,
   finishRun,
+  nextFetch,
   nextRun,
   recordEvent,
   removeWaiting,
   runsOf,
   runSteps,
+  startFetch,
   startRun,
   type QueueEvent,
   type QueuedRun,
@@ -19,14 +28,17 @@ import {
 } from "@/core/runs/queue";
 
 // The runs the server knows about (F42). They live in memory only and are gone after a
-// restart (Art. IV.1). One run uses the model at a time; the others wait their turn.
+// restart (Art. IV.1). One run uses the model at a time; the others wait their turn. A run
+// started from a link has its posting fetched first, in a queue of its own that doesn't
+// wait for the model, and joins the run queue only when the fetch worked (F10).
 
 /**
  * What a run was asked to do. It stays with the run after it ends, so "Try again" can queue
- * the same posting and language. The posting is never logged or listed (Art. III.4).
+ * the same posting or link and language. The posting is never logged or listed (Art. III.4).
  */
 export interface RunRequest {
-  start: RunInput["start"];
+  /** A link alone is fetched first; the fetched posting then takes its place (F10). */
+  start: RunInput["start"] | { url: string };
   /** The user's choice of resume language; null means the posting's language. */
   language: string | null;
 }
@@ -56,6 +68,10 @@ export interface RunSummary {
   warnings: Partial<Record<RunStep, string>>;
   /** The Runs list offers "Try again" on the run itself: it ended before its application was saved (F19). */
   retryable: boolean;
+  /** The posting's link: the one a link run fetches, or the one kept with a pasted posting (F10). */
+  url?: string;
+  /** The run failed while fetching its link; the list offers "Paste the text instead" (F10). */
+  fetchFailed: boolean;
 }
 
 /** Receives a run's events; `close` is called once, after the last one. */
@@ -66,11 +82,21 @@ export interface RunFollower {
 
 export type RunRegistry = ReturnType<typeof createRunRegistry>;
 
-export function createRunRegistry(execute: ExecuteRun) {
+/** The link of a run that still has to fetch its posting, or null. */
+function linkToFetch(start: RunRequest["start"]): string | null {
+  return "posting" in start || "id" in start ? null : start.url;
+}
+
+/** Used where no run starts from a link. */
+const noFetcher: JobFetcher["fetchPosting"] = async () => ({ ok: false, reason: "Links can't be fetched here." });
+
+export function createRunRegistry(execute: ExecuteRun, fetchPosting: JobFetcher["fetchPosting"] = noFetcher) {
   let runs: AppRun[] = [];
   const followers = new Map<string, Set<RunFollower>>();
   /** The running run and what cancels it (F32). */
   let active: { runId: string; cancel: AbortController } | null = null;
+  /** The run whose posting is being fetched and what stops the fetch (F10). */
+  let fetching: { runId: string; cancel: AbortController } | null = null;
 
   /** Sends a run's latest event to everyone following it. */
   function publish(runId: string) {
@@ -114,9 +140,52 @@ export function createRunRegistry(execute: ExecuteRun) {
     }
   }
 
-  /** Adds a run to the queue and returns its ID right away; it starts when its turn comes. */
+  /**
+   * Fetches the postings of the runs started from a link, one after another, whether or
+   * not a run is using the model. A run whose fetch worked joins the run queue; the others
+   * end as failed and never reach the model (F10).
+   */
+  async function fetchWork() {
+    if (fetching) return;
+    for (let run = nextFetch(runs); run; run = nextFetch(runs)) {
+      const { runId, input } = run;
+      const cancel = new AbortController();
+      fetching = { runId, cancel };
+      runs = startFetch(runs, runId);
+      publish(runId);
+      let fetched: FetchedPosting;
+      try {
+        fetched = await fetchPosting(linkToFetch(input.start) ?? "", cancel.signal);
+      } catch {
+        fetched = { ok: false, reason: "Something went wrong while fetching the posting." };
+      }
+      fetching = null;
+      // Removed while its posting was being fetched.
+      if (!runs.some((other) => other.runId === runId)) continue;
+      const read = fetchedStart(fetched);
+      if ("error" in read) {
+        runs = failFetch(runs, runId, read.error);
+        publish(runId);
+        close(runId);
+      } else {
+        runs = fetchDone(runs, runId, { ...input, start: read.start });
+        publish(runId);
+        void work();
+      }
+    }
+  }
+
+  /**
+   * Adds a run and returns its ID right away. One started from a link goes to the fetch
+   * queue first; any other goes to the run queue and starts when its turn comes.
+   */
   function add(profile: string, kind: RunKind, input: RunRequest): string {
     const runId = crypto.randomUUID();
+    if (linkToFetch(input.start) !== null) {
+      runs = enqueueFetch(runs, { runId, profile, kind, input });
+      void fetchWork();
+      return runId;
+    }
     const applicationId = "id" in input.start ? input.start.id : undefined;
     runs = enqueue(runs, { runId, profile, kind, input, applicationId });
     void work();
@@ -124,7 +193,15 @@ export function createRunRegistry(execute: ExecuteRun) {
   }
 
   return {
-    enqueue: add,
+    /**
+     * `replaces` is a run of this profile whose fetch failed and whose posting the user has
+     * now pasted: it leaves the list, since the new run stands for it (F10).
+     */
+    enqueue(profile: string, kind: RunKind, input: RunRequest, replaces?: string): string {
+      const runId = add(profile, kind, input);
+      if (replaces !== undefined) runs = dropFetchFailed(runs, profile, replaces);
+      return runId;
+    },
 
     /** The profile's own runs, in the order the Runs list shows them (Art. III.7). */
     list(profile: string): RunSummary[] {
@@ -139,12 +216,15 @@ export function createRunRegistry(execute: ExecuteRun) {
         language: run.input.language,
         ...runSteps(run.events),
         retryable: canTryAgain(run),
+        url: "url" in run.input.start ? run.input.start.url : undefined,
+        fetchFailed: fetchFailed(run),
       }));
     },
 
     /**
      * "Try again" for a run of this profile that ended before its application was saved:
-     * queues a new run with the same posting and language, and returns its ID (F19).
+     * queues a new run with the same posting and language, and returns its ID (F19). A run
+     * whose fetch failed has its link fetched again (F10).
      */
     retry(profile: string, runId: string): { runId: string } | "refused" | "unknown" {
       const run = findRun(runs, profile, runId);
@@ -161,7 +241,7 @@ export function createRunRegistry(execute: ExecuteRun) {
       const run = findRun(runs, profile, runId);
       if (!run) return null;
       for (const event of run.events) follower.event(event);
-      if (run.status !== "queued" && run.status !== "running") {
+      if (run.status !== "fetching" && run.status !== "queued" && run.status !== "running") {
         follower.close();
         return () => {};
       }
@@ -171,7 +251,8 @@ export function createRunRegistry(execute: ExecuteRun) {
     },
 
     /**
-     * Stops a run of this profile. A waiting run leaves the queue and never starts. The
+     * Stops a run of this profile. A waiting run leaves the queue and never starts; so does
+     * one in the fetch queue, whose fetch is stopped if it had begun (F10). The
      * running one is told to stop: it ends as `cancelled` once its model call has stopped,
      * and the next run starts then (F32).
      */
@@ -184,6 +265,7 @@ export function createRunRegistry(execute: ExecuteRun) {
       }
       const result = removeWaiting(runs, profile, runId);
       if (!result.removed) return "ended";
+      if (fetching?.runId === runId) fetching.cancel.abort();
       runs = result.runs;
       for (const follower of followers.get(runId) ?? []) follower.event({ type: "removed" });
       close(runId);

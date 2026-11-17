@@ -1,5 +1,5 @@
 import { applicationFolderName, type ApplicationFile } from "../application/folder";
-import { analysisSchema, jobSchema } from "../application/schemas";
+import { analysisSchema, jobSchema, type Job } from "../application/schemas";
 import { stopIfCancelled, type LlmClient, type LlmProgress } from "../llm";
 import { patchFrontmatter, stringifyFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile } from "../markdown/validate";
@@ -16,7 +16,8 @@ import { tailorResume } from "./tailor-resume";
 // output is saved; a step whose output file already exists is skipped (F19). A cancelled
 // run stops its model call, or stops before the next step; what is saved stays (F32).
 
-export type RunStep = "analyse" | "save" | "tailor" | "check" | "review";
+/** `fetch` happens in the fetch queue, before the pipeline starts (F10). */
+export type RunStep = "fetch" | "analyse" | "save" | "tailor" | "check" | "review";
 
 export type RunEvent =
   | { type: "step"; step: RunStep; status: "running" | "done" }
@@ -48,8 +49,11 @@ export interface RunInput {
   loadTemplate: (country: string) => Promise<ParseTemplateResult>;
   /** The template every new resume uses. */
   template: string;
-  /** A new run starts from a pasted posting; a retry continues the application with this ID. */
-  start: { posting: string } | { id: string };
+  /**
+   * A new run starts from a posting: pasted, with its link when the user kept one, or
+   * `fetched` from `url` (F10). A retry continues the application with this ID.
+   */
+  start: { posting: string; url?: string; fetched?: boolean } | { id: string };
   /** The user's choice of resume language; null means the posting's language (Art. VIII.1). */
   language: string | null;
   now: () => Date;
@@ -78,9 +82,20 @@ export async function runApplication(input: RunInput): Promise<string> {
   let analysis;
   if ("posting" in input.start) {
     posting = input.start.posting;
+    const origin: Pick<Job, "source" | "url"> = { source: input.start.fetched ? "url" : "paste", url: input.start.url };
+
     stopIfCancelled(signal);
     step("analyse", "running");
-    ({ job, analysis } = await analysePosting({ llm, profile, posting, now, onProgress: progress("analyse"), onWarning: warning("analyse"), signal }));
+    ({ job, analysis } = await analysePosting({
+      llm,
+      profile,
+      posting,
+      origin,
+      now,
+      onProgress: progress("analyse"),
+      onWarning: warning("analyse"),
+      signal,
+    }));
     step("analyse", "done");
 
     stopIfCancelled(signal);

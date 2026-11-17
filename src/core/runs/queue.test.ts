@@ -2,15 +2,22 @@ import { describe, expect, it } from "vitest";
 import {
   cancelRun,
   canTryAgain,
+  dropFetchFailed,
   enqueue,
+  enqueueFetch,
+  failFetch,
+  fetchDone,
+  fetchFailed,
   findRun,
   finishRun,
   latestGeneration,
+  nextFetch,
   nextRun,
   recordEvent,
   removeWaiting,
   runsOf,
   runSteps,
+  startFetch,
   startRun,
   type QueuedRun,
 } from "./queue";
@@ -161,6 +168,104 @@ describe("run queue", () => {
     expect(canTryAgain({ ...run, status: "done" })).toBe(false);
     expect(canTryAgain({ ...run, kind: "retry" })).toBe(false);
     expect(canTryAgain({ ...run, kind: "verify" })).toBe(false);
+  });
+
+  describe("the fetch queue (F10)", () => {
+    const link = (runs: QueuedRun[], runId: string, profile = "jane-doe") =>
+      enqueueFetch(runs, { runId, profile, kind: "new", input: { url: `https://jobs.example.com/${runId}` } });
+    const brief = (runs: QueuedRun[]) => runs.map((run) => `${run.runId}:${run.status}`);
+
+    it("keeps a link run out of the run queue while its posting is fetched", () => {
+      const runs = startFetch(link(queued("a"), "b"), "b");
+
+      expect(brief(runs)).toEqual(["a:queued", "b:fetching"]);
+      expect(nextRun(runs)?.runId).toBe("a");
+      expect(nextRun(startRun(runs, "a"))).toBeNull();
+      expect(runSteps(runs[1].events).steps).toEqual([{ step: "fetch", status: "running" }]);
+    });
+
+    it("fetches the links in the order given, whether or not a run is running", () => {
+      const runs = startRun(link(link(queued("a"), "b"), "c"), "a");
+
+      expect(nextFetch(runs)?.runId).toBe("b");
+      expect(nextFetch(fetchDone(startFetch(runs, "b"), "b", "posting b"))?.runId).toBe("c");
+      expect(nextFetch(failFetch(startFetch(runs, "b"), "b", "The page answered 403."))?.runId).toBe("c");
+      expect(nextFetch(queued("a"))).toBeNull();
+    });
+
+    it("moves a run whose fetch worked to the end of the run queue, with its posting", () => {
+      // "b" was given before "c", but "c" was already waiting for the model when the fetch ended.
+      const runs = fetchDone(startFetch(enqueue(link(queued("a"), "b"), { runId: "c", profile: "jane-doe", kind: "new", input: null }), "b"), "b", "posting b");
+
+      expect(brief(runs)).toEqual(["a:queued", "c:queued", "b:queued"]);
+      expect(runs[2].input).toBe("posting b");
+      expect(runSteps(runs[2].events).steps).toEqual([{ step: "fetch", status: "done" }]);
+      expect(fetchFailed(runs[2])).toBe(false);
+    });
+
+    it("never queues a run whose fetch failed, and keeps it listed with the reason", () => {
+      const runs = failFetch(startFetch(link(queued("a"), "b"), "b"), "b", "The page answered 403.");
+
+      expect(brief(runs)).toEqual(["a:queued", "b:failed"]);
+      expect(runs[1]).toMatchObject({ error: "The page answered 403.", input: { url: "https://jobs.example.com/b" } });
+      expect(runs[1].events.at(-1)).toEqual({ type: "error", message: "The page answered 403." });
+      expect(fetchFailed(runs[1])).toBe(true);
+      expect(canTryAgain(runs[1])).toBe(true);
+      expect(nextRun(startRun(runs, "a"))).toBeNull();
+    });
+
+    it("counts failed fetches among the finished runs it forgets", () => {
+      let runs = link(link(queued(), "a"), "b");
+      runs = failFetch(runs, "a", "The page answered 403.", 1);
+      runs = failFetch(runs, "b", "The page answered 404.", 1);
+
+      expect(brief(runs)).toEqual(["b:failed"]);
+    });
+
+    it("removes a run from the fetch queue, for its own profile only", () => {
+      const runs = startFetch(link(link(queued(), "a"), "john-b", "john-roe"), "a");
+
+      expect(removeWaiting(runs, "jane-doe", "john-b").removed).toBe(false);
+      const { runs: left, removed } = removeWaiting(runs, "jane-doe", "a");
+      expect(removed).toBe(true);
+      expect(brief(left)).toEqual(["john-b:fetching"]);
+    });
+
+    it("lists the runs being fetched after the waiting ones and before the finished ones", () => {
+      let runs = link(queued("a", "b", "c"), "d");
+      runs = finishRun(startRun(runs, "a"), "a", null);
+      runs = startRun(runs, "b");
+
+      expect(runsOf(runs, "jane-doe").map((run) => run.runId)).toEqual(["b", "c", "d", "a"]);
+    });
+
+    it("lists finished runs in the order they ended, a fetch that failed during a run included", () => {
+      let runs = startRun(link(queued("a"), "b"), "a");
+      runs = failFetch(startFetch(runs, "b"), "b", "The page answered 403.");
+      runs = finishRun(runs, "a", null);
+
+      expect(runsOf(runs, "jane-doe").map((run) => run.runId)).toEqual(["a", "b"]);
+    });
+
+    it("tells a failed fetch from a run that failed later, was cancelled or is still fetching", () => {
+      const fetching = [{ type: "step", step: "fetch", status: "running" }] as const;
+      const fetchedThen = [...fetching, { type: "step", step: "fetch", status: "done" }, { type: "step", step: "analyse", status: "running" }] as const;
+
+      expect(fetchFailed({ status: "failed", events: [...fetching, { type: "error", message: "The page answered 403." }] })).toBe(true);
+      expect(fetchFailed({ status: "failed", events: [...fetchedThen] })).toBe(false);
+      expect(fetchFailed({ status: "failed", events: [{ type: "started" }, { type: "step", step: "analyse", status: "running" }] })).toBe(false);
+      expect(fetchFailed({ status: "cancelled", events: [...fetching] })).toBe(false);
+      expect(fetchFailed({ status: "fetching", events: [...fetching] })).toBe(false);
+    });
+
+    it("drops a run whose fetch failed once its posting was pasted, and no other run", () => {
+      const runs = failFetch(startFetch(link(queued("a"), "b"), "b"), "b", "The page answered 403.");
+
+      expect(brief(dropFetchFailed(runs, "jane-doe", "b"))).toEqual(["a:queued"]);
+      expect(brief(dropFetchFailed(runs, "john-roe", "b"))).toEqual(["a:queued", "b:failed"]);
+      expect(brief(dropFetchFailed(runs, "jane-doe", "a"))).toEqual(["a:queued", "b:failed"]);
+      expect(brief(dropFetchFailed(runs, "jane-doe", "unknown"))).toEqual(["a:queued", "b:failed"]);
+    });
   });
 
   it("reads a run's steps and context warnings from its events, leaving an unfinished step running", () => {

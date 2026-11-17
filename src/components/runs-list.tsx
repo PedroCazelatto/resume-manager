@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { RunSummary } from "@/app/runs";
+import { pasteInstead } from "@/components/new-application-form";
 import { tellEndedRuns } from "@/components/run-notifications";
 import { Button } from "@/components/ui/button";
 import { RUNS_CHANGED, RunProgress, RunSteps, enqueueRun, useRun } from "@/components/use-run";
@@ -16,6 +17,7 @@ const KIND_LABELS: Record<RunSummary["kind"], string> = {
 };
 
 const STATUS_LABELS: Record<RunSummary["status"], string> = {
+  fetching: "fetching the posting",
   queued: "waiting",
   running: "running",
   done: "finished",
@@ -57,7 +59,7 @@ export function RunsList() {
     await refresh();
   }
 
-  /** Queues the run's posting and language again; the server kept them with the run (F19). */
+  /** Queues the run's posting or link and language again; the server kept them with the run (F19). */
   async function tryAgain(runId: string) {
     const reply = await enqueueRun(`/api/runs/${runId}`, {});
     setRefused("error" in reply ? { runId, error: reply.error } : null);
@@ -82,8 +84,10 @@ export function RunsList() {
                   </>
                 )}
               </span>
-              <span className="text-muted-foreground">{STATUS_LABELS[run.status]}</span>
-              {run.status === "queued" && (
+              <span className="text-muted-foreground">
+                {run.fetchFailed ? "needs the posting's text" : STATUS_LABELS[run.status]}
+              </span>
+              {(run.status === "queued" || run.status === "fetching") && (
                 <Button variant="outline" size="sm" onClick={() => remove(run.runId)}>
                   Remove
                 </Button>
@@ -92,6 +96,12 @@ export function RunsList() {
               {run.retryable && (
                 <Button variant="outline" size="sm" onClick={() => tryAgain(run.runId)}>
                   Try again
+                </Button>
+              )}
+              {/* The page couldn't be fetched: the form takes the text, and keeps the link (F10). */}
+              {run.fetchFailed && run.url && (
+                <Button variant="outline" size="sm" onClick={() => pasteInstead(run.runId, run.url ?? "")}>
+                  Paste the text instead
                 </Button>
               )}
             </div>

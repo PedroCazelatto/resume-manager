@@ -3,6 +3,7 @@ import { LlmError } from "@/core/llm";
 import { runApplication } from "@/core/pipeline/run";
 import { verifyApplication } from "@/core/pipeline/verify";
 import type { RunKind } from "@/core/runs/queue";
+import { createJobFetcher } from "@/adapters/job-fetcher";
 import { llmClient } from "@/app/llm";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "@/app/runs";
@@ -37,6 +38,8 @@ const executeRun: ExecuteRun = async (run: AppRun, send, signal) => {
       if (!("id" in start)) throw new Error("Only a saved application can be verified.");
       await verifyApplication({ llm: llmClient(), profile: loaded.profile, files, id: start.id, now: () => new Date(), send, signal });
     } else {
+      // A link's posting is fetched before its run reaches this point (F10).
+      if (!("posting" in start) && !("id" in start)) throw new Error("This run's posting was never fetched.");
       await runApplication({
         llm: llmClient(),
         profile: loaded.profile,
@@ -63,7 +66,7 @@ const executeRun: ExecuteRun = async (run: AppRun, send, signal) => {
 const server = globalThis as typeof globalThis & { resumeRuns?: RunRegistry };
 
 export function runRegistry(): RunRegistry {
-  return (server.resumeRuns ??= createRunRegistry(executeRun));
+  return (server.resumeRuns ??= createRunRegistry(executeRun, (url, signal) => createJobFetcher().fetchPosting(url, signal)));
 }
 
 /** The selected profile, or the response that says there is none. */
@@ -83,13 +86,14 @@ async function readyProfile(): Promise<{ slug: string } | { error: Response }> {
 
 /**
  * Queues a run for the selected profile and answers `{ runId }` right away; its progress
- * arrives through the run's event stream (F42).
+ * arrives through the run's event stream (F42). `replaces` is the run whose failed fetch
+ * this one's pasted posting makes up for (F10).
  */
-export async function enqueueRun(kind: RunKind, input: RunRequest): Promise<Response> {
+export async function enqueueRun(kind: RunKind, input: RunRequest, replaces?: string): Promise<Response> {
   const profile = await readyProfile();
   if ("error" in profile) return profile.error;
 
-  return Response.json({ runId: runRegistry().enqueue(profile.slug, kind, input) }, { status: 202 });
+  return Response.json({ runId: runRegistry().enqueue(profile.slug, kind, input, replaces) }, { status: 202 });
 }
 
 /**
