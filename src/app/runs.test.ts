@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { LlmError, type LlmClient } from "@/core/llm";
+import type { FetchedPosting } from "@/core/posting/job-fetcher";
 import type { QueueEvent } from "@/core/runs/queue";
 import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "./runs";
 
@@ -425,22 +426,131 @@ describe("run registry", () => {
 
   describe("a run started from a link (F10)", () => {
     const LINK = "https://jobs.example.com/backend-engineer";
+    const PAGE = "https://jobs.example.com/backend-engineer?from=redirect";
+    const link = (url = LINK, language: string | null = "de"): RunRequest => ({ start: { url }, language });
+    const fetched: FetchedPosting = { ok: true, text: POSTING, url: PAGE };
+    const refused: FetchedPosting = { ok: false, reason: "The page answered 403." };
 
-    /** A link run whose fetch step failed. */
-    async function failedFetch() {
-      const { execute, started, ends, sends } = manualRuns();
-      const registry = createRunRegistry(execute);
-      const runId = registry.enqueue("jane-doe", "new", { start: { url: LINK }, language: "de" });
-      const ended = followed(registry, "jane-doe", runId);
-      sends.get(runId)!({ type: "step", step: "fetch", status: "running" });
-      ends.get(runId)!.reject(new Error("The page answered 403."));
-      await ended;
-      return { registry, runId, started, ends, sends };
+    /** Lets each fetch be answered by hand. */
+    function manualFetches() {
+      const asked: string[] = [];
+      const answers = new Map<string, (result: FetchedPosting) => void>();
+      const signals = new Map<string, AbortSignal>();
+      const fetchPosting = (url: string, signal?: AbortSignal) => {
+        asked.push(url);
+        if (signal) signals.set(url, signal);
+        return new Promise<FetchedPosting>((resolve) => answers.set(url, resolve));
+      };
+      return { fetchPosting, asked, answers, signals };
     }
 
-    it("lists the link, and offers the paste fallback and Try again once its fetch failed", async () => {
-      const { registry, runId } = await failedFetch();
+    /** Lets the registry act on an answered fetch. */
+    const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+    it("fetches the posting at once, while another run is using the model", async () => {
+      const { execute, started } = manualRuns();
+      const { fetchPosting, asked, answers } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const busy = registry.enqueue("jane-doe", "new", posting());
+
+      const runId = registry.enqueue("jane-doe", "new", link());
+
+      expect(asked).toEqual([LINK]);
+      expect(registry.list("jane-doe")).toEqual([
+        { runId: busy, kind: "new", status: "running", language: null, steps: [], warnings: {}, retryable: false, fetchFailed: false },
+        {
+          runId,
+          kind: "new",
+          status: "fetching",
+          language: "de",
+          steps: [{ step: "fetch", status: "running" }],
+          warnings: {},
+          retryable: false,
+          url: LINK,
+          fetchFailed: false,
+        },
+      ]);
+
+      answers.get(LINK)!(fetched);
+      await settled();
+
+      // It waits its turn for the model like a pasted posting.
+      expect(registry.list("jane-doe")[1]).toMatchObject({ runId, status: "queued", steps: [{ step: "fetch", status: "done" }], url: PAGE });
+      expect(started.map((run) => run.runId)).toEqual([busy]);
+    });
+
+    it("joins the run queue with the fetched posting once the fetch worked, and starts by itself", async () => {
+      const { execute, started } = manualRuns();
+      const { fetchPosting, answers } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const runId = registry.enqueue("jane-doe", "new", link());
+      expect(started).toEqual([]);
+
+      answers.get(LINK)!(fetched);
+      await settled();
+
+      expect(started.map((run) => run.runId)).toEqual([runId]);
+      expect(started[0].input).toEqual({ start: { posting: POSTING, url: PAGE, fetched: true }, language: "de" });
+      expect(statuses(registry)).toEqual(["running"]);
+      expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
+    });
+
+    it("joins the run queue behind the runs that were already waiting when its fetch ended", async () => {
+      const { execute } = manualRuns();
+      const { fetchPosting, answers } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const busy = registry.enqueue("jane-doe", "new", posting());
+      const fromLink = registry.enqueue("jane-doe", "new", link());
+      const pasted = registry.enqueue("jane-doe", "new", posting());
+
+      answers.get(LINK)!(fetched);
+      await settled();
+
+      expect(registry.list("jane-doe").map((run) => [run.runId, run.status])).toEqual([
+        [busy, "running"],
+        [pasted, "queued"],
+        [fromLink, "queued"],
+      ]);
+    });
+
+    it("fetches one link at a time, in the order given", async () => {
+      const { execute } = manualRuns();
+      const { fetchPosting, asked, answers } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const first = registry.enqueue("jane-doe", "new", link("https://jobs.example.com/1"));
+      const second = registry.enqueue("john-roe", "new", link("https://jobs.example.com/2"));
+
+      expect(asked).toEqual(["https://jobs.example.com/1"]);
+      expect(registry.list("john-roe")).toMatchObject([{ runId: second, status: "fetching", steps: [] }]);
+
+      answers.get("https://jobs.example.com/1")!(refused);
+      await settled();
+
+      expect(asked).toEqual(["https://jobs.example.com/1", "https://jobs.example.com/2"]);
+      expect(registry.list("jane-doe")).toMatchObject([{ runId: first, status: "failed" }]);
+      expect(registry.list("john-roe")).toMatchObject([{ runId: second, steps: [{ step: "fetch", status: "running" }] }]);
+    });
+
+    /** A link run whose fetch failed. */
+    async function failedFetch() {
+      const runs = manualRuns();
+      const fetches = manualFetches();
+      const registry = createRunRegistry(runs.execute, fetches.fetchPosting);
+      const runId = registry.enqueue("jane-doe", "new", link());
+      const ended = followed(registry, "jane-doe", runId);
+      fetches.answers.get(LINK)!(refused);
+      const events = await ended;
+      return { registry, runId, events, ...runs, ...fetches };
+    }
+
+    it("never reaches the model when its fetch failed, and is listed as needing the posting's text", async () => {
+      const { registry, runId, events, started } = await failedFetch();
+
+      expect(started).toEqual([]);
+      expect(events).toEqual([
+        { type: "step", step: "fetch", status: "running" },
+        { type: "error", message: "The page answered 403." },
+      ]);
       expect(registry.list("jane-doe")).toEqual([
         {
           runId,
@@ -457,27 +567,101 @@ describe("run registry", () => {
       ]);
     });
 
-    it("fetches the same link again on Try again", async () => {
+    it("fails a fetch that throws or returns more text than a posting may have", async () => {
+      const { execute, started } = manualRuns();
+      const throwing = createRunRegistry(execute, async () => {
+        throw new Error("boom");
+      });
+      throwing.enqueue("jane-doe", "new", link());
+      const tooLong = createRunRegistry(execute, async () => ({ ok: true, text: "x".repeat(50_001), url: PAGE }));
+      tooLong.enqueue("jane-doe", "new", link());
+      await settled();
+
+      expect(throwing.list("jane-doe")[0]).toMatchObject({ status: "failed", fetchFailed: true, error: "Something went wrong while fetching the posting." });
+      expect(tooLong.list("jane-doe")[0]).toMatchObject({ status: "failed", fetchFailed: true, error: expect.stringContaining("longer than 50000") });
+      expect(started).toEqual([]);
+    });
+
+    it("puts the pasted text in the run queue in place of the run whose fetch failed", async () => {
       const { registry, runId, started } = await failedFetch();
+
+      const pasted = registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: LINK }, language: "de" }, runId);
+
+      expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.url])).toEqual([[pasted, "running", LINK]]);
+      expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: LINK }, language: "de" });
+    });
+
+    it("only replaces a run of the same profile whose fetch failed", async () => {
+      const { registry, runId } = await failedFetch();
+      const other = registry.enqueue("jane-doe", "new", posting());
+
+      registry.enqueue("john-roe", "new", posting(), runId);
+      registry.enqueue("jane-doe", "new", posting(), other);
+
+      expect(registry.list("jane-doe").map((run) => run.runId)).toContain(runId);
+      expect(registry.list("jane-doe").map((run) => run.runId)).toContain(other);
+    });
+
+    it("fetches the same link again on Try again", async () => {
+      const { registry, runId, asked } = await failedFetch();
 
       const again = registry.retry("jane-doe", runId);
 
       expect(again).not.toBe("refused");
-      expect(started.at(-1)!.input).toEqual({ start: { url: LINK }, language: "de" });
+      expect(asked).toEqual([LINK, LINK]);
+      expect(statuses(registry)).toEqual(["fetching", "failed"]);
     });
 
-    it("doesn't offer the paste fallback for a link run that failed after its fetch", async () => {
-      const { execute, ends, sends } = manualRuns();
-      const registry = createRunRegistry(execute);
-      const runId = registry.enqueue("jane-doe", "new", { start: { url: LINK }, language: null });
+    it("removes a run while its posting is fetched, stopping the fetch, and it never starts", async () => {
+      const { execute, started } = manualRuns();
+      const { fetchPosting, answers, signals, asked } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const runId = registry.enqueue("jane-doe", "new", link());
+      const next = registry.enqueue("jane-doe", "new", link("https://jobs.example.com/2"));
+      const events = followed(registry, "jane-doe", runId);
+
+      expect(registry.remove("john-roe", runId)).toBe("unknown");
+      expect(registry.remove("jane-doe", runId)).toBe("removed");
+
+      expect(signals.get(LINK)!.aborted).toBe(true);
+      expect((await events).at(-1)).toEqual({ type: "removed" });
+      // The fetcher answers a stopped fetch like a failed one; the run is gone all the same.
+      answers.get(LINK)!({ ok: false, reason: "The run was cancelled." });
+      await settled();
+      expect(registry.list("jane-doe").map((run) => run.runId)).toEqual([next]);
+      expect(asked).toEqual([LINK, "https://jobs.example.com/2"]);
+      expect(started).toEqual([]);
+    });
+
+    it("removes a run that waits behind another fetch without stopping that fetch", () => {
+      const { execute } = manualRuns();
+      const { fetchPosting, signals } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      registry.enqueue("jane-doe", "new", link());
+      const waiting = registry.enqueue("jane-doe", "new", link("https://jobs.example.com/2"));
+
+      expect(registry.remove("jane-doe", waiting)).toBe("removed");
+
+      expect(signals.get(LINK)!.aborted).toBe(false);
+      expect(statuses(registry)).toEqual(["fetching"]);
+    });
+
+    it("doesn't ask for pasted text when the run failed after its fetch, and tries again without fetching", async () => {
+      const { execute, ends, started } = manualRuns();
+      const { fetchPosting, answers, asked } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const runId = registry.enqueue("jane-doe", "new", link());
+      answers.get(LINK)!(fetched);
+      await settled();
       const ended = followed(registry, "jane-doe", runId);
-      sends.get(runId)!({ type: "step", step: "fetch", status: "running" });
-      sends.get(runId)!({ type: "step", step: "fetch", status: "done" });
-      sends.get(runId)!({ type: "step", step: "analyse", status: "running" });
       ends.get(runId)!.reject(new Error("Can't reach Ollama."));
       await ended;
 
-      expect(registry.list("jane-doe")[0]).toMatchObject({ url: LINK, fetchFailed: false, retryable: true });
+      expect(registry.list("jane-doe")[0]).toMatchObject({ url: PAGE, fetchFailed: false, retryable: true });
+
+      registry.retry("jane-doe", runId);
+      expect(asked).toEqual([LINK]);
+      expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: PAGE, fetched: true }, language: "de" });
     });
 
     it("lists the link kept with a pasted posting, never the posting", () => {
@@ -487,6 +671,22 @@ describe("run registry", () => {
 
       expect(registry.list("jane-doe")[0]).toMatchObject({ url: LINK, fetchFailed: false });
       expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
+    });
+
+    it("logs nothing, and neither lists nor streams the fetched posting (Art. III.4)", async () => {
+      const logs = (["log", "info", "warn", "error", "debug"] as const).map((method) => vi.spyOn(console, method).mockImplementation(() => {}));
+      const { execute, ends } = manualRuns();
+      const { fetchPosting, answers } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const runId = registry.enqueue("jane-doe", "new", link());
+      const ended = followed(registry, "jane-doe", runId);
+      answers.get(LINK)!(fetched);
+      await settled();
+      ends.get(runId)!.reject(new Error("The model took too long."));
+      const events = await ended;
+
+      for (const log of logs) expect(log).not.toHaveBeenCalled();
+      expect(JSON.stringify([registry.list("jane-doe"), events])).not.toContain(POSTING);
     });
   });
 

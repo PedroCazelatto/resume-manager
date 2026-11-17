@@ -17,6 +17,7 @@ const KIND_LABELS: Record<RunSummary["kind"], string> = {
 };
 
 const STATUS_LABELS: Record<RunSummary["status"], string> = {
+  fetching: "fetching the posting",
   queued: "waiting",
   running: "running",
   done: "finished",
@@ -83,8 +84,10 @@ export function RunsList() {
                   </>
                 )}
               </span>
-              <span className="text-muted-foreground">{STATUS_LABELS[run.status]}</span>
-              {run.status === "queued" && (
+              <span className="text-muted-foreground">
+                {run.fetchFailed ? "needs the posting's text" : STATUS_LABELS[run.status]}
+              </span>
+              {(run.status === "queued" || run.status === "fetching") && (
                 <Button variant="outline" size="sm" onClick={() => remove(run.runId)}>
                   Remove
                 </Button>
@@ -97,7 +100,7 @@ export function RunsList() {
               )}
               {/* The page couldn't be fetched: the form takes the text, and keeps the link (F10). */}
               {run.fetchFailed && run.url && (
-                <Button variant="outline" size="sm" onClick={() => pasteInstead(run.url ?? "")}>
+                <Button variant="outline" size="sm" onClick={() => pasteInstead(run.runId, run.url ?? "")}>
                   Paste the text instead
                 </Button>
               )}

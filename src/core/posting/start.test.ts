@@ -1,6 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { MAX_POSTING_CHARS } from "./job-fetcher";
-import { readNewRunStart } from "./start";
+import { fetchedStart, readNewRunStart } from "./start";
+
+describe("fetchedStart", () => {
+  const page = "https://jobs.example.com/7";
+
+  it("starts from the fetched text and the page it came from", () => {
+    expect(fetchedStart({ ok: true, text: "Globex is hiring.", url: page })).toEqual({
+      start: { posting: "Globex is hiring.", url: page, fetched: true },
+    });
+  });
+
+  it("passes on why the fetch failed", () => {
+    expect(fetchedStart({ ok: false, reason: "The page answered 403." })).toEqual({ error: "The page answered 403." });
+  });
+
+  it("refuses text over the pasted posting's limit instead of cutting it", () => {
+    expect(fetchedStart({ ok: true, text: "x".repeat(MAX_POSTING_CHARS), url: page })).toHaveProperty("start");
+    expect(fetchedStart({ ok: true, text: "x".repeat(MAX_POSTING_CHARS + 1), url: page })).toEqual({
+      error: "The page's text is longer than 50000 characters. Paste the posting's own text instead.",
+    });
+  });
+});
 
 describe("readNewRunStart", () => {
   it("starts from pasted text", () => {

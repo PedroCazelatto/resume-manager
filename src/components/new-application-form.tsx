@@ -14,9 +14,17 @@ type Tab = "links" | "paste";
 
 const PASTE_INSTEAD = "paste-posting-instead";
 
-/** Opens the form's "Paste text" tab with this link kept; the Runs list calls it for a run whose fetch failed (F10). */
-export function pasteInstead(url: string) {
-  window.dispatchEvent(new CustomEvent<string>(PASTE_INSTEAD, { detail: url }));
+/**
+ * Opens the form's "Paste text" tab with this link kept; the Runs list calls it for a run
+ * whose fetch failed. The pasted text then takes that run's place in the list (F10).
+ */
+export function pasteInstead(runId: string, url: string) {
+  window.dispatchEvent(new CustomEvent<FailedFetch>(PASTE_INSTEAD, { detail: { runId, url } }));
+}
+
+interface FailedFetch {
+  runId: string;
+  url: string;
 }
 
 /**
@@ -29,6 +37,8 @@ export function NewApplicationForm() {
   const [posting, setPosting] = useState("");
   /** The link saved with a pasted posting. */
   const [keptLink, setKeptLink] = useState("");
+  /** The run whose fetch failed and whose posting is being pasted. */
+  const [replaces, setReplaces] = useState<string | null>(null);
   const [language, setLanguage] = useState("");
   const [sending, setSending] = useState(false);
   const [queued, setQueued] = useState(false);
@@ -38,7 +48,9 @@ export function NewApplicationForm() {
 
   useEffect(() => {
     const paste = (event: Event) => {
-      openPaste((event as CustomEvent<string>).detail, "Paste the posting's text here. Its link is kept with the application.");
+      const { runId, url } = (event as CustomEvent<FailedFetch>).detail;
+      openPaste(url, "Paste the posting's text here. Its link is kept with the application.");
+      setReplaces(runId);
       document.getElementById("new-application")?.scrollIntoView({ block: "nearest" });
     };
     window.addEventListener(PASTE_INSTEAD, paste);
@@ -48,6 +60,7 @@ export function NewApplicationForm() {
   function openPaste(url: string, why: string) {
     setTab("paste");
     setKeptLink(url);
+    setReplaces(null);
     setNotice(why);
     setQueued(false);
     setError(null);
@@ -72,11 +85,14 @@ export function NewApplicationForm() {
     setSending(true);
     setNotice(null);
     const body: Record<string, string> =
-      tab === "links" ? { url: link, language } : { posting, language, ...(keptLink.trim() ? { url: keptLink } : {}) };
+      tab === "links"
+        ? { url: link, language }
+        : { posting, language, ...(keptLink.trim() ? { url: keptLink } : {}), ...(replaces ? { replaces } : {}) };
     const reply = await enqueueRun("/api/applications", body);
     setSending(false);
     setQueued("runId" in reply);
     if ("error" in reply) setError(reply.error);
+    else setReplaces(null);
   }
 
   const empty = tab === "links" ? link.trim() === "" : posting.trim() === "";
@@ -88,6 +104,7 @@ export function NewApplicationForm() {
         value={tab}
         onValueChange={(next) => {
           setTab(next as Tab);
+          setReplaces(null);
           setQueued(false);
           setError(null);
           setNotice(null);
