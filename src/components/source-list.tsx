@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SectionCard } from "@/components/section-card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { SourcedItem } from "@/core/resume/sources";
 
@@ -16,13 +17,15 @@ interface Props {
 /** The profile files behind each item of the resume (Art. II.4, F18). */
 export function SourceList({ items, files, className }: Props) {
   return (
-    <section className={`space-y-2 ${className ?? ""}`}>
-      <h2 className="font-medium">Sources</h2>
-      <p className="text-sm text-muted-foreground">
-        {files
+    <SectionCard
+      title="Sources"
+      description={
+        files
           ? "The profile files each item of the resume comes from."
-          : "Your profile has problems, so its files can't be shown. Fix them on the home page."}
-      </p>
+          : "Your profile has problems, so its files can't be shown. Fix them on the home page."
+      }
+      className={className}
+    >
       <ul className="space-y-2 text-sm">
         {items.map((item, index) => (
           <li key={index}>
@@ -38,7 +41,7 @@ export function SourceList({ items, files, className }: Props) {
           </li>
         ))}
       </ul>
-    </section>
+    </SectionCard>
   );
 }
 

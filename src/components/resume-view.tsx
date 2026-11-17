@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { addSkillToProfile, decideInference } from "@/app/applications/[id]/actions";
+import { SectionCard } from "@/components/section-card";
+import { StatusBadge, type Tone } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,22 +20,30 @@ interface Props {
   files: CitedFiles;
 }
 
+const STATUS_TONE: Record<Inference["status"], Tone> = {
+  pending: "amber",
+  approved: "green",
+  rejected: "red",
+};
+
 /** Skills the model inferred; they stay out of the resume until approved (Art. II.3, F16). */
 export function InferenceList({ id, inferences, options, files }: Props) {
   if (inferences.length === 0) return null;
   return (
-    <section className="space-y-2">
-      <h2 className="font-medium">Implied skills</h2>
-      <p className="text-sm text-muted-foreground">
-        Your profile implies these skills without stating them. They stay out of the resume until you approve them.
-      </p>
-      <ul className="space-y-2 text-sm">
+    <SectionCard
+      title="Implied skills"
+      description="Your profile implies these skills without stating them. They stay out of the resume until you approve them."
+    >
+      <ul className="divide-y text-sm">
         {inferences.map((inference) => (
-          <li key={inference.skill}>
-            <strong>{inference.skill}</strong> · {inference.status}
+          <li key={inference.skill} className="space-y-1 py-3 first:pt-0 last:pb-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <strong>{inference.skill}</strong>
+              <StatusBadge tone={STATUS_TONE[inference.status]}>{inference.status}</StatusBadge>
+            </div>
             <div>{inference.reason}</div>
             <SourceFiles sources={inference.sources} files={files} />
-            <div className="mt-1 flex gap-2">
+            <div className="mt-1 flex flex-wrap gap-2">
               <form action={decideInference.bind(null, id, inference.skill, "approved")}>
                 <Button type="submit" variant="outline" size="sm" disabled={inference.status === "approved"}>
                   Approve
@@ -51,7 +61,7 @@ export function InferenceList({ id, inferences, options, files }: Props) {
           </li>
         ))}
       </ul>
-    </section>
+    </SectionCard>
   );
 }
 

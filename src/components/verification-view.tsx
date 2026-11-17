@@ -1,4 +1,6 @@
 import { setFailureDismissed } from "@/app/applications/[id]/actions";
+import { SectionCard } from "@/components/section-card";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import type { Verification } from "@/core/verification/schema";
 
@@ -11,25 +13,29 @@ const CHECK_LABELS: Record<Verification["failures"][number]["check"], string> = 
 export function VerificationView({ id, verification }: { id: string; verification: Verification }) {
   const open = verification.failures.filter((f) => !f.dismissed).length;
   return (
-    <section className="space-y-2">
-      <h2 className="font-medium">Verification</h2>
-      <p className="text-sm text-muted-foreground">
-        {verification.failures.length === 0
-          ? "Every claim was checked against your profile and nothing failed."
-          : `${open} of ${verification.failures.length} failed checks still open. Fix the resume or your profile, or dismiss a false alarm.`}
-        {verification.review ? ` · ${verification.review.model}` : ""}
-      </p>
+    <SectionCard
+      title="Verification"
+      description={
+        <>
+          {verification.failures.length === 0
+            ? "Every claim was checked against your profile and nothing failed."
+            : `${open} of ${verification.failures.length} failed checks still open. Fix the resume or your profile, or dismiss a false alarm.`}
+          {verification.review ? ` · ${verification.review.model}` : ""}
+        </>
+      }
+      contentClassName="space-y-3"
+    >
       {!verification.review?.current && (
         <p className="text-sm text-destructive">
           The model review {verification.review ? "is older than the resume's current content" : "has not run yet"}.
         </p>
       )}
-      <ul className="space-y-3 text-sm">
+      <ul className="divide-y text-sm">
         {verification.failures.map((failure, index) => (
-          <li key={index} className={failure.dismissed ? "text-muted-foreground" : undefined}>
-            <div>
+          <li key={index} className={`space-y-1 py-3 first:pt-0 last:pb-0 ${failure.dismissed ? "text-muted-foreground" : ""}`}>
+            <div className="flex flex-wrap items-center gap-2">
               <strong>{failure.problem}</strong>
-              {failure.dismissed && " · dismissed"}
+              {failure.dismissed && <StatusBadge tone="neutral">dismissed</StatusBadge>}
             </div>
             <div>{failure.claim}</div>
             <div className="font-mono text-xs text-muted-foreground">
@@ -43,6 +49,6 @@ export function VerificationView({ id, verification }: { id: string; verificatio
           </li>
         ))}
       </ul>
-    </section>
+    </SectionCard>
   );
 }

@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { RunSummary } from "@/app/runs";
 import { pasteInstead } from "@/components/new-application-form";
 import { tellEndedRuns } from "@/components/run-notifications";
+import { SectionCard } from "@/components/section-card";
+import { StatusBadge, type Tone } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { RUNS_CHANGED, RunProgress, RunSteps, enqueueRun, useRun } from "@/components/use-run";
 
@@ -23,6 +25,15 @@ const STATUS_LABELS: Record<RunSummary["status"], string> = {
   done: "finished",
   failed: "failed",
   cancelled: "cancelled",
+};
+
+const STATUS_TONES: Record<RunSummary["status"], Tone> = {
+  fetching: "neutral",
+  queued: "neutral",
+  running: "green",
+  done: "green",
+  failed: "red",
+  cancelled: "neutral",
 };
 
 /**
@@ -67,18 +78,20 @@ export function RunsList() {
 
   if (runs.length === 0) return null;
   return (
-    <section className="space-y-3">
-      <h2 className="font-medium">Runs</h2>
-      <ul className="space-y-2 text-sm">
+    <SectionCard id="runs" title="Runs">
+      <ul className="divide-y text-sm">
         {runs.map((run) => (
-          <li key={run.runId} className="space-y-1">
+          <li key={run.runId} className="space-y-1 py-3 first:pt-0 last:pb-0">
             <div className="flex flex-wrap items-center gap-3">
               <span>
                 {KIND_LABELS[run.kind]}
                 {run.applicationId && (
                   <>
                     {" · "}
-                    <Link href={`/applications/${run.applicationId}`} className="underline">
+                    <Link
+                      href={`/applications/${run.applicationId}`}
+                      className="break-all text-primary underline underline-offset-2"
+                    >
                       {run.applicationId}
                     </Link>
                   </>
@@ -86,9 +99,9 @@ export function RunsList() {
                 {/* Until its application exists, a run from a link is told apart by the link (F33). */}
                 {!run.applicationId && run.url && <span className="break-all">{` · ${run.url}`}</span>}
               </span>
-              <span className="text-muted-foreground">
+              <StatusBadge tone={run.fetchFailed ? "amber" : STATUS_TONES[run.status]}>
                 {run.fetchFailed ? "needs the posting's text" : STATUS_LABELS[run.status]}
-              </span>
+              </StatusBadge>
               {(run.status === "queued" || run.status === "fetching") && (
                 <Button variant="outline" size="sm" onClick={() => remove(run.runId)}>
                   Remove
@@ -108,17 +121,19 @@ export function RunsList() {
               )}
             </div>
             {run.status === "running" && <ActiveRun run={run} onEnd={refresh} />}
-            {run.status !== "running" && run.steps.length > 0 && <RunSteps
+            {run.status !== "running" && run.steps.length > 0 && (
+              <RunSteps
                 steps={run.steps}
                 warnings={run.warnings}
                 ended={run.status === "done" || run.status === "failed" || run.status === "cancelled"}
-              />}
+              />
+            )}
             {run.error && <p className="text-destructive">{run.error}</p>}
             {refused?.runId === run.runId && <p className="text-destructive">{refused.error}</p>}
           </li>
         ))}
       </ul>
-    </section>
+    </SectionCard>
   );
 }
 

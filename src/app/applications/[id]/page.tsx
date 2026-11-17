@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AnalysisView } from "@/components/analysis-view";
@@ -6,8 +5,11 @@ import { FileProblems } from "@/components/file-problems";
 import { RetryRun } from "@/components/retry-run";
 import { ResumeEditor } from "@/components/resume-editor";
 import { InferenceList } from "@/components/resume-view";
+import { SectionCard } from "@/components/section-card";
 import { SourceList } from "@/components/source-list";
+import { StatusBadge } from "@/components/status-badge";
 import type { ActiveRun } from "@/components/use-active-run";
+import { Card, CardContent } from "@/components/ui/card";
 import { VerificationView } from "@/components/verification-view";
 import { isApplicationId } from "@/core/application/folder";
 import { analysisSchema, jobSchema } from "@/core/application/schemas";
@@ -28,10 +30,7 @@ import { templateStore } from "@/app/templates";
 
 export default function ApplicationPage(props: PageProps<"/applications/[id]">) {
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
-      <Link href="/" className="text-sm text-muted-foreground hover:underline">
-        ← Resume Manager
-      </Link>
+    <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading application…</p>}>
         <Application params={props.params} />
       </Suspense>
@@ -91,21 +90,53 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
   const generating = followed(activeRun(runs, id, "resume"));
   const verifying = followed(activeRun(runs, id, "verification"));
 
+  const header = (
+    <header className="space-y-1">
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {job.data.role} · {job.data.company}
+      </h1>
+      <p className="text-sm text-muted-foreground">
+        {[job.data.location, languageName(job.data.language)].filter(Boolean).join(" · ")}
+      </p>
+    </header>
+  );
+  const retry = (resume === null || verification === null) && (
+    <RetryRun id={id} needsResume={resume === null} active={generating} />
+  );
+  const details = (
+    <>
+      {analysis?.ok ? (
+        <AnalysisView analysis={analysis.data} />
+      ) : (
+        <p className="text-sm">The analysis has not been saved yet.</p>
+      )}
+      <Card>
+        <CardContent>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-base font-medium">Job posting</summary>
+            <pre className="mt-3 font-sans break-words whitespace-pre-wrap">{job.body}</pre>
+          </details>
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  if (!resume?.ok || !template?.ok) {
+    return (
+      <div className="max-w-3xl space-y-6">
+        {header}
+        {retry}
+        {details}
+      </div>
+    );
+  }
+
+  // Two columns on wide screens: the resume stays in view on the left, the rest scrolls on the right (F35).
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">
-          {job.data.role} · {job.data.company}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {[job.data.location, languageName(job.data.language)].filter(Boolean).join(" · ")}
-        </p>
-      </header>
-      {resume?.ok && template?.ok && (
-        <section className="relative space-y-3">
-          <h2 className="font-medium">
-            Resume · {languageName(resume.data.language)} · {resume.data.status}
-          </h2>
+      {header}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
+        <div className="xl:sticky xl:top-8 xl:max-h-[calc(100svh-4rem)] xl:overflow-y-auto xl:[scrollbar-gutter:stable]">
           <ResumeEditor
             // A new key resets the editor when the saved file changes.
             key={resumeSource}
@@ -121,12 +152,16 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
             reviewCurrent={verification?.ok === true && verification.data.review?.current === true}
             active={verifying}
           />
-          {/* Beside the preview when the window has room for it, under it otherwise. */}
-          <SourceList
-            items={sourcedItems}
-            files={citedFiles}
-            className="xl:absolute xl:top-0 xl:left-full xl:ml-6 xl:w-64"
+        </div>
+        <div className="space-y-6">
+          <SectionCard
+            title="Resume"
+            description={languageName(resume.data.language)}
+            action={
+              <StatusBadge tone={resume.data.status === "ready" ? "green" : "amber"}>{resume.data.status}</StatusBadge>
+            }
           />
+          {retry}
           <InferenceList
             id={id}
             inferences={resume.data.inferences}
@@ -134,20 +169,10 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
             files={citedFiles}
           />
           {verification?.ok && <VerificationView id={id} verification={verification.data} />}
-        </section>
-      )}
-      {(resume === null || verification === null) && (
-        <RetryRun id={id} needsResume={resume === null} active={generating} />
-      )}
-      {analysis?.ok ? (
-        <AnalysisView analysis={analysis.data} />
-      ) : (
-        <p className="text-sm">The analysis has not been saved yet.</p>
-      )}
-      <details className="text-sm">
-        <summary className="cursor-pointer text-muted-foreground">Job posting</summary>
-        <pre className="mt-2 whitespace-pre-wrap font-sans">{job.body}</pre>
-      </details>
+          <SourceList items={sourcedItems} files={citedFiles} />
+          {details}
+        </div>
+      </div>
     </div>
   );
 }

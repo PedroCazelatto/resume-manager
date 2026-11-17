@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { readLinks, refusedMessage, splitLines } from "@/core/posting/links";
 import { INDEED_BLOCKED, isIndeedUrl } from "@/core/posting/sites";
 import { parseLink } from "@/core/posting/url";
+import { SectionCard } from "@/components/section-card";
 import { LanguageSelect } from "@/components/language-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,8 +111,7 @@ export function NewApplicationForm() {
   const empty = tab === "links" ? links.trim() === "" : posting.trim() === "";
 
   return (
-    <section id="new-application" className="space-y-3">
-      <h2 className="font-medium">New application</h2>
+    <SectionCard id="new-application" title="New application" contentClassName="space-y-3">
       <Tabs
         value={tab}
         onValueChange={(next) => {
@@ -129,6 +129,7 @@ export function NewApplicationForm() {
         <TabsContent value="links">
           <Textarea
             aria-label="Links to the job postings, one per line"
+            className="min-h-32"
             placeholder="https://… the job postings' pages, one link per line"
             value={links}
             disabled={sending}
@@ -145,7 +146,7 @@ export function NewApplicationForm() {
             disabled={sending}
             onChange={(e) => change(setPosting, e.target.value)}
           />
-          <label className="flex items-center gap-3">
+          <label className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
             <span className="text-muted-foreground">Link</span>
             <Input
               type="url"
@@ -170,6 +171,6 @@ export function NewApplicationForm() {
       </div>
       {/* A refused list names one line per line of the message (F33). */}
       {error && <p className="text-sm whitespace-pre-line text-destructive">{error}</p>}
-    </section>
+    </SectionCard>
   );
 }

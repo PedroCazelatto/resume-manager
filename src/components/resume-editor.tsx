@@ -82,7 +82,7 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
 
   return (
     <div className="space-y-3">
-      <ResumePreview html={preview} maxPages={maxPages} frameRef={frame} />
+      {/* Print and Edit come first, so they stay in view above the preview (F35). */}
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={busy || printBlockers.length > 0} onClick={() => frame.current?.contentWindow?.print()}>
           Print / Save as PDF
@@ -97,8 +97,8 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
         )}
       </div>
       <RunProgress run={verification} removable />
-      <details className="space-y-2">
-        <summary className="cursor-pointer text-sm text-muted-foreground">Edit the resume</summary>
+      <details className="space-y-2 rounded-lg border px-3 py-2">
+        <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">Edit the resume</summary>
         <Textarea
           aria-label="Resume content"
           className="mt-2 min-h-96 font-mono text-xs"
@@ -126,6 +126,7 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
           ))}
         </ul>
       )}
+      <ResumePreview html={preview} maxPages={maxPages} frameRef={frame} />
     </div>
   );
 }

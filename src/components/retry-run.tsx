@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { RunSummary } from "@/app/runs";
+import { SectionCard } from "@/components/section-card";
 import { LanguageSelect } from "@/components/language-select";
 import { Button } from "@/components/ui/button";
 import { useActiveRun, type ActiveRun } from "@/components/use-active-run";
@@ -51,12 +52,16 @@ export function RetryRun({ id, needsResume, active }: { id: string; needsResume:
   }
 
   return (
-    <section className="space-y-3 rounded-lg border p-4">
-      <h2 className="font-medium">{working ? "This run is in progress" : "This run didn’t finish"}</h2>
-      <p className="text-sm text-muted-foreground">
-        {needsResume ? "The resume has not been written yet." : "The resume has not been verified yet."}
-        {!working && " The finished steps are saved; trying again continues from there."}
-      </p>
+    <SectionCard
+      title={working ? "This run is in progress" : "This run didn’t finish"}
+      description={
+        <>
+          {needsResume ? "The resume has not been written yet." : "The resume has not been verified yet."}
+          {!working && " The finished steps are saved; trying again continues from there."}
+        </>
+      }
+      contentClassName="space-y-3"
+    >
       <div className="flex flex-wrap items-center gap-3">
         {needsResume && <LanguageSelect value={language} disabled={working} onChange={setChosen} />}
         <Button disabled={working} onClick={retry}>
@@ -65,6 +70,6 @@ export function RetryRun({ id, needsResume, active }: { id: string; needsResume:
       </div>
       <RunProgress run={run} removable />
       {run.error && <p className="text-sm text-destructive">{run.error}</p>}
-    </section>
+    </SectionCard>
   );
 }
