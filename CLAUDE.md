@@ -45,6 +45,7 @@ npm run typecheck
 |---|---|
 | `constitution.md` | All project rules |
 | `backlog/` | One file per task (implemented, next version, future version); `index.md` lists them by status and the out-of-scope features |
+| `decisions.md` | Numbered list of project decisions that apply across features; add new ones there. Per-task decisions stay in their task file |
 | `src/core/` | Schemas, pipeline steps, prompts (`src/core/prompts/`), verification. Pure, no I/O |
 | `src/adapters/` | `ProfileStore`, `TemplateStore`, `LlmClient`, `JobFetcher`, `CvTextExtractor`, `PdfRenderer` |
 | `src/app/`, `src/components/` | Next.js routes, route handlers, shadcn/ui components |
