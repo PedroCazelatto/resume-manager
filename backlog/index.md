@@ -8,9 +8,8 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: runs-list-changes and link-handling-changes, one after the other (they share files); job-posting-details, after its constitution amendment; browser-extension, after job-posting-details and link-handling-changes. visual-pass depends on none of them.
+Suggested order, from what each task depends on: runs-list-changes and link-handling-changes, one after the other (they share files); job-posting-details, after its constitution amendment; browser-extension, after job-posting-details and link-handling-changes.
 
-- [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 - [job-posting-details.md](job-posting-details.md) — Job posting details: title, company, source and more (F46)
 - [link-handling-changes.md](link-handling-changes.md) — Link handling changes decided on 2026-11-17 (F47)
@@ -56,6 +55,7 @@ Suggested order, from what each task depends on: runs-list-changes and link-hand
 - [cancel-a-run.md](cancel-a-run.md) — Cancel a running generation (F32)
 - [list-of-posting-urls.md](list-of-posting-urls.md) — Accept a list of job links at once (F33)
 - [dark-mode.md](dark-mode.md) — Dark mode (F34)
+- [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
 - [timer-format.md](timer-format.md) — Show the run timer as MMmSSs (F36)
 - [model-timeout.md](model-timeout.md) — The model timed out before writing the resume (F37)
 - [notify-when-run-ends.md](notify-when-run-ends.md) — Notify when a run ends (F38)

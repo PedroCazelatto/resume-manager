@@ -31,7 +31,7 @@ Profile files are edited in an external editor.
 - `ProfileStore` already has `replaceProfileFile` (atomic, replaces an existing file; added by [write-back-implied-skills](write-back-implied-skills.md)). It gains `readProfileFile`, a way to create a new file, and `deleteProfileFile`, all limited to paths `profileFileKind` accepts (`src/core/profile/validate.ts`).
 - File naming for new items as a pure function in `src/core/profile/`, following Art. IV.4.
 - Validation reuses `parseProfileFile`.
-- New route `src/app/profile/page.tsx`, with a sidebar entry once [visual-pass](visual-pass.md) exists.
+- New route `src/app/profile/page.tsx`, with a sidebar entry in `src/components/app-sidebar.tsx` ([visual-pass](visual-pass.md)).
 - Art. IV.6–IV.8 (validation, unknown fields kept, atomic writes, delete only after confirmation), Art. III.7.
 
 ## Depends on

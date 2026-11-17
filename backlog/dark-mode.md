@@ -7,7 +7,7 @@ reported: 2026-11-14
 
 ## What it does
 
-- A sun/moon button in the top-right corner of every page switches between light and dark.
+- A sun/moon button at the bottom of the sidebar of every page (in the menu on narrow screens) switches between light and dark.
 - Until the button is used, the app follows the system's light or dark setting, and changes with it while the page is open.
 - After that, the choice is remembered in the browser's local storage (`theme` = `light` or `dark`) and the system setting is no longer followed.
 - The mode is set before the first paint, so a page never flashes in the wrong mode.
@@ -16,7 +16,7 @@ reported: 2026-11-14
 ## Where it lives
 
 - `src/lib/theme.ts`: `resolveTheme`, `THEME_KEY`, `THEME_SCRIPT` (the inline script).
-- `src/app/layout.tsx`: runs `THEME_SCRIPT` in `<head>` and places the toggle.
+- `src/app/layout.tsx`: runs `THEME_SCRIPT` in `<head>`. The toggle sits in `src/components/app-sidebar.tsx` ([visual-pass](visual-pass.md)).
 - `src/components/theme-toggle.tsx`: `ThemeToggle`.
 - `src/app/globals.css`: the `.dark` colours, and `color-scheme: dark` for scrollbars and native controls.
 - `src/components/resume-preview.tsx`: the frame keeps `bg-white`.
@@ -33,5 +33,5 @@ reported: 2026-11-14
 ## Notes
 
 - Decided 2026-11-15: a toggle button; the system setting is the default until it is used.
-- The toggle moves into the sidebar once [visual-pass](visual-pass.md) exists.
+- The toggle moved from the top-right corner into the sidebar with [visual-pass](visual-pass.md).
 - No component colour needed changing: every colour already came from the theme tokens or had a `dark:` variant. Measured text contrast is at least 4.74:1 in light mode and 6.8:1 in dark mode.

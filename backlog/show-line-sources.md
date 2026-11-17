@@ -11,7 +11,7 @@ version: implemented
 - A cited file that is no longer in the profile is shown in red as "missing from the profile" and can't be opened.
 - An item that cites no file says "No source recorded".
 - When the profile can't be loaded because one of its files is invalid, the list still names the files, without links, and says the profile has problems.
-- The list sits to the right of the resume when the window is at least 1280 px wide, and under the preview and its buttons otherwise.
+- The list is a card in the application page's right-hand column, after "Verification"; below 1280 px the columns stack, so it comes after the preview ([visual-pass](visual-pass.md)).
 - The source files of each implied skill, in the "Implied skills" section, open the same dialog and follow the same rules: a missing file is marked and can't be opened, and the names are plain text when the profile has problems.
 - Only the text of files this resume cites, in its items or its implied skills, is sent to the browser.
 - The printed resume is untouched: the list is outside the preview frame.
@@ -40,4 +40,4 @@ version: implemented
 - Decided 2026-11-15: a list beside the preview, not clickable lines inside it.
 - Decided 2026-11-16: the source files of implied skills are clickable too, with the same dialog. The Sources list keeps its placement.
 - Sources are per item in `resume.md` (`sources`, and `summary_sources` for the summary); bullets share their item's sources. Skills and contact details record no sources, so they are not in the list.
-- The page keeps its narrow column, so on a wide window the list is placed outside it, in the free space to the right. [visual-pass](visual-pass.md) redesigns the page and can give it a real column.
+- At first the page kept its narrow column and the list was placed outside it, in the free space to the right; [visual-pass](visual-pass.md) gave it a place in the right-hand column.
