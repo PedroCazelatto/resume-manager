@@ -48,7 +48,7 @@ version: implemented
 
 - Decided 2026-11-15: one run at a time, others queue (not refused, not parallel).
 - Decided 2026-11-15: the queue is in memory only for now; [database-storage](database-storage.md) will persist it.
-- A removed run leaves the list entirely; the `cancelled` status is for a running run stopped by the user ([cancel-a-run](cancel-a-run.md)).
+- A removed run leaves the list entirely; the `cancelled` status is for a running run stopped by the user ([cancel-a-run](cancel-a-run.md)). Decided 2026-11-17: during a fetch, "Remove" becomes "Cancel", the run stays listed as cancelled with "Try again", and only cancelled rows can be deleted ([runs-list-changes](runs-list-changes.md)). Whether runs waiting in this queue change the same way is in `OPEN-QUESTIONS.md`.
 - The Runs list refreshes every 2 seconds, and at once when this tab queues or removes a run.
 - A replay keeps only the latest progress event of each step.
 - Decided 2026-11-16: runs that finished, failed or were cancelled keep their steps and context-size warning in the Runs list while they stay in it. The list reads them from `GET /api/runs`, so an ended run's stream isn't opened again.

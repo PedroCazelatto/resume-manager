@@ -64,14 +64,22 @@ reported: 2026-11-14
 - Decided 2026-11-15: two tabs on the form.
 - Decided 2026-11-16: the form stays on screen after queueing and does not follow or open the run, so a failed fetch is handled from the Runs list.
 - Decided 2026-11-17 (the user): "Always do the fetch as soon as the job application enters the queue. It's like we have 2 queues, the first one is to fetch the job description, and the second one is to create the resume. One item only moves from one queue to the next after the fetch works, and if it doesn't work it must ask the user for the pasted text to join the second queue." This replaces the fetch as the first step of a queued run.
-- A run joins the run queue when its fetch ends, so it goes behind the runs that were already waiting then, even ones submitted after its link.
-- A run removed from the fetch queue leaves the list, like a waiting run that is removed.
+- Decided 2026-11-17: fetches stay one at a time, in the order given, and a link joins the run queue only after its fetch worked; only a link whose fetch fails (and is tried again or pasted) ends up out of order. The run queue uses the fetched text and never fetches again. As built. The user added "unless the model judges that there isn't enough information": what happens then is not decided yet (see `OPEN-QUESTIONS.md`).
+- Decided 2026-11-17: "Remove" during a fetch becomes "Cancel": the run stays listed as cancelled, with "Try again", and only cancelled rows can be deleted. To be built in [runs-list-changes](runs-list-changes.md); until then a run removed from the fetch queue leaves the list.
+- Decided 2026-11-17: a link waiting behind another fetch has its own wording, "waiting to fetch" ([runs-list-changes](runs-list-changes.md)).
+- Decided 2026-11-17: after "Paste the text instead" the same row moves on to the run queue, instead of a new run taking its place ([runs-list-changes](runs-list-changes.md)).
+- Decided 2026-11-17: a failed fetch has its own notification words, such as "Couldn't read the posting: paste the text" ([runs-list-changes](runs-list-changes.md)).
+- Decided 2026-11-17: a failed fetch keeps both "Paste the text instead" and "Try again" (as built), and "Try again" on a link run that failed after its fetch reuses the fetched text (as built).
 - The fetch queue lives in memory like the run queue; after a restart it is empty.
 - Decided 2026-11-15: 30 seconds, 5 MB, no minimum text length.
 - Checked 2026-11-15 with a plain request labelled as this app: LinkedIn's public job page answered 200 with the full description in the HTML. Indeed answered 403 "Security Check" on a search page and on a real job link, and 401 "Authenticating" on another job link.
 - Indeed is handled from the user's browser instead: see [browser-extension](browser-extension.md). This task covers LinkedIn and other sites that answer plain requests.
 - Checked 2026-11-15: an undisguised headless Chrome is blocked by Indeed too, so the ban on headless-browser scraping (Art. V.10) stays.
 - The 30 seconds cover the whole fetch, redirects included.
-- The name is resolved and checked by the app, then resolved again by the request itself. A name that changes its answer between the two is not caught.
+- The name is resolved and checked by the app, then resolved again by the request itself. A name that changes its answer between the two is not caught. Decided 2026-11-17 ("There will be only one fetch"): one lookup per request, and the connection goes to the address that was checked. To be built in [link-handling-changes](link-handling-changes.md).
 - "Paste the text instead" is offered only on a run whose fetch failed. A link run that failed later has "Try again" alone.
-- The LinkedIn description element names neither the role nor the company, which the analysis needs, so the page's `<title>` ("<company> hiring <role> in <place> | LinkedIn") is put above it.
+- The LinkedIn description element names neither the role nor the company, which the analysis needs, so the page's `<title>` ("<company> hiring <role> in <place> | LinkedIn") is put above it. Decided 2026-11-17: company and role come from LinkedIn's top-card elements instead, and everything the page's HTML says about the job is extracted ([job-posting-details](job-posting-details.md)).
+- Decided 2026-11-17: `job.md` keeps the address the text was read from (as built), and the Runs list shows that same address once the fetch worked: one source of truth ([link-handling-changes](link-handling-changes.md)).
+- Decided 2026-11-17: no character limit on a fetched page's text ("Remove the limit. We will deal with that later if it becomes a problem."); the 5 MB page limit stays ([link-handling-changes](link-handling-changes.md)).
+- Decided 2026-11-17: the "Link" field on "Paste text" stays always visible and optional; it is useful for debugging and for applying to the job.
+- Decided 2026-11-17: `source` names the job platform ("LinkedIn", "Indeed" or another one) instead of `url` or `paste` ([job-posting-details](job-posting-details.md)). This changes the `job.md` row of constitution Art. IV.5.

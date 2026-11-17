@@ -44,5 +44,6 @@ version: implemented
 - Decided 2026-11-16: a run with no application can be tried again from the Runs list, with the posting and language the server kept in memory; losing them on restart is accepted.
 - Decided 2026-11-17: "Try again" in the Runs list works once per run, so a posting isn't queued several times; the button reappears if the new run fails (on that run). The server refuses a second use (`offersTryAgain`, `triedAgain` in `src/core/runs/queue.ts`).
 - Decided 2026-11-16: the chosen language is kept with the run on the server and is what "Try again" starts from; the browser's local-storage copy stays as the fallback after a restart.
-- The run that was tried again stays in the list and keeps its button, so it can be queued more than once.
+- The run that was tried again stays in the list; its button comes back only when the run it queued is no longer listed.
+- Decided 2026-11-17: a failed fetch offers both "Try again" (the link is fetched again) and "Paste the text instead"; "Try again" on a link run that failed after its fetch reuses the fetched text. Both as built.
 - The application page reads the language from `GET /api/runs` when it opens. When the resume is already written, no language field is shown, because the language no longer matters.

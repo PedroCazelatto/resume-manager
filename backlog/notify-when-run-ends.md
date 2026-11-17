@@ -46,6 +46,7 @@ reported: 2026-11-15
 - A permission prompt the user closes without answering leaves the browser without an answer, so the next started run asks again (confirmed 2026-11-16). Browsers stop showing the prompt by themselves after a few dismissals.
 - Decided 2026-11-16: a finished "Verify again" says "Verification finished" and a failed one "Verification failed". The tab title still starts with "Done" or "Failed".
 - A run that fails in its first step has no company and role yet, so its notification has no body.
+- Decided 2026-11-17: a failed fetch gets its own words instead of "Run failed", such as "Couldn't read the posting: paste the text" ([runs-list-changes](runs-list-changes.md)).
 - With the app open in two tabs, both tell about the run; the notifications share a tag, so the system shows one.
 - On the home page the running run is followed through its stream, so its end is told at once. A waiting run that ends without ever being seen running is noticed by the list's refresh, which browsers slow down in a background tab (up to a minute).
 - After a reload the tab only knows the runs the Runs list still shows as waiting or running; following a run again on the application page is [reconnect-to-a-run](reconnect-to-a-run.md).

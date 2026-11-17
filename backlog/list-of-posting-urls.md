@@ -49,4 +49,10 @@ reported: 2026-11-14
 - Each link is a full run of three model calls, so a list can take hours. [cancel-a-run](cancel-a-run.md) stops the running one; "Remove" takes a waiting or fetching one off the list.
 - The task was written before the two queues of [posting-by-url](posting-by-url.md) (decided 2026-11-17). It follows them: the links are fetched one after another as soon as the list is submitted, and each joins the run queue when its fetch ends. The runs therefore reach the model in the order given, except that a link whose fetch is tried again joins behind the ones already waiting.
 - A failed link was already kept with its run for "Try again" by [posting-by-url](posting-by-url.md) and [try-again-failed-run](try-again-failed-run.md); nothing was added for it.
-- Not decided by the task, smallest behaviour chosen: an Indeed link inside a list refuses the list like an invalid line (given alone it moves to "Paste text"); links are compared as normalised addresses, so a LinkedIn link and its rewritten form count as two; the list has no maximum length; a link already in the Runs list from an earlier submission is queued again.
+- Built with the smallest behaviour where the task said nothing, then decided on 2026-11-17:
+  - an Indeed link inside a list no longer refuses the list: the other links are queued and the Indeed ones ask for their text one by one ([link-handling-changes](link-handling-changes.md)); how they ask is in `OPEN-QUESTIONS.md`;
+  - a LinkedIn `?currentJobId=<id>` link and the same job's `/jobs/view/<id>` link are the same job ([link-handling-changes](link-handling-changes.md));
+  - a link that is already in the Runs list is skipped, and the form says so: "There is no need to generate more than one resume for the same link without passing additional arguments." ([link-handling-changes](link-handling-changes.md)); which runs count is in `OPEN-QUESTIONS.md`;
+  - no maximum number of links (as built);
+  - what a row shows comes from the job posting's details: title, company and source, with the link while the title isn't known ([job-posting-details](job-posting-details.md));
+  - the single-link request `{ url, language }` is removed ([link-handling-changes](link-handling-changes.md)).

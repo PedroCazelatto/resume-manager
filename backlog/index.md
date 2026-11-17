@@ -8,10 +8,13 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: browser-extension; then visual-pass; the rest in any order.
+Suggested order, from what each task depends on: runs-list-changes and link-handling-changes, one after the other (they share files); job-posting-details, after its constitution amendment; browser-extension, after job-posting-details and link-handling-changes. visual-pass depends on none of them.
 
 - [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
+- [job-posting-details.md](job-posting-details.md) — Job posting details: title, company, source and more (F46)
+- [link-handling-changes.md](link-handling-changes.md) — Link handling changes decided on 2026-11-17 (F47)
+- [runs-list-changes.md](runs-list-changes.md) — Runs list changes decided on 2026-11-17 (F48)
 
 ## Future version
 

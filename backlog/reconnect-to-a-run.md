@@ -48,4 +48,6 @@ reported: 2026-11-15
 - Uses `GET /api/runs`' data and the replaying event stream from [run-queue](run-queue.md); the application page reads the run list on the server instead of fetching it, so the progress is there from the first paint.
 - The timer compares the server's start time with the browser's clock. Both are the same machine (Art. III.6).
 - After an app restart there is nothing to reconnect to: the queue is empty, and the application page offers "Try again" as before.
-- "This run is in progress" is new wording, chosen because "This run didn't finish" is untrue while the run is going.
+- "This run is in progress" is new wording, chosen because "This run didn't finish" is untrue while the run is going. Decided 2026-11-17: it stays.
+- Decided 2026-11-17: the application page refreshes when its run ends in any way, also for a "Try again" or "Verify again" the page started itself, which today refreshes only on success ([runs-list-changes](runs-list-changes.md)).
+- Seen once on 2026-11-17 in headless Chrome under `npm run dev`: the application page reloaded itself in a loop for about a minute on its first visits, also with the page as it was before this task, then stayed stable. Not tried with `npm run start`. The question about it was taken out of the open questions without an answer, so no task was made.
