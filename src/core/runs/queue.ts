@@ -9,7 +9,7 @@ export type RunStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 export type RunKind = "new" | "retry" | "verify";
 
 /** What a run's event stream carries: the pipeline's events, plus what the queue did with the run. */
-export type QueueEvent = RunEvent | { type: "started" } | { type: "removed" } | { type: "cancelled" };
+export type QueueEvent = RunEvent | { type: "started"; at: number } | { type: "removed" } | { type: "cancelled" };
 
 export interface QueuedRun<Input = unknown> {
   runId: string;
@@ -18,6 +18,8 @@ export interface QueuedRun<Input = unknown> {
   kind: RunKind;
   input: Input;
   status: RunStatus;
+  /** When the run started, in milliseconds since the epoch; a page opened later counts from it (F39). */
+  startedAt?: number;
   /** The application folder, once it exists. */
   applicationId?: string;
   /** The posting's company and role, once the run has told them (F38). */
@@ -74,10 +76,10 @@ export function recordEvent<I>(runs: readonly QueuedRun<I>[], runId: string, eve
   });
 }
 
-/** Marks a waiting run as running. */
-export function startRun<I>(runs: readonly QueuedRun<I>[], runId: string): QueuedRun<I>[] {
-  const started = update(runs, runId, (run) => ({ ...run, status: "running" }));
-  return recordEvent(started, runId, { type: "started" });
+/** Marks a waiting run as running since `startedAt`, which its stream tells too (F39). */
+export function startRun<I>(runs: readonly QueuedRun<I>[], runId: string, startedAt: number): QueuedRun<I>[] {
+  const started = update(runs, runId, (run) => ({ ...run, status: "running", startedAt }));
+  return recordEvent(started, runId, { type: "started", at: startedAt });
 }
 
 /** Forgets the oldest finished runs beyond `maxFinished`. */

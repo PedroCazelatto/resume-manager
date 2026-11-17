@@ -24,13 +24,16 @@ function queued(...ids: string[]): QueuedRun[] {
   );
 }
 
+/** When every run of these tests started. */
+const STARTED = Date.UTC(2026, 10, 16, 10, 0, 0);
+
 const statuses = (runs: QueuedRun[]) => runs.map((run) => `${run.runId}:${run.status}`);
 
 /** Starts and ends the next run. */
 function runNext(runs: QueuedRun[], error: string | null = null, maxFinished?: number): QueuedRun[] {
   const next = nextRun(runs);
   if (!next) throw new Error("nothing to run");
-  return finishRun(startRun(runs, next.runId), next.runId, error, maxFinished);
+  return finishRun(startRun(runs, next.runId, STARTED), next.runId, error, maxFinished);
 }
 
 describe("run queue", () => {
@@ -38,7 +41,7 @@ describe("run queue", () => {
     let runs = queued("a", "john-b", "c");
     expect(nextRun(runs)?.runId).toBe("a");
 
-    runs = startRun(runs, "a");
+    runs = startRun(runs, "a", STARTED);
     expect(statuses(runs)).toEqual(["a:running", "john-b:queued", "c:queued"]);
     expect(nextRun(runs)).toBeNull();
 
@@ -52,7 +55,7 @@ describe("run queue", () => {
   });
 
   it("records the events of a run, keeping only the latest progress of a step and its warning", () => {
-    let runs = startRun(queued("a"), "a");
+    let runs = startRun(queued("a"), "a", STARTED);
     runs = recordEvent(runs, "a", { type: "step", step: "analyse", status: "running" });
     runs = recordEvent(runs, "a", { type: "warning", step: "analyse", message: "This step's prompt is large." });
     runs = recordEvent(runs, "a", { type: "progress", step: "analyse", phase: "thinking", tokens: 10 });
@@ -61,7 +64,7 @@ describe("run queue", () => {
     runs = recordEvent(runs, "a", { type: "saved", id: "2026-11-10-globex-backend-engineer" });
 
     expect(runs[0].events).toEqual([
-      { type: "started" },
+      { type: "started", at: STARTED },
       { type: "step", step: "analyse", status: "running" },
       { type: "warning", step: "analyse", message: "This step's prompt is large." },
       { type: "progress", step: "analyse", phase: "writing", tokens: 3 },
@@ -73,7 +76,7 @@ describe("run queue", () => {
   });
 
   it("keeps the company and role a run tells when its application is saved (F38)", () => {
-    let runs = startRun(queued("a"), "a");
+    let runs = startRun(queued("a"), "a", STARTED);
     runs = recordEvent(runs, "a", { type: "saved", id: "2026-11-10-globex-backend-engineer", company: "Globex", role: "Backend Engineer" });
     runs = recordEvent(runs, "a", { type: "step", step: "tailor", status: "running" });
 
@@ -90,7 +93,7 @@ describe("run queue", () => {
   });
 
   it("ends a cancelled run as cancelled, without an error, and lets the next one start (F32)", () => {
-    let runs = startRun(queued("a", "b"), "a");
+    let runs = startRun(queued("a", "b"), "a", STARTED);
     runs = recordEvent(runs, "a", { type: "saved", id: "2026-11-10-globex-backend-engineer" });
 
     runs = cancelRun(runs, "a");
@@ -100,7 +103,7 @@ describe("run queue", () => {
     expect(runs[0].events.at(-1)).toEqual({ type: "cancelled" });
     expect(nextRun(runs)?.runId).toBe("b");
     // A cancelled run counts as finished: the limit applies and it can't be removed.
-    expect(statuses(cancelRun(startRun(runs, "b"), "b", 1))).toEqual(["b:cancelled"]);
+    expect(statuses(cancelRun(startRun(runs, "b", STARTED), "b", 1))).toEqual(["b:cancelled"]);
     expect(removeWaiting(runs, "jane-doe", "a").removed).toBe(false);
   });
 
@@ -114,7 +117,7 @@ describe("run queue", () => {
   });
 
   it("removes a waiting run, which then never starts", () => {
-    const { runs, removed } = removeWaiting(startRun(queued("a", "b", "c"), "a"), "jane-doe", "b");
+    const { runs, removed } = removeWaiting(startRun(queued("a", "b", "c"), "a", STARTED), "jane-doe", "b");
 
     expect(removed).toBe(true);
     expect(statuses(runs)).toEqual(["a:running", "c:queued"]);
@@ -122,7 +125,7 @@ describe("run queue", () => {
   });
 
   it("doesn't remove a run that is running, finished or unknown", () => {
-    const running = startRun(queued("a", "b"), "a");
+    const running = startRun(queued("a", "b"), "a", STARTED);
     const finished = finishRun(running, "a", null);
 
     expect(removeWaiting(running, "jane-doe", "a")).toEqual({ runs: running, removed: false });
@@ -143,7 +146,7 @@ describe("run queue", () => {
     runs = runNext(runs);
     runs = runNext(runs, "failed");
     runs = runNext(runs);
-    runs = startRun(runs, "d");
+    runs = startRun(runs, "d", STARTED);
 
     expect(statuses(runsOf(runs, "jane-doe"))).toEqual(["d:running", "e:queued", "b:failed", "a:done"]);
     expect(statuses(runsOf(runs, "john-roe"))).toEqual(["john-c:done"]);
@@ -166,7 +169,7 @@ describe("run queue", () => {
   it("reads a run's steps and context warnings from its events, leaving an unfinished step running", () => {
     expect(
       runSteps([
-        { type: "started" },
+        { type: "started", at: STARTED },
         { type: "step", step: "analyse", status: "running" },
         { type: "warning", step: "analyse", message: "This step's prompt is large." },
         { type: "progress", step: "analyse", phase: "writing", tokens: 3 },

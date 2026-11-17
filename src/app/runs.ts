@@ -44,6 +44,8 @@ export interface RunSummary {
   runId: string;
   kind: RunKind;
   status: RunStatus;
+  /** When the run started, in milliseconds since the epoch (F39). */
+  startedAt?: number;
   applicationId?: string;
   /** The posting's company and role, once known (F38). */
   company?: string;
@@ -66,7 +68,8 @@ export interface RunFollower {
 
 export type RunRegistry = ReturnType<typeof createRunRegistry>;
 
-export function createRunRegistry(execute: ExecuteRun) {
+/** `now` is the clock that says when a run started. */
+export function createRunRegistry(execute: ExecuteRun, now: () => number = Date.now) {
   let runs: AppRun[] = [];
   const followers = new Map<string, Set<RunFollower>>();
   /** The running run and what cancels it (F32). */
@@ -87,7 +90,7 @@ export function createRunRegistry(execute: ExecuteRun) {
   async function work() {
     for (let run = nextRun(runs); run; run = nextRun(runs)) {
       const { runId } = run;
-      runs = startRun(runs, runId);
+      runs = startRun(runs, runId, now());
       publish(runId);
       const cancel = new AbortController();
       active = { runId, cancel };
@@ -132,6 +135,7 @@ export function createRunRegistry(execute: ExecuteRun) {
         runId: run.runId,
         kind: run.kind,
         status: run.status,
+        startedAt: run.startedAt,
         applicationId: run.applicationId,
         company: run.company,
         role: run.role,
