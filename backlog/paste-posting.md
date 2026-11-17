@@ -23,3 +23,9 @@ version: implemented
 ## Rules it follows
 
 - Art. II.7 (the posting is untrusted input, delimited in every prompt).
+
+## Notes
+
+- Decided 2026-11-17: no character limit on pasted text, as for fetched text ([link-handling-changes](link-handling-changes.md)).
+- Decided 2026-11-17: a pasted posting always has its link ("won't exist" without one), so `job.md` always has a `url` ([link-handling-changes](link-handling-changes.md), [job-posting-details](job-posting-details.md)).
+- Decided 2026-11-17: pasting is a last resort (the user: "The pasting of a posting is a last resort option. I don't want to use it."). Whether the form keeps its "Paste text" tab is in `OPEN-QUESTIONS.md`.

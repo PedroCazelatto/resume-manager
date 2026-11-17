@@ -8,12 +8,13 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: runs-list-changes and link-handling-changes, one after the other (they share files); job-posting-details, after its constitution amendment; browser-extension, after job-posting-details and link-handling-changes.
+Suggested order, from what each task depends on: runs-list-changes and link-handling-changes, one after the other (they share files); job-posting-details, after its constitution amendment; home-applications-table; browser-extension, after job-posting-details and link-handling-changes.
 
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 - [job-posting-details.md](job-posting-details.md) — Job posting details: title, company, source and more (F46)
 - [link-handling-changes.md](link-handling-changes.md) — Link handling changes decided on 2026-11-17 (F47)
-- [runs-list-changes.md](runs-list-changes.md) — Runs list changes decided on 2026-11-17 (F48)
+- [runs-list-changes.md](runs-list-changes.md) — Remove, cancel and delete runs, and other Runs list changes decided on 2026-11-17 (F48)
+- [home-applications-table.md](home-applications-table.md) — Home page as one table of all applications, with the queue in tabs (F26)
 
 ## Future version
 
@@ -22,7 +23,6 @@ Suggested order, from what each task depends on: runs-list-changes and link-hand
 - [cv-import.md](cv-import.md) — Import an existing CV (F06)
 - [guided-interview.md](guided-interview.md) — Guided interview that fills the profile (F08)
 - [one-click-pdf.md](one-click-pdf.md) — One-click PDF (F23)
-- [application-history.md](application-history.md) — Application history (F26)
 - [regenerate-application.md](regenerate-application.md) — Regenerate the resume with a change request (F27)
 - [debug-logging.md](debug-logging.md) — Opt-in debug logging (F31)
 - [database-storage.md](database-storage.md) — Move all data into a local database (F43)

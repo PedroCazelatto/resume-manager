@@ -51,3 +51,4 @@ reported: 2026-11-14
 - Decided 2026-11-16: a run cancelled while its first step is running has no application folder yet, but the server keeps its posting and language with the run, so the Runs list offers "Try again" (until the app restarts).
 - Decided 2026-11-16: a waiting run can be removed from the application page too, not only from the Runs list.
 - A run cancelled after its last model call has returned finishes normally and is listed as finished.
+- Decided 2026-11-17: the running run's "Cancel" becomes an X icon button, which also cancels runs waiting in the queue; a cancelled run can be deleted with a trash button ([runs-list-changes](runs-list-changes.md)).

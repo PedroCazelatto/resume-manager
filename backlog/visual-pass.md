@@ -50,3 +50,6 @@ reported: 2026-11-14
 - The home page's visible "Resume Manager" heading and the application page's "← Resume Manager" link gave way to the sidebar's name, which links home; the home page keeps the heading for screen readers.
 - On the application page the "Resume · language · status" heading became the "Resume" card on the right, with the status as a badge.
 - The left column scrolls on its own so that a preview taller than the window doesn't push the buttons out of view; its scrollbar gutter is reserved so the preview's width doesn't change when the scrollbar appears.
+- Decided 2026-11-17: the status badge colours stay; the selected sidebar entry and the focus ring may use the green accent (built in [home-applications-table](home-applications-table.md)); removing the visible heading and the back link is fine.
+- Decided 2026-11-17: how the application page scrolls on wide screens is reviewed after the home page's new design ([home-applications-table](home-applications-table.md)).
+- The runs count in the sidebar moves to the home page's queue tab ([home-applications-table](home-applications-table.md)).
