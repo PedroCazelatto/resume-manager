@@ -8,9 +8,8 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: list-of-posting-urls, browser-extension; then visual-pass; the rest in any order.
+Suggested order, from what each task depends on: browser-extension; then visual-pass; the rest in any order.
 
-- [list-of-posting-urls.md](list-of-posting-urls.md) — Accept a list of job links at once (F33)
 - [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 
@@ -52,6 +51,7 @@ Suggested order, from what each task depends on: list-of-posting-urls, browser-e
 - [ollama-client.md](ollama-client.md) — Local model through Ollama (F29)
 - [run-progress.md](run-progress.md) — Step-by-step progress (F30)
 - [cancel-a-run.md](cancel-a-run.md) — Cancel a running generation (F32)
+- [list-of-posting-urls.md](list-of-posting-urls.md) — Accept a list of job links at once (F33)
 - [dark-mode.md](dark-mode.md) — Dark mode (F34)
 - [timer-format.md](timer-format.md) — Show the run timer as MMmSSs (F36)
 - [model-timeout.md](model-timeout.md) — The model timed out before writing the resume (F37)

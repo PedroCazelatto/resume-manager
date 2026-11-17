@@ -7,7 +7,7 @@ reported: 2026-11-14
 
 ## What it does
 
-- The new-application form has two tabs: "From links" and "Paste text". "From links" takes one link; [list-of-posting-urls](list-of-posting-urls.md) extends it to several.
+- The new-application form has two tabs: "From links" and "Paste text". "From links" takes links, one per line, and queues a run for each ([list-of-posting-urls](list-of-posting-urls.md)).
 - There are two queues. A link first enters the fetch queue: the server downloads the page and extracts its readable text. The fetch starts as soon as the link is submitted, also while another run is writing a resume, because a fetch doesn't use the model. Fetches run one at a time, in the order given, across all profiles.
 - Only when its fetch worked does the run join the end of the run queue ([run-queue](run-queue.md)), with the fetched text as its posting. From there it behaves like a run from pasted text.
 - While it is in the fetch queue the run is listed in the Runs list as "fetching the posting", with the step "Fetching the posting" once its own fetch has begun, and with "Remove", which takes it off the list and stops its fetch. Once in the run queue it shows that step as done.
@@ -18,7 +18,7 @@ reported: 2026-11-14
 - The extracted text has no scripts, styles, navigation, header, footer, side panels, forms or icons. It comes from the page's `main` element, otherwise its first `article`, otherwise the whole body, one line per block, with list items marked `- `.
 - There is no minimum amount of text. A page with no text at all fails the fetch. A page whose text is over 50,000 characters (the pasted posting's limit) fails it too, instead of being cut.
 - LinkedIn: a link copied while logged in (`/jobs/…?currentJobId=<id>`) is fetched as `https://www.linkedin.com/jobs/view/<id>`. On `linkedin.com` the text is the page's title followed by the description element (`show-more-less-html__markup`); when that element is missing or empty, the general rules apply.
-- Indeed (`indeed.com` and its subdomains) is never requested by the server. The form refuses an Indeed link before queueing, says "Indeed blocks automated requests", and moves to "Paste text" with the link kept. The server refuses it too, also as a redirect's target.
+- Indeed (`indeed.com` and its subdomains) is never requested by the server. The form refuses an Indeed link before queueing, says "Indeed blocks automated requests", and moves to "Paste text" with the link kept. In a list of several links it refuses the whole list instead, naming the line ([list-of-posting-urls](list-of-posting-urls.md)). The server refuses it too, also as a redirect's target.
 - "Paste the text instead" opens the "Paste text" tab with the link in its "Link" field. Submitting the text puts a run with that text and link in the run queue, and the run whose fetch failed leaves the list: the new one stands for it. "Try again" on a failed fetch puts the same link in the fetch queue again; on a link run that failed after its fetch, it queues the fetched text again without fetching.
 - The "Paste text" tab has an optional "Link" field. A run started from pasted text with a link saves `source: paste` and that `url`; the link is not fetched.
 - The fetched text is untrusted input like pasted text: it goes into the same delimited block of the prompts.
@@ -29,13 +29,13 @@ reported: 2026-11-14
 - `src/core/posting/sites.ts`: `isIndeedUrl`, `isLinkedInUrl`, `rewriteLinkedInUrl`.
 - `src/core/posting/html-to-text.ts`: `htmlToText`, on `node-html-parser`.
 - `src/core/posting/job-fetcher.ts`: the `JobFetcher` interface and `MAX_POSTING_CHARS`.
-- `src/core/posting/start.ts`: `readNewRunStart`, what `POST /api/applications` accepts: `{ url, language }` or `{ posting, url?, language, replaces? }`, where `replaces` is the ID of the run whose failed fetch the pasted text makes up for; and `fetchedStart`, what a run starts from once its link was fetched (with the 50,000-character limit).
+- `src/core/posting/start.ts`: `readNewRunStart`, what `POST /api/applications` accepts: `{ url, language }` or `{ posting, url?, language, replaces? }`, where `replaces` is the ID of the run whose failed fetch the pasted text makes up for (the form itself now sends its links as `{ urls, language }`, read by `readLinkStarts`); and `fetchedStart`, what a run starts from once its link was fetched (with the 50,000-character limit).
 - `src/adapters/job-fetcher.ts`: `createJobFetcher(fetch, resolve)`, with the limits as constants (`FETCH_TIMEOUT_MS`, `MAX_PAGE_BYTES`, `MAX_REDIRECTS`). It sends only a `User-Agent` that names the app.
 - `src/core/runs/queue.ts`: the fetch queue as pure functions: the `fetching` status, `enqueueFetch`, `nextFetch`, `startFetch`, `fetchDone` (joins the end of the run queue with the new input), `failFetch`, `fetchFailed`, `dropFetchFailed`; `removeWaiting` also takes a run off the fetch queue.
 - `src/app/runs.ts`: `createRunRegistry(execute, fetchPosting)` has a second worker loop for the fetch queue, next to the one for the model. `enqueue(profile, kind, input, replaces?)`. `RunSummary` carries `url` and `fetchFailed`, never the posting. `src/app/run.ts` hands the registry the fetcher.
 - `src/core/pipeline/run.ts`: `start: { posting, url?, fetched? }`; the pipeline itself doesn't fetch, and `fetch` is only the name of the step the fetch queue reports. `src/core/pipeline/analyse-posting.ts`: `origin`, the `source` and `url` of `job.md`.
 - `DELETE /api/runs/[runId]` answers 204 for a run in the fetch queue, as for a waiting run.
-- `src/components/new-application-form.tsx` (the tabs, the Indeed refusal, `pasteInstead`), `src/components/runs-list.tsx` ("Paste the text instead"), `src/components/use-run.tsx` (the step's label), `src/components/ui/tabs.tsx` and `src/components/ui/input.tsx` (shadcn/ui).
+- `src/components/new-application-form.tsx` (the tabs, the Indeed refusal, `pasteInstead`), `src/components/runs-list.tsx` ("Paste the text instead", and the run's link until its application exists), `src/components/use-run.tsx` (the step's label), `src/components/ui/tabs.tsx` and `src/components/ui/input.tsx` (shadcn/ui).
 
 ## Tests
 
