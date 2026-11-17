@@ -12,7 +12,7 @@ Indeed is one of the two job sites that must work. It blocks every request the a
 ## Behaviour
 
 - A small Chrome extension, installed once, lets Resume Manager read Indeed job pages through the user's own signed-in browser.
-- In the "From links" tab, the user pastes Indeed links like any other link. For each Indeed link, the extension opens the page in a background tab, reads its text, closes the tab and hands the text to the app, which puts the run in the queue. Other links are fetched by the server as in [posting-by-url](posting-by-url.md).
+- In the "From links" tab (the add-links modal once [home-applications-table](home-applications-table.md) is built), the user pastes Indeed links like any other link. For each Indeed link, the extension opens the page in a background tab, reads its text, closes the tab and hands the text to the app, which puts the run in the queue. Other links are fetched by the server as in [posting-by-url](posting-by-url.md).
 - Indeed links are read one at a time, in the order given.
 - When Indeed shows a security check or a "blocked" page instead of the job, that link fails with "Indeed asked for a security check: open the link once yourself, then try again", the tab is left open and brought to the front so the user can pass the check, and the remaining links continue.
 - Without the extension, an Indeed link becomes a row that needs its text, with "Paste the text" ([link-handling-changes](link-handling-changes.md)), and a short message says how to install the extension; the home page links to the same instructions.
@@ -37,7 +37,7 @@ Indeed is one of the two job sites that must work. It blocks every request the a
 - Reading one link, in the service worker: `chrome.tabs.create({ url, active: false })`; wait for the tab to finish loading (30-second limit); `chrome.scripting.executeScript` to return the page's title and picked text; close the tab; answer the page.
 - Permissions: `scripting`, `tabs`, and host permissions for `*://*.indeed.com/*` only.
 - The app's form (`src/components/new-application-form.tsx`) detects the extension by sending a "ping" message and waiting briefly for the answer.
-- For each Indeed link the form asks the extension for the text, then posts `{ posting, url, language }` to `POST /api/applications`; the server saves the link and takes `source` from the link's site (`Indeed`), as for any posting ([job-posting-details](job-posting-details.md)). Whether the text was pasted or read by the extension makes no difference. Indeed links never reach the server's fetcher.
+- For each Indeed link the form asks the extension for the text, then posts the text and the link to `POST /api/applications` (no language since [english-only-resumes](english-only-resumes.md)); the server saves the link and takes `source` from the link's site (`Indeed`), as for any posting ([job-posting-details](job-posting-details.md)). Whether the text was pasted or read by the extension makes no difference. Indeed links never reach the server's fetcher.
 - Put the shared pure functions in one plain JavaScript file inside `extension/` and test them with Vitest (add `extension/**/*.test.ts` to the `include` list in `vitest.config.mts`).
 - The app's server must not imitate a browser or drive one (Art. V.10): the reading happens in the user's own browser, started by the user pasting the link.
 - Art. II.7 (the text is untrusted input), Art. III.2 (requests go only to links the user submitted).

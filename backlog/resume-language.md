@@ -24,3 +24,7 @@ version: implemented
 ## Rules it follows
 
 - Art. VIII (language).
+
+## Notes
+
+- Decided 2026-11-17: the language choice is removed and every resume is written in English for now (constitution Art. VIII.1, version 11.0.0); see [english-only-resumes](english-only-resumes.md).

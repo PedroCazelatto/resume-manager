@@ -8,13 +8,16 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: runs-list-changes and link-handling-changes, one after the other (they share files); job-posting-details, after its constitution amendment; home-applications-table; browser-extension, after job-posting-details and link-handling-changes.
+Suggested order, from what each task depends on: english-only-resumes first (it removes code the others touch); runs-list-changes and link-handling-changes, one after the other (they share files); job-posting-details; application-uuids; edit-before-restart; home-applications-table; browser-extension last.
 
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 - [job-posting-details.md](job-posting-details.md) — Job posting details: title, company, source and more (F46)
 - [link-handling-changes.md](link-handling-changes.md) — Link handling changes decided on 2026-11-17 (F47)
-- [runs-list-changes.md](runs-list-changes.md) — Remove, cancel and delete runs, and other Runs list changes decided on 2026-11-17 (F48)
+- [runs-list-changes.md](runs-list-changes.md) — Remove, cancel and archive runs, and other Runs list changes decided on 2026-11-17 (F48)
 - [home-applications-table.md](home-applications-table.md) — Home page as one table of all applications, with the queue in tabs (F26)
+- [application-uuids.md](application-uuids.md) — Name application folders with a UUID, and update old applications (F50)
+- [english-only-resumes.md](english-only-resumes.md) — Write every resume in English and remove the language choice (F51)
+- [edit-before-restart.md](edit-before-restart.md) — Edit the posting or add a note before starting a run again (F52)
 
 ## Future version
 

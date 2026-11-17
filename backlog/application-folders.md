@@ -23,3 +23,7 @@ version: implemented
 ## Rules it follows
 
 - Art. IV.3–IV.4 (layout and naming), Art. IV.8 (atomic writes, no overwrite), Art. III.7.
+
+## Notes
+
+- Decided 2026-11-17: application folders are named by a UUID instead of `<YYYY-MM-DD>-<company>-<role>` (constitution Art. IV.3–4, version 11.0.0); see [application-uuids](application-uuids.md).
