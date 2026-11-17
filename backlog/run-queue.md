@@ -7,9 +7,10 @@ version: implemented
 ## What it does
 
 - Only one run uses the model at a time, across all profiles. A run started while another is active waits in a queue and starts by itself when its turn comes.
-- A run is a new application from pasted text or from a link ([posting-by-url](posting-by-url.md)), "Try again" on an application, or "Verify again" on an application. All three go through the queue.
+- A run is a new application from pasted text, "Try again" on an application, or "Verify again" on an application. All three go through the queue.
+- A new application from a link passes through a second queue first, the fetch queue, which doesn't wait for the model; it joins this queue only when its posting was fetched ([posting-by-url](posting-by-url.md)).
 - Starting a run answers `{ runId }` immediately. Its progress arrives through the run's event stream, which can be opened more than once and at any time: it replays the events so far, then follows until the run ends.
-- The home page shows a "Runs" list for the selected profile: the active run with its steps and progress, the waiting ones in order, and the ones that finished, failed or were cancelled since the app started, each linking to its application when it has one.
+- The home page shows a "Runs" list for the selected profile: the active run with its steps and progress, the waiting ones in order, the ones whose posting is being fetched, and the ones that finished, failed or were cancelled since the app started, each linking to its application when it has one.
 - A run that finished, failed or was cancelled keeps its steps in the list, as the run left them (a step it didn't finish stays marked "…"), with any context-size warning under its step, for as long as the run stays in the list.
 - A new run that failed or was cancelled before its application was saved has "Try again" in the list; see [try-again-failed-run](try-again-failed-run.md).
 - A waiting run can be removed from the queue with "Remove"; it never starts. The button is in the Runs list, and next to "Waiting for another run to finish…" on the application page.
@@ -22,7 +23,7 @@ version: implemented
 
 - `src/core/runs/queue.ts`: the pure ordering and state transitions (`enqueue`, `nextRun`, `startRun`, `recordEvent`, `finishRun`, `removeWaiting`, `findRun`, `runsOf`), the stream's event type `QueueEvent` (the pipeline's events plus `started`, `removed` and `cancelled`), and what the list shows of a run: `runSteps` (its steps and warnings, read from its events), `canTryAgain` and `latestGeneration`.
 - `src/core/pipeline/verify.ts`: `verifyApplication`, the "Verify again" logic as a run that sends step events.
-- `src/app/runs.ts`: `createRunRegistry`, the in-memory registry with its single worker loop and the followers of each run. `RunSummary` is a run as `GET /api/runs` lists it: with its `language`, `steps`, `warnings`, `retryable`, its link (`url`) and `fetchFailed`, never its posting.
+- `src/app/runs.ts`: `createRunRegistry`, the in-memory registry with one worker loop for the model, one for the fetch queue, and the followers of each run. `RunSummary` is a run as `GET /api/runs` lists it: with its `language`, `steps`, `warnings`, `retryable`, its link (`url`) and `fetchFailed`, never its posting.
 - `src/app/run.ts`: the registry kept on `globalThis` (`runRegistry`), the executor that calls `runApplication` or `verifyApplication` for the run's profile, and `enqueueRun` for the routes.
 - Routes: `POST /api/applications`, `POST /api/applications/[id]` and `POST /api/applications/[id]/verification` enqueue and answer `{ runId }`; `GET /api/runs` lists the selected profile's runs; `GET /api/runs/[runId]/events` streams NDJSON; `DELETE /api/runs/[runId]` removes a waiting run (404 for an unknown or another profile's run; what it does to a running or ended run is in [cancel-a-run](cancel-a-run.md)); `POST /api/runs/[runId]` queues a run again ([try-again-failed-run](try-again-failed-run.md)).
 - `src/components/use-run.tsx` (`useRun().start` and `.follow`, `enqueueRun`, `RunSteps`, and `RunProgress`, whose `removable` adds "Remove" to the waiting line), `src/components/runs-list.tsx`, `src/components/new-application-form.tsx`, `src/components/retry-run.tsx`, `src/components/resume-editor.tsx`, `src/app/page.tsx`.
