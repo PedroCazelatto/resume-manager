@@ -5,16 +5,22 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import type { RunSummary } from "@/app/runs";
 import { LanguageSelect } from "@/components/language-select";
 import { Button } from "@/components/ui/button";
+import { useActiveRun, type ActiveRun } from "@/components/use-active-run";
 import { RunProgress, rememberedLanguage, useRun } from "@/components/use-run";
 import { latestGeneration } from "@/core/runs/queue";
 
 /**
  * Shown while an application's run is incomplete: continues it from the first step that
  * has no saved output (F19). The language only matters while the resume isn't written.
+ * `active` is the run that is already working on the application or waiting for it, if any:
+ * its progress is shown instead (F39).
  */
-export function RetryRun({ id, needsResume }: { id: string; needsResume: boolean }) {
+export function RetryRun({ id, needsResume, active }: { id: string; needsResume: boolean; active: ActiveRun | null }) {
   const router = useRouter();
   const run = useRun();
+  useActiveRun(run, active);
+  // `active` covers the moment before the page starts following it.
+  const working = run.running || active !== null;
   // null until the user picks one. Until then the language of the application's latest run
   // applies, while the server still knows one; after a restart, the one this browser remembers.
   const [chosen, setChosen] = useState<string | null>(null);
@@ -46,15 +52,15 @@ export function RetryRun({ id, needsResume }: { id: string; needsResume: boolean
 
   return (
     <section className="space-y-3 rounded-lg border p-4">
-      <h2 className="font-medium">This run didn&apos;t finish</h2>
+      <h2 className="font-medium">{working ? "This run is in progress" : "This run didn’t finish"}</h2>
       <p className="text-sm text-muted-foreground">
-        {needsResume ? "The resume has not been written yet." : "The resume has not been verified yet."} The finished
-        steps are saved; trying again continues from there.
+        {needsResume ? "The resume has not been written yet." : "The resume has not been verified yet."}
+        {!working && " The finished steps are saved; trying again continues from there."}
       </p>
       <div className="flex flex-wrap items-center gap-3">
-        {needsResume && <LanguageSelect value={language} disabled={run.running} onChange={setChosen} />}
-        <Button disabled={run.running} onClick={retry}>
-          {run.running ? "Working…" : "Try again"}
+        {needsResume && <LanguageSelect value={language} disabled={working} onChange={setChosen} />}
+        <Button disabled={working} onClick={retry}>
+          {working ? "Working…" : "Try again"}
         </Button>
       </div>
       <RunProgress run={run} removable />
