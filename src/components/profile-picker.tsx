@@ -15,7 +15,7 @@ export function ProfilePicker({ slugs, selected }: { slugs: string[]; selected: 
         if (slug) startTransition(() => selectProfile(slug));
       }}
     >
-      <SelectTrigger aria-label="Profile" className="w-64">
+      <SelectTrigger aria-label="Profile" className="w-full">
         <SelectValue placeholder="Choose a profile" />
       </SelectTrigger>
       <SelectContent>

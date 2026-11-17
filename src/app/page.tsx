@@ -8,8 +8,8 @@ import { DEFAULT_TEMPLATE, templateStore } from "./templates";
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-8">
-      <h1 className="text-2xl font-semibold">Resume Manager</h1>
+    <main className="mx-auto max-w-3xl space-y-6 p-4 md:p-8">
+      <h1 className="sr-only">Resume Manager</h1>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading profiles…</p>}>
         <ProfileSection />
       </Suspense>
@@ -37,8 +37,13 @@ async function ProfileSection() {
   ]);
 
   return (
-    <div className="space-y-4">
-      <ProfilePicker slugs={slugs} selected={selected} />
+    <div className="space-y-6">
+      {/* The sidebar holds the picker; the page shows it too while no profile is chosen (F35). */}
+      {!selected && (
+        <div className="max-w-64">
+          <ProfilePicker slugs={slugs} selected={selected} />
+        </div>
+      )}
       {invalidNames.length > 0 && (
         <p className="text-sm text-muted-foreground">
           Ignored folders (names must be lowercase kebab-case): {invalidNames.join(", ")}
@@ -53,15 +58,18 @@ async function ProfileSection() {
       )}
       {result?.ok && (
         <>
-          <p className="text-sm">
-            Profile of <strong>{result.profile.personal.data.name}</strong> is valid.
-          </p>
-          {template.ok ? (
-            <p className="text-sm text-muted-foreground">
-              Template: {template.template.country}
-              {template.template.maxPages ? ` · up to ${template.template.maxPages} page(s)` : ""}
+          <div className="space-y-1">
+            <p className="text-sm">
+              Profile of <strong>{result.profile.personal.data.name}</strong> is valid.
             </p>
-          ) : (
+            {template.ok && (
+              <p className="text-sm text-muted-foreground">
+                Template: {template.template.country}
+                {template.template.maxPages ? ` · up to ${template.template.maxPages} page(s)` : ""}
+              </p>
+            )}
+          </div>
+          {!template.ok && (
             <FileProblems
               title="The resume template isn't ready"
               hint="Tailoring is blocked until it's fixed. You can still analyse postings."
