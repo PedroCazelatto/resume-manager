@@ -56,6 +56,8 @@ export interface RunSummary {
   runId: string;
   kind: RunKind;
   status: RunStatus;
+  /** When the run started, in milliseconds since the epoch (F39). */
+  startedAt?: number;
   applicationId?: string;
   /** The posting's company and role, once known (F38). */
   company?: string;
@@ -90,7 +92,12 @@ function linkToFetch(start: RunRequest["start"]): string | null {
 /** Used where no run starts from a link. */
 const noFetcher: JobFetcher["fetchPosting"] = async () => ({ ok: false, reason: "Links can't be fetched here." });
 
-export function createRunRegistry(execute: ExecuteRun, fetchPosting: JobFetcher["fetchPosting"] = noFetcher) {
+/** `now` is the clock that says when a run started. */
+export function createRunRegistry(
+  execute: ExecuteRun,
+  fetchPosting: JobFetcher["fetchPosting"] = noFetcher,
+  now: () => number = Date.now,
+) {
   let runs: AppRun[] = [];
   const followers = new Map<string, Set<RunFollower>>();
   /** The running run and what cancels it (F32). */
@@ -113,7 +120,7 @@ export function createRunRegistry(execute: ExecuteRun, fetchPosting: JobFetcher[
   async function work() {
     for (let run = nextRun(runs); run; run = nextRun(runs)) {
       const { runId } = run;
-      runs = startRun(runs, runId);
+      runs = startRun(runs, runId, now());
       publish(runId);
       const cancel = new AbortController();
       active = { runId, cancel };
@@ -209,6 +216,7 @@ export function createRunRegistry(execute: ExecuteRun, fetchPosting: JobFetcher[
         runId: run.runId,
         kind: run.kind,
         status: run.status,
+        startedAt: run.startedAt,
         applicationId: run.applicationId,
         company: run.company,
         role: run.role,

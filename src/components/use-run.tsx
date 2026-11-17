@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { RunEvent, RunStep } from "@/core/pipeline/run";
 import type { QueueEvent, RunKind, RunStepState } from "@/core/runs/queue";
+import { elapsedSeconds } from "@/core/runs/reconnect";
 import { askToNotify, tellRunEnded, watchRun } from "@/components/run-notifications";
 import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/lib/utils";
@@ -24,7 +25,7 @@ export interface Run {
   /** The run is in the queue behind another one (F42). */
   waiting: boolean;
   steps: RunStepState[];
-  /** Seconds since the run started. */
+  /** Seconds since the run started on the server, also when the page opened later (F39). */
   elapsed: number;
   /** What the model is doing in the running step, once it has sent tokens. */
   progress: Progress | null;
@@ -53,6 +54,8 @@ export interface Run {
   cancel(): void;
   /** True once Cancel or Remove was asked for, until the run ends. */
   cancelling: boolean;
+  /** The run being followed, or the last one that was. */
+  runId: string | null;
 }
 
 interface FollowOptions {
@@ -109,15 +112,20 @@ export function useRun(): Run {
   const [cancelled, setCancelled] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [followedId, setFollowedId] = useState<string | null>(null);
+  /** When the followed run started on the server, once its stream has told (F39). */
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  /** Counts the calls of `follow`, so one that was replaced leaves the newer one's state alone. */
+  const follows = useRef(0);
 
   useEffect(() => {
-    if (!running || waiting) return;
-    const started = Date.now();
-    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    if (!running || startedAt === null) return;
+    const timer = setInterval(() => setElapsed(elapsedSeconds(startedAt, Date.now())), 1000);
     return () => clearInterval(timer);
-  }, [running, waiting]);
+  }, [running, startedAt]);
 
   const follow = useCallback(async (runId: string, options: FollowOptions) => {
+    const mine = ++follows.current;
+    setStartedAt(null);
     setRunning(true);
     setWaiting(true);
     setElapsed(0);
@@ -141,6 +149,8 @@ export function useRun(): Run {
       for await (const event of readEvents(response.body)) {
         if (event.type === "started") {
           setWaiting(false);
+          setStartedAt(event.at);
+          setElapsed(elapsedSeconds(event.at, Date.now()));
         } else if (event.type === "removed") {
           setError("This run was removed from the queue.");
         } else if (event.type === "cancelled") {
@@ -168,9 +178,11 @@ export function useRun(): Run {
       // Not an error when the page itself stopped following.
       if (!options.signal?.aborted) setError("Lost the connection to the app while the run was in progress.");
     } finally {
-      setRunning(false);
-      setWaiting(false);
-      setCancelling(false);
+      if (follows.current === mine) {
+        setRunning(false);
+        setWaiting(false);
+        setCancelling(false);
+      }
     }
     return finished;
   }, []);
@@ -200,7 +212,22 @@ export function useRun(): Run {
       .catch(() => setCancelling(false));
   }
 
-  return { running, waiting, steps, elapsed, progress, warnings, error, cancelled, savedId, start, follow, cancel, cancelling };
+  return {
+    running,
+    waiting,
+    steps,
+    elapsed,
+    progress,
+    warnings,
+    error,
+    cancelled,
+    savedId,
+    start,
+    follow,
+    cancel,
+    cancelling,
+    runId: followedId,
+  };
 }
 
 /**

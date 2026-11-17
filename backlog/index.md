@@ -8,11 +8,10 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: reconnect-to-a-run, list-of-posting-urls, browser-extension; then visual-pass; the rest in any order.
+Suggested order, from what each task depends on: list-of-posting-urls, browser-extension; then visual-pass; the rest in any order.
 
 - [list-of-posting-urls.md](list-of-posting-urls.md) — Accept a list of job links at once (F33)
 - [visual-pass.md](visual-pass.md) — Make the interface look good (F35)
-- [reconnect-to-a-run.md](reconnect-to-a-run.md) — Reconnect to a running generation (F39)
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 
 ## Future version
@@ -57,6 +56,7 @@ Suggested order, from what each task depends on: reconnect-to-a-run, list-of-pos
 - [timer-format.md](timer-format.md) — Show the run timer as MMmSSs (F36)
 - [model-timeout.md](model-timeout.md) — The model timed out before writing the resume (F37)
 - [notify-when-run-ends.md](notify-when-run-ends.md) — Notify when a run ends (F38)
+- [reconnect-to-a-run.md](reconnect-to-a-run.md) — Reconnect to a running generation (F39)
 - [context-size-warning.md](context-size-warning.md) — Warn when a model call won't fit the context window (F40)
 - [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
 - [run-queue.md](run-queue.md) — Queue runs and track them on the server (F42)

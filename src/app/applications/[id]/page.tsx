@@ -7,6 +7,7 @@ import { RetryRun } from "@/components/retry-run";
 import { ResumeEditor } from "@/components/resume-editor";
 import { InferenceList } from "@/components/resume-view";
 import { SourceList } from "@/components/source-list";
+import type { ActiveRun } from "@/components/use-active-run";
 import { VerificationView } from "@/components/verification-view";
 import { isApplicationId } from "@/core/application/folder";
 import { analysisSchema, jobSchema } from "@/core/application/schemas";
@@ -18,8 +19,11 @@ import { contentYaml } from "@/core/resume/edit";
 import { renderResume } from "@/core/resume/render";
 import { resumeFileSchema, type ResumeFile } from "@/core/resume/schema";
 import { citedFileTexts, listSourcedItems } from "@/core/resume/sources";
+import { activeRun } from "@/core/runs/reconnect";
 import { verificationSchema, type Verification } from "@/core/verification/schema";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
+import { runRegistry } from "@/app/run";
+import type { RunSummary } from "@/app/runs";
 import { templateStore } from "@/app/templates";
 
 export default function ApplicationPage(props: PageProps<"/applications/[id]">) {
@@ -81,6 +85,12 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
       ? citedFileTexts([...sourcedItems, ...resume.data.inferences], listProfileFiles(profile.profile))
       : null;
 
+  // A run that is working on this application, or waiting for it, is followed again (F39).
+  // Only the selected profile's runs are looked at (Art. III.7).
+  const runs = runRegistry().list(slug);
+  const generating = followed(activeRun(runs, id, "resume"));
+  const verifying = followed(activeRun(runs, id, "verification"));
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -109,6 +119,7 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
             maxPages={template.template.maxPages}
             blockers={printBlockers(resume.data, verification?.ok ? verification.data : null)}
             reviewCurrent={verification?.ok === true && verification.data.review?.current === true}
+            active={verifying}
           />
           {/* Beside the preview when the window has room for it, under it otherwise. */}
           <SourceList
@@ -125,7 +136,9 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
           {verification?.ok && <VerificationView id={id} verification={verification.data} />}
         </section>
       )}
-      {(resume === null || verification === null) && <RetryRun id={id} needsResume={resume === null} />}
+      {(resume === null || verification === null) && (
+        <RetryRun id={id} needsResume={resume === null} active={generating} />
+      )}
       {analysis?.ok ? (
         <AnalysisView analysis={analysis.data} />
       ) : (
@@ -137,6 +150,11 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
       </details>
     </div>
   );
+}
+
+/** What the browser needs of a run to follow it; nothing else of the run is sent. */
+function followed(run: RunSummary | null): ActiveRun | null {
+  return run && { runId: run.runId, kind: run.kind, language: run.language };
 }
 
 /** The headings of skills.md each approved implied skill it doesn't list yet can go under (F07). */

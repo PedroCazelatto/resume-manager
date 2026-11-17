@@ -40,6 +40,10 @@ const untilCancelled: ExecuteRun = (_run, send, signal) =>
     signal.addEventListener("abort", () => reject(new LlmError("cancelled", "The run was cancelled.")));
   });
 
+/** Every run of these tests started at this moment. */
+const STARTED = Date.UTC(2026, 10, 16, 10, 0, 0);
+const STARTED_EVENT: QueueEvent = { type: "started", at: STARTED };
+
 const statuses = (registry: RunRegistry, profile = "jane-doe") => registry.list(profile).map((run) => run.status);
 
 describe("run registry", () => {
@@ -47,13 +51,13 @@ describe("run registry", () => {
 
   it("runs the first run and keeps the second waiting until the first ends", async () => {
     const { execute, started, ends } = manualRuns();
-    const registry = createRunRegistry(execute);
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
 
     const first = registry.enqueue("jane-doe", "new", posting());
     const second = registry.enqueue("jane-doe", "retry", { start: { id: ID }, language: "pt" });
 
     expect(registry.list("jane-doe")).toEqual([
-      { runId: first, kind: "new", status: "running", language: null, steps: [], warnings: {}, retryable: false, fetchFailed: false },
+      { runId: first, kind: "new", status: "running", startedAt: STARTED, language: null, steps: [], warnings: {}, retryable: false, fetchFailed: false },
       {
         runId: second,
         kind: "retry",
@@ -116,7 +120,7 @@ describe("run registry", () => {
 
   it("replays a run's events to a stream opened at any time, then follows", async () => {
     const { execute, ends, sends } = manualRuns();
-    const registry = createRunRegistry(execute);
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
     const blocker = registry.enqueue("jane-doe", "new", posting());
     const runId = registry.enqueue("jane-doe", "new", posting());
 
@@ -134,7 +138,7 @@ describe("run registry", () => {
     ends.get(runId)!.resolve();
 
     const replayed: QueueEvent[] = [
-      { type: "started" },
+      STARTED_EVENT,
       { type: "step", step: "analyse", status: "running" },
       { type: "progress", step: "analyse", phase: "thinking", tokens: 9 },
       { type: "step", step: "analyse", status: "done" },
@@ -153,9 +157,44 @@ describe("run registry", () => {
     expect(registry.list("jane-doe")[0]).toMatchObject({ runId, status: "done", applicationId: ID });
   });
 
+  it("tells when a run started, in the list and to a stream opened later, so a reloaded page counts from there (F39)", async () => {
+    const { execute, ends, sends } = manualRuns();
+    let clock = STARTED;
+    const registry = createRunRegistry(execute, undefined, () => clock);
+    const first = registry.enqueue("jane-doe", "new", posting());
+    const second = registry.enqueue("jane-doe", "new", posting());
+    sends.get(first)!({ type: "step", step: "analyse", status: "running" });
+    sends.get(first)!({ type: "progress", step: "analyse", phase: "writing", tokens: 120 });
+
+    // The page is opened two minutes into the first run; the second one is still waiting.
+    clock = STARTED + 120_000;
+    expect(registry.list("jane-doe").map((run) => [run.runId, run.startedAt])).toEqual([
+      [first, STARTED],
+      [second, undefined],
+    ]);
+    expect(registry.list("jane-doe")[0].steps).toEqual([{ step: "analyse", status: "running" }]);
+    const late: QueueEvent[] = [];
+    registry.follow("jane-doe", first, { event: (e) => late.push(e), close: () => {} });
+    expect(late).toEqual([
+      { type: "started", at: STARTED },
+      { type: "step", step: "analyse", status: "running" },
+      { type: "progress", step: "analyse", phase: "writing", tokens: 120 },
+    ]);
+
+    // The second run starts when its turn comes, not when it was queued, and keeps that time after it ends.
+    ends.get(first)!.resolve();
+    await followed(registry, "jane-doe", first);
+    ends.get(second)!.resolve();
+    expect((await followed(registry, "jane-doe", second))[0]).toEqual({ type: "started", at: STARTED + 120_000 });
+    expect(registry.list("jane-doe").map((run) => [run.runId, run.startedAt])).toEqual([
+      [second, STARTED + 120_000],
+      [first, STARTED],
+    ]);
+  });
+
   it("stops sending events to a stream that was closed", async () => {
     const { execute, sends } = manualRuns();
-    const registry = createRunRegistry(execute);
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
     const runId = registry.enqueue("jane-doe", "new", posting());
     const events: QueueEvent[] = [];
 
@@ -163,19 +202,19 @@ describe("run registry", () => {
     stop!();
     sends.get(runId)!({ type: "step", step: "analyse", status: "running" });
 
-    expect(events).toEqual([{ type: "started" }]);
+    expect(events).toEqual([STARTED_EVENT]);
   });
 
   it("ends a failed run with its error and starts the next one", async () => {
     const { execute, started, ends } = manualRuns();
-    const registry = createRunRegistry(execute);
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
     const first = registry.enqueue("jane-doe", "new", posting());
     const second = registry.enqueue("jane-doe", "new", posting());
 
     const events = followed(registry, "jane-doe", first);
     ends.get(first)!.reject(new Error("Can't reach Ollama."));
 
-    expect(await events).toEqual([{ type: "started" }, { type: "error", message: "Can't reach Ollama." }]);
+    expect(await events).toEqual([STARTED_EVENT, { type: "error", message: "Can't reach Ollama." }]);
     expect(registry.list("jane-doe")).toMatchObject([
       { runId: second, status: "running" },
       { runId: first, status: "failed", error: "Can't reach Ollama." },
@@ -185,7 +224,7 @@ describe("run registry", () => {
 
   it("never shows, streams or removes another profile's run (Art. III.7)", () => {
     const { execute } = manualRuns();
-    const registry = createRunRegistry(execute);
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
     registry.enqueue("jane-doe", "new", posting());
     const waiting = registry.enqueue("jane-doe", "new", posting());
 
@@ -197,7 +236,7 @@ describe("run registry", () => {
 
   it("removes a waiting run, which then never starts", async () => {
     const { execute, started, ends } = manualRuns();
-    const registry = createRunRegistry(execute);
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
     const first = registry.enqueue("jane-doe", "new", posting());
     const second = registry.enqueue("jane-doe", "new", posting());
     const third = registry.enqueue("jane-doe", "new", posting());
@@ -217,7 +256,7 @@ describe("run registry", () => {
 
   it("doesn't remove a run that has ended or that it doesn't know", async () => {
     const { execute, ends } = manualRuns();
-    const registry = createRunRegistry(execute);
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
     const runId = registry.enqueue("jane-doe", "new", posting());
 
     const ended = followed(registry, "jane-doe", runId);
@@ -234,7 +273,7 @@ describe("run registry", () => {
       const registry = createRunRegistry((run, send, signal) => {
         started.push(run.runId);
         return untilCancelled(run, send, signal);
-      });
+      }, undefined, () => STARTED);
       const first = registry.enqueue("jane-doe", "new", posting());
       const second = registry.enqueue("jane-doe", "new", posting());
       const events = followed(registry, "jane-doe", first);
@@ -243,7 +282,7 @@ describe("run registry", () => {
 
       // Cancelling is not an error: no error event, no error in the list.
       expect(await events).toEqual([
-        { type: "started" },
+        STARTED_EVENT,
         { type: "step", step: "analyse", status: "running" },
         { type: "cancelled" },
       ]);
@@ -258,7 +297,7 @@ describe("run registry", () => {
 
     it("keeps the next run waiting until the cancelled one has really stopped", async () => {
       const { execute, started, ends, signals } = manualRuns();
-      const registry = createRunRegistry(execute);
+      const registry = createRunRegistry(execute, undefined, () => STARTED);
       const first = registry.enqueue("jane-doe", "new", posting());
       registry.enqueue("jane-doe", "new", posting());
 
@@ -290,7 +329,7 @@ describe("run registry", () => {
 
     it("finishes a run that got to its end although it was cancelled", async () => {
       const { execute, ends } = manualRuns();
-      const registry = createRunRegistry(execute);
+      const registry = createRunRegistry(execute, undefined, () => STARTED);
       const runId = registry.enqueue("jane-doe", "new", posting());
       const ended = followed(registry, "jane-doe", runId);
 
@@ -303,7 +342,7 @@ describe("run registry", () => {
 
     it("doesn't cancel another profile's run (Art. III.7)", () => {
       const { execute, signals } = manualRuns();
-      const registry = createRunRegistry(execute);
+      const registry = createRunRegistry(execute, undefined, () => STARTED);
       const runId = registry.enqueue("jane-doe", "new", posting());
 
       expect(registry.remove("john-roe", runId)).toBe("unknown");
@@ -314,7 +353,7 @@ describe("run registry", () => {
 
   it("keeps the steps and the context warning of a run that ended, for as long as it is listed", async () => {
     const { execute, ends, sends } = manualRuns();
-    const registry = createRunRegistry(execute);
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
     const warning = "This step's prompt is about 8193 tokens.";
     const steps = [
       { step: "analyse", status: "done" },
@@ -346,7 +385,7 @@ describe("run registry", () => {
     /** A new run in German that failed before its application was saved. */
     async function failedRun() {
       const runs = manualRuns();
-      const registry = createRunRegistry(runs.execute);
+      const registry = createRunRegistry(runs.execute, undefined, () => STARTED);
       const runId = registry.enqueue("jane-doe", "new", { start: { posting: POSTING }, language: "de" });
       const ended = followed(registry, "jane-doe", runId);
       runs.ends.get(runId)!.reject(new Error("Can't reach Ollama."));
@@ -372,7 +411,7 @@ describe("run registry", () => {
     });
 
     it("tries a run again that was cancelled in its first step", async () => {
-      const registry = createRunRegistry(untilCancelled);
+      const registry = createRunRegistry(untilCancelled, undefined, () => STARTED);
       const runId = registry.enqueue("jane-doe", "new", posting());
       const events = followed(registry, "jane-doe", runId);
       registry.remove("jane-doe", runId);
@@ -385,7 +424,7 @@ describe("run registry", () => {
 
     it("refuses a run that has an application, is still waiting or running, or finished", async () => {
       const { execute, ends, sends } = manualRuns();
-      const registry = createRunRegistry(execute);
+      const registry = createRunRegistry(execute, undefined, () => STARTED);
       const saved = registry.enqueue("jane-doe", "new", posting());
       const finished = registry.enqueue("jane-doe", "new", posting());
       const running = registry.enqueue("jane-doe", "new", posting());
@@ -450,14 +489,14 @@ describe("run registry", () => {
     it("fetches the posting at once, while another run is using the model", async () => {
       const { execute, started } = manualRuns();
       const { fetchPosting, asked, answers } = manualFetches();
-      const registry = createRunRegistry(execute, fetchPosting);
+      const registry = createRunRegistry(execute, fetchPosting, () => STARTED);
       const busy = registry.enqueue("jane-doe", "new", posting());
 
       const runId = registry.enqueue("jane-doe", "new", link());
 
       expect(asked).toEqual([LINK]);
       expect(registry.list("jane-doe")).toEqual([
-        { runId: busy, kind: "new", status: "running", language: null, steps: [], warnings: {}, retryable: false, fetchFailed: false },
+        { runId: busy, kind: "new", status: "running", startedAt: STARTED, language: null, steps: [], warnings: {}, retryable: false, fetchFailed: false },
         {
           runId,
           kind: "new",
@@ -695,7 +734,7 @@ describe("run registry", () => {
       vi.spyOn(console, method).mockImplementation(() => {}),
     );
     const { execute, ends } = manualRuns();
-    const registry = createRunRegistry(execute);
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
     const failing = registry.enqueue("jane-doe", "new", posting());
     const waiting = registry.enqueue("jane-doe", "new", posting());
     const removed = registry.enqueue("jane-doe", "new", posting());
