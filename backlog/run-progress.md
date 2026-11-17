@@ -7,7 +7,7 @@ version: implemented
 ## What it does
 
 - While a run works, the page lists each step: analysing, saving, writing the resume, checking, reviewing.
-- The running step shows a timer as `MMmSSs` and what the model is doing: `thinking, 1,234 tokens`, then `writing, 310 tokens`.
+- The running step shows a timer as `MMmSSs`, counted from when the run started on the server ([reconnect-to-a-run](reconnect-to-a-run.md)), and what the model is doing: `thinking, 1,234 tokens`, then `writing, 310 tokens`.
 - A step whose prompt may not fit the context window shows a warning under its line; see [context-size-warning](context-size-warning.md).
 - In the Runs list a run keeps its steps after it ends, without the timer; see [run-queue](run-queue.md).
 - The server streams progress as one JSON event per line.
