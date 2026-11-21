@@ -54,8 +54,6 @@ export interface RunInput {
    * `fetched` from `url` (F10). A retry continues the application with this ID.
    */
   start: { posting: string; url?: string; fetched?: boolean } | { id: string };
-  /** The user's choice of resume language; null means the posting's language (Art. VIII.1). */
-  language: string | null;
   now: () => Date;
   /** Today's date as YYYY-MM-DD, for the application folder's name. */
   today: () => string;
@@ -137,7 +135,6 @@ export async function runApplication(input: RunInput): Promise<string> {
       posting,
       analysis,
       template: template.template,
-      language: input.language ?? job.language,
       now,
       onProgress: progress("tailor"),
       onWarning: warning("tailor"),

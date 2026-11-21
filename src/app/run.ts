@@ -31,7 +31,7 @@ const executeRun: ExecuteRun = async (run: AppRun, send, signal) => {
     add: (id, file, content) => store.addApplicationFile(slug, id, file, content),
     replace: (id, file, content) => store.replaceApplicationFile(slug, id, file, content),
   } satisfies Parameters<typeof runApplication>[0]["files"];
-  const { start, language } = run.input;
+  const { start } = run.input;
 
   try {
     if (run.kind === "verify") {
@@ -47,7 +47,6 @@ const executeRun: ExecuteRun = async (run: AppRun, send, signal) => {
         loadTemplate: (country) => templateStore().loadTemplate(country),
         template: DEFAULT_TEMPLATE,
         start,
-        language,
         now: () => new Date(),
         // Today's date on this machine, as YYYY-MM-DD.
         today: () => new Date().toLocaleDateString("en-CA"),

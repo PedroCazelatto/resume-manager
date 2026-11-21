@@ -113,7 +113,6 @@ function input(overrides: Partial<RunInput> & Pick<RunInput, "llm" | "files">): 
     loadTemplate: async (country) => parseTemplate(country, `templates/${country}.html`, TEMPLATE),
     template: "ireland",
     start: { posting: "Globex is hiring." },
-    language: null,
     now: () => new Date("2026-11-10T10:00:00.000Z"),
     today: () => "2026-11-10",
     send: (event) => events.push(event),
@@ -207,14 +206,17 @@ describe("runApplication", () => {
     ]);
   });
 
-  it("writes the resume in the chosen language instead of the posting's (F14)", async () => {
-    const { llm, requests } = fakeLlm([analysisReply, tailorReply(), { unsupported: [] }]);
+  it("writes the resume in English when the posting is in another language (Art. VIII.1, F51)", async () => {
+    const { llm, requests } = fakeLlm([{ ...analysisReply, language: "pt" }, tailorReply(), { unsupported: [] }]);
     const { files, data } = memoryFiles();
 
-    await runApplication(input({ llm, files, language: "pt" }).run);
+    await runApplication(input({ llm, files, start: { posting: "A Globex está contratando." } }).run);
 
-    expect(data("resume.md").data.language).toBe("pt");
-    expect(requests[1].system).toContain("Portuguese (pt)");
+    // job.md keeps the posting's own language; the resume is in English.
+    expect(data("job.md").data.language).toBe("pt");
+    expect(data("resume.md").data.language).toBe("en");
+    expect(requests[1].system).toContain("Write everything in English (en)");
+    expect(requests[1].system).not.toContain("Portuguese");
   });
 
   it("stops with a clear message when the template is missing, keeping the analysis (Art. VII.4)", async () => {
@@ -240,12 +242,12 @@ describe("runApplication", () => {
       await expect(runApplication(input({ llm: first.llm, files }).run)).rejects.toThrow("took too long");
 
       const second = fakeLlm([tailorReply(), { unsupported: [] }]);
-      const { run, events } = input({ llm: second.llm, files, start: { id: ID }, language: "pt" });
+      const { run, events } = input({ llm: second.llm, files, start: { id: ID } });
       await runApplication(run);
 
       expect(second.requests).toHaveLength(2);
       expect(second.requests[0].prompt).toContain("<posting>\nGlobex is hiring.\n</posting>");
-      expect(data("resume.md").data).toMatchObject({ status: "ready", language: "pt" });
+      expect(data("resume.md").data).toMatchObject({ status: "ready", language: "en" });
       expect(saved.has(`${ID}/verification.md`)).toBe(true);
       expect(steps(events)).toEqual([
         "analyse:done",

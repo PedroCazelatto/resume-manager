@@ -2,7 +2,6 @@ import { stringify } from "yaml";
 import { z } from "zod";
 import type { Analysis } from "../application/schemas";
 import { generateWithWarning, LlmError, type LlmClient, type LlmRequest } from "../llm";
-import { languageName } from "../application/languages";
 import { listProfileFiles, type Profile } from "../profile/profile";
 import { buildTailorResumePrompt, tailorResumeSystem } from "../prompts/tailor-resume";
 import { resumeContentSchema, type ResumeFile } from "../resume/schema";
@@ -45,8 +44,6 @@ export interface TailorResumeInput {
   posting: string;
   analysis: Analysis;
   template: ResumeTemplate;
-  /** ISO 639-1 code: the posting's language, or the user's choice (Art. VIII.1). */
-  language: string;
   now: () => Date;
   onProgress?: LlmRequest<unknown>["onProgress"];
   /** Called before the model call when the prompt takes more than half of the context window (F40). */
@@ -54,14 +51,13 @@ export interface TailorResumeInput {
   signal?: AbortSignal;
 }
 
-/** Pipeline step 4: writes the resume content as a draft, with implied skills pending (F13, F14, F16). */
+/** Pipeline step 4: writes the resume content in English as a draft, with implied skills pending (F13, F16, F51). */
 export async function tailorResume({
   llm,
   profile,
   posting,
   analysis,
   template,
-  language,
   now,
   onProgress,
   onWarning,
@@ -69,19 +65,17 @@ export async function tailorResume({
 }: TailorResumeInput): Promise<ResumeFile> {
   const files = listProfileFiles(profile);
   const paths = files.map((f) => f.file) as [string, ...string[]];
-  const name = languageName(language);
 
   const reply = await generateWithWarning(
     llm,
     {
-      system: tailorResumeSystem({ language: { code: language, name }, maxPages: template.maxPages }),
+      system: tailorResumeSystem({ maxPages: template.maxPages }),
       prompt: buildTailorResumePrompt({
         files,
         posting,
         analysis: stringify({ requirements: analysis.requirements, keywords: analysis.keywords }, { lineWidth: 0 }),
         rules: template.rules,
         layout: template.layout,
-        language: { code: language, name },
         maxPages: template.maxPages,
       }),
       schema: tailorReplySchema(paths),
@@ -108,7 +102,8 @@ export async function tailorResume({
     generated_at: now().toISOString(),
     model: llm.model,
     template: template.country,
-    language,
+    // Every resume is written in English for now, whatever the posting's language (Art. VIII.1).
+    language: "en",
     status: "draft",
     inferences: inferences.map((inference) => ({ ...inference, status: "pending" as const })),
     // Copied from personal.md as written, so the model can't alter contact details.
