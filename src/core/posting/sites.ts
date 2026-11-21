@@ -24,6 +24,17 @@ export function isLinkedInUrl(url: URL): boolean {
   return onSite(url, "linkedin.com");
 }
 
+/**
+ * The job platform a posting came from, named from its link: "LinkedIn" for linkedin.com,
+ * "Indeed" for indeed.com, each with its subdomains, otherwise the link's host name without
+ * `www.` (`jobs.example.com`). This is `job.md`'s `source` (F46, Art. IV.5).
+ */
+export function platformName(url: URL): string {
+  if (isLinkedInUrl(url)) return "LinkedIn";
+  if (isIndeedUrl(url)) return "Indeed";
+  return hostOf(url).replace(/^www\./, "");
+}
+
 /** The job a LinkedIn jobs link shows in its panel (`/jobs/…?currentJobId=<id>`), or null. */
 function currentJobId(url: URL): string | null {
   if (!isLinkedInUrl(url) || !url.pathname.startsWith("/jobs/")) return null;

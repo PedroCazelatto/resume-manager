@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isIndeedLink, isIndeedUrl, isLinkedInUrl, jobKey, linkedInJobId, rewriteLinkedInUrl } from "./sites";
+import { isIndeedLink, isIndeedUrl, isLinkedInUrl, jobKey, linkedInJobId, platformName, rewriteLinkedInUrl } from "./sites";
 
 const rewritten = (link: string) => rewriteLinkedInUrl(new URL(link)).href;
 
@@ -22,6 +22,25 @@ describe("isIndeedLink", () => {
     expect(isIndeedLink(" https://ie.indeed.com/viewjob?jk=1 ")).toBe(true);
     expect(isIndeedLink("https://jobs.example.com/indeed")).toBe(false);
     expect(isIndeedLink("indeed.com/viewjob?jk=1")).toBe(false);
+  });
+});
+
+describe("platformName (F46)", () => {
+  const platform = (link: string) => platformName(new URL(link));
+
+  it("names LinkedIn and Indeed, with their subdomains", () => {
+    expect(platform("https://www.linkedin.com/jobs/view/4321987650")).toBe("LinkedIn");
+    expect(platform("https://ie.linkedin.com/jobs/view/backend-engineer-at-globex-4321987650")).toBe("LinkedIn");
+    expect(platform("https://indeed.com/viewjob?jk=1")).toBe("Indeed");
+    expect(platform("https://ie.indeed.com/viewjob?jk=1")).toBe("Indeed");
+    expect(platform("http://WWW.Indeed.com./jobs")).toBe("Indeed");
+  });
+
+  it("names another site by its host name without www.", () => {
+    expect(platform("https://jobs.example.com/backend-engineer")).toBe("jobs.example.com");
+    expect(platform("https://www.Globex.example/careers/1")).toBe("globex.example");
+    expect(platform("https://notlinkedin.com/jobs/view/1")).toBe("notlinkedin.com");
+    expect(platform("https://indeed.com.example.org/job")).toBe("indeed.com.example.org");
   });
 });
 
