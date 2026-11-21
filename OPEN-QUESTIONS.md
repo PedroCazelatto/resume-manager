@@ -193,6 +193,56 @@ Asked 2026-11-21, after your answer to question 9.
 
 The Archived tab holds finished applications, but also cancelled and failed rows. A row that never finished has no resume, so there is no PDF to view. It is undecided what main action such a row shows.
 
+### 26. The example applications and the one-time update (F50 application-uuids; more on question 14)
+Asked 2026-11-21, after building F50.
+
+Both example applications (`example-profiles/jane-doe/applications/2026-11-10-globex-…`) are old-format and were made from pasted text with no link. The one-time update would delete them both. Tests still rely on the folder `2026-11-10-globex-ltd-senior-backend-engineer` being there locally (`src/app/run.test.ts`, `src/app/archive.test.ts`); F50's own tests use their own fixtures. It is undecided how the example profile's applications move to the new layout: tracked new-layout examples, updated only locally, or tests that no longer need them.
+
+### 27. The X on a link fetched again into an existing application (F50 application-uuids)
+Asked 2026-11-21, after building F50.
+
+The X on a link being fetched deletes the folder its fetch made, so "nothing of the link is left". When a link is added again and its existing application is fetched again, that fetch didn't make the folder. As built, the X stops the fetch and removes the row, but keeps the folder, which then stays on disk with no row in the Runs list. It is undecided whether the X should delete that folder too.
+
+### 28. Pasting the text with a different link (F48 runs-list-changes, F50 application-uuids)
+Asked 2026-11-21, after building F50.
+
+When the text is pasted on a failed row, the form's Link field can be edited (F48). As built, `job.md` keeps its `url`, while the Runs list shows the link that was sent with the text. So the file and the row can show different links, against "only one source of truth" (F47). It is undecided whether an edited link should change `job.md`'s `url`, or whether the link should not be editable there.
+
+### 29. Adding an Indeed link again while its row still waits for its text (F50 application-uuids)
+Asked 2026-11-21, after building F50.
+
+Adding an Indeed link again, while its application's row still waits for the posting's text, adds a second "needs the posting's text" row for the same application. It is undecided whether that link should be skipped instead, like a link whose run is waiting.
+
+### 30. Small choices made while building F50 application-uuids
+Asked 2026-11-21. F50 is built and committed. These are the choices it made that the docs didn't cover; they are in the code now. Do they stand?
+
+1. An application counts as finished when both its `resume.md` and its `verification.md` exist. F26's Ready tab will rely on this.
+2. `fetched_at` is when the posting's text arrived: when the fetch worked, or when the text was pasted. Pasted text from the "Paste text" tab now also gets its folder at once. The analysis no longer writes `fetched_at`.
+3. The details read from the page are written into `job.md` with the fetched text, before the model runs.
+4. "Try again" in the Runs list is offered on a run that ended before its analysis was saved (it used to be: before its folder existed), also on a "Try again" whose fetch failed, and not while another run of the same application is fetching, waiting or running. "Try again" on a failed fetch fetches again into the same folder.
+5. A link added again whose application is unfinished starts that application again as a "Try again" run, and is counted among "added" in the form's message. If the same link has a finished application and an unfinished one, it is skipped. Restarting an archived application by adding its link again takes it out of the archived list. The application page's "Try again" doesn't.
+6. What the one-time update treats as an old application:
+   - a folder named by a date;
+   - a `job.md` with `role` and no `title`;
+   - a `job.md` with `source: url` or `source: paste`;
+   - a `job.md` with no `url`.
+
+   An old folder whose `job.md` is missing or invalid is listed and left alone.
+7. The one-time update is a card on the home page, above the profile's problems and the form, shown only while there is something to update or report:
+   - **Title:** "Update the saved applications".
+   - **Text:** "These applications were saved before each application's folder was named by a random UUID. Nothing changes until you confirm."
+   - **Lists:** what will be rewritten, renamed and deleted, and the folders "Left as they are until their job.md is fixed".
+   - **Button:** "Update the applications". The new UUIDs aren't shown before confirming.
+   - **Refusals:** it refuses if the applications changed since the card was shown, or if one of them has a run waiting or running.
+   - **Order:** it deletes, then rewrites, then renames.
+8. New messages:
+   - "Couldn't save the application's folder. See the server console."
+   - "applications/<id>/job.md has problems: …"
+   - "applications/<id>/job.md doesn't exist."
+
+   Pasting on a row whose `job.md` is missing or invalid now answers 409.
+9. An application ID is any lowercase UUID, or an old dated folder name until the update. A "Try again" or "Verify again" row shows the application's UUID until its job details arrive. No page shows `fetched_at` yet.
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 
