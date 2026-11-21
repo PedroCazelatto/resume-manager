@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { LlmError } from "@/core/llm";
 import { runApplication } from "@/core/pipeline/run";
 import { verifyApplication } from "@/core/pipeline/verify";
@@ -19,7 +20,7 @@ const executeRun: ExecuteRun = async (run: AppRun, send, signal) => {
   if (!loaded.ok) throw new Error("Fix the profile's problems first.");
   // Every file belongs to the run's profile (Art. III.7).
   const files = {
-    create: (baseName, initial) => store.createApplication(slug, baseName, initial),
+    create: (id, initial) => store.createApplication(slug, id, initial),
     read: (id, file) => store.readApplicationFile(slug, id, file),
     add: (id, file, content) => store.addApplicationFile(slug, id, file, content),
     replace: (id, file, content) => store.replaceApplicationFile(slug, id, file, content),
@@ -41,8 +42,8 @@ const executeRun: ExecuteRun = async (run: AppRun, send, signal) => {
         template: DEFAULT_TEMPLATE,
         start,
         now: () => new Date(),
-        // Today's date on this machine, as YYYY-MM-DD.
-        today: () => new Date().toLocaleDateString("en-CA"),
+        // The folder's name is made here, outside core (Art. V.3, F50).
+        newId: () => randomUUID(),
         send,
         signal,
       });

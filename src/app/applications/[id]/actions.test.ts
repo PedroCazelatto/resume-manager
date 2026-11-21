@@ -70,8 +70,9 @@ describe("application actions", () => {
 
   /** Creates an application; resume.md also carries a field the app doesn't know (Art. IV.7). */
   async function application(files: { resume?: ResumeFile; verification?: Verification | null } = {}) {
-    id = await store.createApplication("jane-doe", "2026-11-10-globex-backend-engineer", {
-      "job.md": "---\nsource: paste\n---\nGlobex is hiring.\n",
+    id = "3f2b8c1e-5a7d-4c9e-9b1a-2d6e8f0c4a73";
+    await store.createApplication("jane-doe", id, {
+      "job.md": "---\nurl: https://jobs.example.com/1\nsource: jobs.example.com\n---\nGlobex is hiring.\n",
       "resume.md": stringifyFrontmatter({ ...(files.resume ?? resume()), my_note: "keep me" }),
       ...(files.verification === null
         ? {}

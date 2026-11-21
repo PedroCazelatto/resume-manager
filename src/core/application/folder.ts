@@ -1,31 +1,36 @@
-// Application folders are named <YYYY-MM-DD>-<company>-<role> (Art. IV.3–4).
+// Application folders are named by a random lowercase UUID, so an application can exist before
+// its title and company are known (Art. IV.3–4, F50). Folders saved before that are named
+// <YYYY-MM-DD>-<company>-<role>; they still list and open until the user confirms their update.
 
-const MAX_PART_LENGTH = 60;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const DATED = /^\d{4}-\d{2}-\d{2}(?:-[a-z0-9]+)+$/;
 
-/** Lowercase ASCII kebab-case, accents removed, e.g. "São Paulo Café" → "sao-paulo-cafe". */
-export function slugify(text: string): string {
-  return text
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, MAX_PART_LENGTH)
-    .replace(/-+$/, "");
+/**
+ * A new application's folder name: the random UUID, made outside core and handed in (Art. V.3),
+ * in lowercase (Art. IV.4, F50).
+ */
+export function applicationFolderName(uuid: string): string {
+  const id = uuid.toLowerCase();
+  if (!UUID.test(id)) throw new Error("An application's folder is named by a UUID");
+  return id;
 }
 
-/** Base folder name for a run. The store adds `-2`, `-3`… when it already exists (F25). */
-export function applicationFolderName(date: string, company: string, role: string): string {
-  return [date, slugify(company) || "company", slugify(role) || "role"].join("-");
+/** A folder named by a lowercase UUID, as every new application's is (F50). */
+export function isUuidApplicationId(id: string): boolean {
+  return UUID.test(id);
 }
 
-export function withCollisionSuffix(base: string, attempt: number): string {
-  return attempt <= 1 ? base : `${base}-${attempt}`;
+/** A folder named <YYYY-MM-DD>-<company>-<role>, as the applications saved before F50 are. */
+export function isDatedApplicationId(id: string): boolean {
+  return DATED.test(id);
 }
 
-/** Application IDs come from URLs, so check them before building any path. */
+/**
+ * Application IDs come from URLs and requests, so check them before building any path: a UUID,
+ * or an older dated name until the user confirms its update; never `..`, a slash or anything else.
+ */
 export function isApplicationId(id: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}(?:-[a-z0-9]+)+$/.test(id);
+  return isUuidApplicationId(id) || isDatedApplicationId(id);
 }
 
 /** The files a run writes in its application folder (Art. IV.3). */

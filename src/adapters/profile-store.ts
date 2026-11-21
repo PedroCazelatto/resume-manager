@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { access, link, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { isApplicationId, withCollisionSuffix, type ApplicationFile } from "@/core/application/folder";
+import { isApplicationId, isUuidApplicationId, type ApplicationFile } from "@/core/application/folder";
 import {
   assembleProfile,
   isProfileSlug,
@@ -28,13 +28,13 @@ export interface ProfileStore {
    */
   replaceProfileFile(slug: string, file: string, content: string): Promise<void>;
   /**
-   * Creates applications/<baseName>/ in the profile, or <baseName>-2, -3… when that exists,
-   * writes the files, and returns the folder name (F25).
+   * Creates applications/<id>/ in the profile, `id` being a new application's UUID, and writes
+   * the files (F25, F50). Fails when the folder exists: nothing is overwritten (Art. IV.8).
    */
-  createApplication(slug: string, baseName: string, files: Partial<Record<ApplicationFile, string>>): Promise<string>;
+  createApplication(slug: string, id: string, files: Partial<Record<ApplicationFile, string>>): Promise<void>;
   /**
    * The IDs of the profile's saved applications, sorted: the folders of applications/ with a
-   * valid application name. Symlinks are not followed (Art. III.7).
+   * valid application name, a UUID or an older dated name (F50). Symlinks are not followed (Art. III.7).
    */
   listApplications(slug: string): Promise<string[]>;
   /** One file of an application, or null when it doesn't exist. */
@@ -47,8 +47,6 @@ export interface ProfileStore {
    */
   replaceApplicationFile(slug: string, id: string, file: ApplicationFile, content: string): Promise<void>;
 }
-
-const MAX_FOLDER_ATTEMPTS = 100;
 
 export function createFsProfileStore(profilesDir: string): ProfileStore {
   function profileFolder(slug: string): string {
@@ -103,27 +101,21 @@ export function createFsProfileStore(profilesDir: string): ProfileStore {
       await writeFileAtomic(path.join(/* turbopackIgnore: true */ folder, ...parts), content);
     },
 
-    async createApplication(slug, baseName, files) {
+    async createApplication(slug, id, files) {
+      if (!isUuidApplicationId(id)) throw new Error("Invalid application name");
       const applications = path.join(/* turbopackIgnore: true */ profileFolder(slug), "applications");
       await mkdir(applications, { recursive: true });
-
-      for (let attempt = 1; attempt <= MAX_FOLDER_ATTEMPTS; attempt++) {
-        const id = withCollisionSuffix(baseName, attempt);
-        if (!isApplicationId(id)) throw new Error("Invalid application name");
-        const folder = path.join(/* turbopackIgnore: true */ applications, id);
-        try {
-          // mkdir fails when the folder exists, so two runs never share a folder.
-          await mkdir(folder);
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
-          throw error;
-        }
-        for (const [file, content] of Object.entries(files)) {
-          await writeFileAtomic(path.join(/* turbopackIgnore: true */ folder, file), content);
-        }
-        return id;
+      const folder = path.join(/* turbopackIgnore: true */ applications, id);
+      try {
+        // mkdir fails when the folder exists, so two applications never share a folder.
+        await mkdir(folder);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`Application ${id} already exists`);
+        throw error;
       }
-      throw new Error(`Too many applications named ${baseName}`);
+      for (const [file, content] of Object.entries(files)) {
+        await writeFileAtomic(path.join(/* turbopackIgnore: true */ folder, file), content);
+      }
     },
 
     async listApplications(slug) {

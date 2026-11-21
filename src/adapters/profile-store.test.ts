@@ -166,72 +166,82 @@ describe("createFsProfileStore in a scratch folder", () => {
 
   describe("applications", () => {
     const files = { "job.md": "---\nsource: paste\n---\nPosting\n", "analysis.md": "---\nmodel: m\n---\n" };
+    const ID = "3f2b8c1e-5a7d-4c9e-9b1a-2d6e8f0c4a73";
+    const OTHER = "9c0d4e2a-7b1f-4a3c-8e5d-6f2a1b0c9d8e";
 
-    it("creates the folder with its files and returns its name", async () => {
+    it("creates the folder named by its UUID with its files", async () => {
       const store = createFsProfileStore(profilesDir);
 
-      const id = await store.createApplication("jane-doe", "2026-11-09-globex-backend-engineer", files);
+      await store.createApplication("jane-doe", ID, files);
 
-      expect(id).toBe("2026-11-09-globex-backend-engineer");
-      const folder = path.join(profileDir, "applications", id);
+      const folder = path.join(profileDir, "applications", ID);
       expect((await readdir(folder)).sort()).toEqual(["analysis.md", "job.md"]);
       expect(await readFile(path.join(folder, "job.md"), "utf8")).toBe(files["job.md"]);
     });
 
-    it("adds -2, -3 instead of overwriting an existing run", async () => {
+    it("never reuses an existing folder (F50)", async () => {
       const store = createFsProfileStore(profilesDir);
-      const base = "2026-11-09-globex-dev";
+      await store.createApplication("jane-doe", ID, files);
 
-      const ids = [
-        await store.createApplication("jane-doe", base, files),
-        await store.createApplication("jane-doe", base, files),
-        await store.createApplication("jane-doe", base, files),
-      ];
+      await expect(store.createApplication("jane-doe", ID, { "job.md": "replacement" })).rejects.toThrow(`Application ${ID} already exists`);
+      expect(await store.readApplicationFile("jane-doe", ID, "job.md")).toBe(files["job.md"]);
+    });
 
-      expect(ids).toEqual([base, `${base}-2`, `${base}-3`]);
+    it("creates the applications folder when the profile has none yet", async () => {
+      await rm(path.join(profileDir, "applications"), { recursive: true, force: true });
+
+      await createFsProfileStore(profilesDir).createApplication("jane-doe", ID, files);
+
+      expect(await readdir(path.join(profileDir, "applications"))).toEqual([ID]);
     });
 
     it("leaves the profile itself valid", async () => {
       const store = createFsProfileStore(profilesDir);
-      await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+      await store.createApplication("jane-doe", ID, files);
 
       expect((await store.loadProfile("jane-doe")).ok).toBe(true);
     });
 
-    it("lists the saved applications' folders, never a file, a symlink or another name", async () => {
+    it("lists the saved applications' folders, new and old names, never a file, a symlink or another name", async () => {
       const store = createFsProfileStore(profilesDir);
       const applications = path.join(profileDir, "applications");
-      await rm(applications, { recursive: true });
+      await rm(applications, { recursive: true, force: true });
       expect(await store.listApplications("jane-doe")).toEqual([]);
 
-      const later = await store.createApplication("jane-doe", "2026-11-09-initech-dev", files);
-      const earlier = await store.createApplication("jane-doe", "2026-11-08-globex-dev", files);
+      await store.createApplication("jane-doe", OTHER, files);
+      await store.createApplication("jane-doe", ID, files);
+      // An application saved before F50, still listed until its update is confirmed.
+      await mkdir(path.join(applications, "2026-11-08-globex-dev"));
       await writeFile(path.join(applications, "2026-11-07-notes"), "");
       await mkdir(path.join(applications, "Not An Application"));
       await mkdir(path.join(profilesDir, "john-roe", "applications", "2026-11-06-umbrella-dev"), { recursive: true });
       await symlink(path.join(profilesDir, "john-roe", "applications", "2026-11-06-umbrella-dev"), path.join(applications, "2026-11-06-umbrella-dev"));
 
-      expect(await store.listApplications("jane-doe")).toEqual([earlier, later]);
+      expect(await store.listApplications("jane-doe")).toEqual(["2026-11-08-globex-dev", ID, OTHER]);
       await expect(store.listApplications("../john-roe")).rejects.toThrow("Invalid profile name");
     });
 
-    it("reads a file back, or null when it doesn't exist", async () => {
+    it("reads a file back, or null when it doesn't exist, under a new or an old name", async () => {
       const store = createFsProfileStore(profilesDir);
-      const id = await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+      await store.createApplication("jane-doe", ID, files);
+      const old = "2026-11-08-globex-dev";
+      await mkdir(path.join(profileDir, "applications", old));
+      await writeFile(path.join(profileDir, "applications", old, "job.md"), files["job.md"]);
 
-      expect(await store.readApplicationFile("jane-doe", id, "job.md")).toBe(files["job.md"]);
-      expect(await store.readApplicationFile("jane-doe", id, "resume.md")).toBeNull();
-      expect(await store.readApplicationFile("jane-doe", "2026-01-01-nothing-here", "job.md")).toBeNull();
+      expect(await store.readApplicationFile("jane-doe", ID, "job.md")).toBe(files["job.md"]);
+      expect(await store.readApplicationFile("jane-doe", ID, "resume.md")).toBeNull();
+      expect(await store.readApplicationFile("jane-doe", OTHER, "job.md")).toBeNull();
+      expect(await store.readApplicationFile("jane-doe", old, "job.md")).toBe(files["job.md"]);
     });
 
     it("adds a file to an existing application", async () => {
       const store = createFsProfileStore(profilesDir);
-      const id = await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+      await store.createApplication("jane-doe", ID, files);
 
-      await store.addApplicationFile("jane-doe", id, "resume.md", "---\nstatus: draft\n---\n");
+      await store.addApplicationFile("jane-doe", ID, "resume.md", "---\nstatus: draft\n---\n");
 
-      expect(await store.readApplicationFile("jane-doe", id, "resume.md")).toBe("---\nstatus: draft\n---\n");
-      expect((await readdir(path.join(profileDir, "applications", id))).sort()).toEqual([
+      expect(await store.readApplicationFile("jane-doe", ID, "resume.md")).toBe("---\nstatus: draft\n---\n");
+      expect((await readdir(path.join(profileDir, "applications", ID))).sort()).toEqual([
         "analysis.md",
         "job.md",
         "resume.md",
@@ -240,40 +250,47 @@ describe("createFsProfileStore in a scratch folder", () => {
 
     it("never overwrites an existing file", async () => {
       const store = createFsProfileStore(profilesDir);
-      const id = await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+      await store.createApplication("jane-doe", ID, files);
 
-      await expect(store.addApplicationFile("jane-doe", id, "job.md", "replacement")).rejects.toThrow(
-        `job.md already exists in ${id}`,
+      await expect(store.addApplicationFile("jane-doe", ID, "job.md", "replacement")).rejects.toThrow(
+        `job.md already exists in ${ID}`,
       );
-      expect(await store.readApplicationFile("jane-doe", id, "job.md")).toBe(files["job.md"]);
-      expect((await readdir(path.join(profileDir, "applications", id))).sort()).toEqual(["analysis.md", "job.md"]);
+      expect(await store.readApplicationFile("jane-doe", ID, "job.md")).toBe(files["job.md"]);
+      expect((await readdir(path.join(profileDir, "applications", ID))).sort()).toEqual(["analysis.md", "job.md"]);
     });
 
     it("replaces an existing file and leaves no temp file behind", async () => {
       const store = createFsProfileStore(profilesDir);
-      const id = await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+      await store.createApplication("jane-doe", ID, files);
 
-      await store.replaceApplicationFile("jane-doe", id, "analysis.md", "---\nmodel: other\n---\n");
+      await store.replaceApplicationFile("jane-doe", ID, "analysis.md", "---\nmodel: other\n---\n");
 
-      expect(await store.readApplicationFile("jane-doe", id, "analysis.md")).toBe("---\nmodel: other\n---\n");
-      expect((await readdir(path.join(profileDir, "applications", id))).sort()).toEqual(["analysis.md", "job.md"]);
+      expect(await store.readApplicationFile("jane-doe", ID, "analysis.md")).toBe("---\nmodel: other\n---\n");
+      expect((await readdir(path.join(profileDir, "applications", ID))).sort()).toEqual(["analysis.md", "job.md"]);
     });
 
     it("doesn't create a file when asked to replace one that doesn't exist", async () => {
       const store = createFsProfileStore(profilesDir);
-      const id = await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);
+      await store.createApplication("jane-doe", ID, files);
 
-      await expect(store.replaceApplicationFile("jane-doe", id, "resume.md", "x")).rejects.toThrow(
-        `resume.md doesn't exist in ${id}`,
+      await expect(store.replaceApplicationFile("jane-doe", ID, "resume.md", "x")).rejects.toThrow(
+        `resume.md doesn't exist in ${ID}`,
       );
-      expect(await store.readApplicationFile("jane-doe", id, "resume.md")).toBeNull();
+      expect(await store.readApplicationFile("jane-doe", ID, "resume.md")).toBeNull();
     });
 
-    it.each(["../../other/x", "2026-11-09-Globex", "jane-doe"])("refuses the application name %j", async (id) => {
+    it.each(["../../other/x", "2026-11-09-Globex", "jane-doe", `../${ID}`, ID.toUpperCase()])("refuses the application name %j", async (id) => {
       const store = createFsProfileStore(profilesDir);
 
       await expect(store.readApplicationFile("jane-doe", id, "job.md")).rejects.toThrow("Invalid application name");
       await expect(store.createApplication("jane-doe", id, files)).rejects.toThrow("Invalid application name");
+    });
+
+    it("makes a new folder only under a UUID, never under an old dated name", async () => {
+      await expect(createFsProfileStore(profilesDir).createApplication("jane-doe", "2026-11-09-globex-dev", files)).rejects.toThrow(
+        "Invalid application name",
+      );
+      expect(await readdir(path.join(profileDir, "applications"))).not.toContain("2026-11-09-globex-dev");
     });
   });
 });

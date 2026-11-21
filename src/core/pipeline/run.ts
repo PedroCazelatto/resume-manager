@@ -37,8 +37,8 @@ export type RunEvent =
 
 /** The application files of the selected profile, as the run needs them. */
 export interface ApplicationFiles {
-  /** Creates the application folder with its first files and returns its ID. */
-  create(baseName: string, files: Partial<Record<ApplicationFile, string>>): Promise<string>;
+  /** Creates the application folder `id` with its first files; fails when it exists. */
+  create(id: string, files: Partial<Record<ApplicationFile, string>>): Promise<void>;
   read(id: string, file: ApplicationFile): Promise<string | null>;
   add(id: string, file: ApplicationFile, content: string): Promise<void>;
   replace(id: string, file: ApplicationFile, content: string): Promise<void>;
@@ -57,8 +57,8 @@ export interface RunInput {
    */
   start: { posting: string; url: string; details?: JobDetails } | { id: string };
   now: () => Date;
-  /** Today's date as YYYY-MM-DD, for the application folder's name. */
-  today: () => string;
+  /** A new random UUID, made outside core, that names a new application's folder (Art. IV.4, F50). */
+  newId: () => string;
   send: (event: RunEvent) => void;
   /** Aborted when the user cancels the run (F32). */
   signal?: AbortSignal;
@@ -100,7 +100,8 @@ export async function runApplication(input: RunInput): Promise<string> {
 
     stopIfCancelled(signal);
     step("save", "running");
-    id = await files.create(applicationFolderName(input.today(), job.company ?? "", job.title ?? ""), {
+    id = applicationFolderName(input.newId());
+    await files.create(id, {
       "job.md": stringifyFrontmatter(job, `${posting}\n`),
       "analysis.md": stringifyFrontmatter(analysis),
     });

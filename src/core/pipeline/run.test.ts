@@ -10,7 +10,7 @@ import { runApplication, type ApplicationFiles, type RunEvent, type RunInput } f
 import { verifyApplication } from "./verify";
 
 const ACME = "experience/2023-01-acme-senior-developer.md";
-const ID = "2026-11-10-globex-backend-engineer";
+const ID = "3f2b8c1e-5a7d-4c9e-9b1a-2d6e8f0c4a73";
 const LINK = "https://jobs.example.com/backend-engineer";
 
 const sources: SourceFile[] = [
@@ -84,9 +84,9 @@ function fakeLlm(replies: unknown[], contextTokens = 1_000_000) {
 function memoryFiles() {
   const saved = new Map<string, string>();
   const files: ApplicationFiles = {
-    async create(baseName, initial) {
-      for (const [file, content] of Object.entries(initial)) saved.set(`${baseName}/${file}`, content);
-      return baseName;
+    async create(id, initial) {
+      if ([...saved.keys()].some((key) => key.startsWith(`${id}/`))) throw new Error(`Application ${id} already exists`);
+      for (const [file, content] of Object.entries(initial)) saved.set(`${id}/${file}`, content);
     },
     async read(id, file) {
       return saved.get(`${id}/${file}`) ?? null;
@@ -118,7 +118,7 @@ function input(overrides: Partial<RunInput> & Pick<RunInput, "llm" | "files">): 
     template: "ireland",
     start: { posting: "Globex is hiring.", url: LINK },
     now: () => new Date("2026-11-10T10:00:00.000Z"),
-    today: () => "2026-11-10",
+    newId: () => ID,
     send: (event) => events.push(event),
     ...overrides,
   };
@@ -157,6 +157,18 @@ describe("runApplication", () => {
       "review:done",
       "done",
     ]);
+  });
+
+  it("names each new application's folder by the UUID handed in, so the same job saved twice gets two folders (F50)", async () => {
+    const { files, saved } = memoryFiles();
+    const second = "9c0d4e2a-7b1f-4a3c-8e5d-6f2a1b0c9d8e";
+
+    for (const uuid of [ID.toUpperCase(), second]) {
+      const { llm } = fakeLlm([analysisReply, tailorReply(), { unsupported: [] }]);
+      await runApplication(input({ llm, files, newId: () => uuid }).run);
+    }
+
+    expect(new Set([...saved.keys()].map((key) => key.split("/")[0]))).toEqual(new Set([ID, second]));
   });
 
   it("passes on the model's progress with the step it belongs to", async () => {
@@ -364,7 +376,7 @@ describe("where the posting came from (F10, F46)", () => {
 
     const id = await runApplication(run);
 
-    expect(id).toBe("2026-11-10-globex-corporation-senior-backend-engineer");
+    expect(id).toBe(ID);
     const job = parseFrontmatter(await files.read(id, "job.md") ?? "");
     expect(job.ok && job.data).toEqual({
       title: "Senior Backend Engineer",
