@@ -7,7 +7,7 @@ Resumes tailored to each job, written by a local AI model from your own data. No
 ## What it does
 
 - **Keeps your whole profile in Markdown.** Experience, education, projects, skills, languages, and personal details live in plain `.md` files, one file per job, degree, or project. You write them in any editor, starting from the fictional example in `example-profiles/`.
-- **Reads a job posting** that you paste into the app.
+- **Reads a job posting from its link**, or from a list of links at once, which wait in a queue and run one after another. When a page can't be read (Indeed blocks the app), you paste the posting's text instead, and it keeps its link.
 - **Shows how well you fit.** A fit/gap analysis marks each requirement as matched, partial, or missing.
 - **Writes a tailored resume** following a country's resume template (Ireland first), in English, whatever the posting's language. It never invents anything. Skills that your experience only implies are flagged for you to approve or reject.
 - **Verifies every claim.** Code checks employers, institutions, dates, and numbers against your profile, then the model reviews each claim against the files it cites. You fix what failed, or dismiss a false alarm.
@@ -15,12 +15,12 @@ Resumes tailored to each job, written by a local AI model from your own data. No
 - **Saves every application** in its own folder, and a run that fails can be tried again from its last saved step.
 - **Supports multiple profiles** on the same machine.
 
-Planned next, in the order real usage suggests: fetching a posting by URL, a history screen, one-click PDF, a profile editor, and CV import.
+Planned next: cancelling and archiving runs, the job's details (title, company, salary, …) read from the posting's page, and the home page as one table of every application. Later: one-click PDF, a profile editor, and CV import.
 
 ## How it works
 
 ```
- pasted job posting
+ job posting's link (or its pasted text)
           │
           ▼
  1. Ingest ─▶ 2. Analyse posting ─▶ 3. Fit/gap ─▶ 4. Tailor ─▶ 5. Verify ─▶ 6. You review ─▶ 7. Print to PDF
