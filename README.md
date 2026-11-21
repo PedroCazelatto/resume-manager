@@ -9,7 +9,7 @@ Resumes tailored to each job, written by a local AI model from your own data. No
 - **Keeps your whole profile in Markdown.** Experience, education, projects, skills, languages, and personal details live in plain `.md` files, one file per job, degree, or project. You write them in any editor, starting from the fictional example in `example-profiles/`.
 - **Reads a job posting** that you paste into the app.
 - **Shows how well you fit.** A fit/gap analysis marks each requirement as matched, partial, or missing.
-- **Writes a tailored resume** following a country's resume template (Ireland first), in the posting's language or one you choose. It never invents anything. Skills that your experience only implies are flagged for you to approve or reject.
+- **Writes a tailored resume** following a country's resume template (Ireland first), in English, whatever the posting's language. It never invents anything. Skills that your experience only implies are flagged for you to approve or reject.
 - **Verifies every claim.** Code checks employers, institutions, dates, and numbers against your profile, then the model reviews each claim against the files it cites. You fix what failed, or dismiss a false alarm.
 - **Lets you edit and print.** You edit the resume's content with a live preview and save it as a PDF through the browser's print dialog, once nothing is left to review.
 - **Saves every application** in its own folder, and a run that fails can be tried again from its last saved step.
@@ -129,7 +129,7 @@ The full schema for every file is in [`constitution.md`, Article IV](constitutio
 
 ## Resume templates
 
-Each country has one HTML template at `templates/<country>.html`, starting with `templates/ireland.html`. It defines the resume's sections, order, layout, and formatting with Handlebars placeholders (`{{name}}`, `{{#each experience}}`), holds the writing rules for the AI in a `<script type="text/markdown" id="rules">` block, and sets parameters such as `<meta name="max-pages" content="1">`. Everything in the resume, headings included, is written in the target language. A resume that runs over the page limit gets a warning. Generation refuses to run without the template.
+Each country has one HTML template at `templates/<country>.html`, starting with `templates/ireland.html`. It defines the resume's sections, order, layout, and formatting with Handlebars placeholders (`{{name}}`, `{{#each experience}}`), holds the writing rules for the AI in a `<script type="text/markdown" id="rules">` block, and sets parameters such as `<meta name="max-pages" content="1">`. Everything in the resume, headings included, is written in English. A resume that runs over the page limit gets a warning. Generation refuses to run without the template.
 
 ## Privacy
 
