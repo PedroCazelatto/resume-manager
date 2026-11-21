@@ -123,23 +123,37 @@ describe("archiving a run (F48)", () => {
     expect(await answer(restoreRun(runId))).toEqual({ status: 409, body: { error: "This run isn't archived." } });
   });
 
-  it("keeps a run without an application archived in memory only, and writes nothing", async () => {
-    const files = await snapshot();
+  it("archives an Indeed link's application, made when it was added, in its job.md (F50)", async () => {
     const [runId] = ((await (await enqueueLinks([{ line: 1, text: INDEED, url: INDEED }])).json()) as { runIds: string[] }).runIds;
+    const { applicationId } = runRegistry().list("jane-doe")[0];
+    const indeedJob = path.join(profileDir, "applications", applicationId!, "job.md");
+    const before = await readFile(indeedJob, "utf8");
 
     expect(await answer(archiveRun(runId))).toEqual({ status: 204, body: null });
     expect(runRegistry().list("jane-doe")).toEqual([]);
+    expect(fields(await readFile(indeedJob, "utf8")).data).toEqual({ ...fields(before).data, archived_at: expect.any(String) });
+
+    // A restart: the archived row stays archived in its job.md (F48, F50).
+    delete (globalThis as { resumeRuns?: unknown }).resumeRuns;
+    expect(await answer(restoreApplication(applicationId!))).toEqual({ status: 204, body: null });
+    expect(await readFile(indeedJob, "utf8")).toBe(before);
+  });
+
+  it("keeps a run restored with its application as cancelled, still asking for the posting's text", async () => {
+    const [runId] = ((await (await enqueueLinks([{ line: 1, text: INDEED, url: INDEED }])).json()) as { runIds: string[] }).runIds;
+    await archiveRun(runId);
 
     expect(await answer(restoreRun(runId))).toEqual({ status: 204, body: null });
     // Back as cancelled, still asking for the posting's text, and still without "Try again" (F47).
     expect(runRegistry().list("jane-doe")).toMatchObject([{ runId, status: "cancelled", fetchFailed: true, retryable: false, url: INDEED }]);
-    expect(await snapshot()).toEqual(files);
   });
 
   it("refuses an unknown run, and a run that is still fetching, with nothing written", async () => {
-    const files = await snapshot();
     const link = "https://jobs.example.com/1";
     const [fetching] = ((await (await enqueueLinks([{ line: 1, text: link, url: link }])).json()) as { runIds: string[] }).runIds;
+    // Its application's folder is made as its fetch starts (F50).
+    await vi.waitFor(() => expect(runRegistry().list("jane-doe")[0].applicationId).toBeDefined());
+    const files = await snapshot();
 
     expect(await answer(archiveRun("no-such-run"))).toEqual({ status: 404, body: { error: "Unknown run." } });
     expect(await answer(restoreRun("no-such-run"))).toEqual({ status: 404, body: { error: "Unknown run." } });

@@ -13,6 +13,7 @@ import {
   fetchFailed,
   findRun,
   finishRun,
+  madeApplication,
   nextFetch,
   nextRun,
   offersTryAgain,
@@ -27,8 +28,11 @@ import {
   stopAction,
   triedAgain,
   waitingToFetch,
+  type QueueEvent,
   type QueuedRun,
 } from "./queue";
+
+const APPLICATION = "3f2b8c1e-5a7d-4c9e-9b1a-2d6e8f0c4a73";
 
 /** Waiting runs; the ones named "john-…" belong to a second profile. */
 function queued(...ids: string[]): QueuedRun[] {
@@ -204,18 +208,45 @@ describe("run queue", () => {
     expect(offersTryAgain(left, findRun(left, "jane-doe", "a")!)).toBe(true);
   });
 
-  it("offers \"Try again\" on a new run that failed or was cancelled before its application was saved", () => {
-    const run = { kind: "new", status: "failed" } as const;
+  it("offers \"Try again\" on a new run that failed or was cancelled before its analysis was saved", () => {
+    const run = { kind: "new", status: "failed", events: [] as QueueEvent[] } as const;
     expect(canTryAgain(run)).toBe(true);
     expect(canTryAgain({ ...run, status: "cancelled" })).toBe(true);
 
-    // With a folder, the application's page tries again.
-    expect(canTryAgain({ ...run, applicationId: "2026-11-10-globex-backend-engineer" })).toBe(false);
+    // Once its analysis is saved, the application's page tries again (F19). The folder itself is
+    // made when the link's fetch starts, so it doesn't decide (F50).
+    expect(canTryAgain({ ...run, events: [{ type: "saved", id: APPLICATION }] })).toBe(false);
     expect(canTryAgain({ ...run, status: "queued" })).toBe(false);
     expect(canTryAgain({ ...run, status: "running" })).toBe(false);
     expect(canTryAgain({ ...run, status: "done" })).toBe(false);
     expect(canTryAgain({ ...run, kind: "retry" })).toBe(false);
     expect(canTryAgain({ ...run, kind: "verify" })).toBe(false);
+  });
+
+  it("keeps \"Try again\" on a failed fetch, whose application was made when its fetch started (F50)", () => {
+    const fetching = madeApplication(
+      startFetch(enqueueFetch([], { runId: "a", profile: "jane-doe", kind: "new", input: null }), "a"),
+      "a",
+      APPLICATION,
+    );
+    expect(fetching[0].applicationId).toBe(APPLICATION);
+
+    const failed = failFetch(fetching, "a", "The page answered 403.");
+    expect(failed[0]).toMatchObject({ status: "failed", applicationId: APPLICATION });
+    expect(canTryAgain(failed[0])).toBe(true);
+    // A link fetched again into its application ("Try again" from its page) keeps it when it fails too.
+    expect(canTryAgain({ ...failed[0], kind: "retry" })).toBe(true);
+    expect(canTryAgain({ ...failed[0], kind: "verify" })).toBe(false);
+  });
+
+  it("enqueues a link to fetch again into its application, and an Indeed link with its application (F50)", () => {
+    const runs = enqueueFetch([], { runId: "a", profile: "jane-doe", kind: "retry", input: null, applicationId: APPLICATION });
+    const indeed = addNotFetched(runs, { runId: "b", profile: "jane-doe", kind: "new", input: null, applicationId: APPLICATION }, "Indeed.");
+
+    expect(indeed.map((run) => [run.status, run.applicationId])).toEqual([
+      ["fetching", APPLICATION],
+      ["failed", APPLICATION],
+    ]);
   });
 
   describe("the fetch queue (F10)", () => {

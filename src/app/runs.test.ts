@@ -3,7 +3,8 @@ import { z } from "zod";
 import { LlmError, type LlmClient } from "@/core/llm";
 import type { FetchedPosting } from "@/core/posting/job-fetcher";
 import { waitingToFetch, type QueueEvent } from "@/core/runs/queue";
-import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "./runs";
+import type { PostingStart } from "@/core/posting/start";
+import { createRunRegistry, FOLDER_FAILED, type AppRun, type ExecuteRun, type RunFolders, type RunRegistry, type RunRequest } from "./runs";
 
 const POSTING = "Globex is hiring a Backend Engineer.";
 const PASTED_LINK = "https://jobs.example.com/pasted";
@@ -991,6 +992,173 @@ describe("run registry", () => {
         await settled();
         expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: INDEED } });
         expect(asked).toEqual([]);
+      });
+    });
+
+    describe("its application's folder (F50)", () => {
+      /** Application folders kept in memory. `hold` keeps each `create` waiting until it is let go. */
+      function memoryFolders() {
+        const made: string[] = [];
+        const written: [string, PostingStart][] = [];
+        const removed: string[] = [];
+        const held: (() => void)[] = [];
+        const state = { hold: false, fails: false, problem: null as string | null };
+        const folders: RunFolders = {
+          async create(profile, url) {
+            if (state.hold) await new Promise<void>((resolve) => held.push(resolve));
+            if (state.fails) throw new Error("EACCES: permission denied, mkdir 'applications/x'");
+            made.push(`${profile}:${url}`);
+            return `application-${made.length}`;
+          },
+          async fetched(_profile, id, posting) {
+            written.push([id, posting]);
+            return state.problem;
+          },
+          async remove(_profile, id) {
+            removed.push(id);
+          },
+        };
+        return { folders, made, written, removed, held, state };
+      }
+
+      it("makes the folder as the link's fetch starts, never while it waits, and writes the fetched posting into it", async () => {
+        const { execute, started } = manualRuns();
+        const { fetchPosting, answers, asked } = manualFetches();
+        const { folders, made, written } = memoryFolders();
+        const registry = createRunRegistry(execute, fetchPosting, undefined, folders);
+        const runId = registry.enqueue("jane-doe", "new", link());
+        const waiting = registry.enqueue("jane-doe", "new", link("https://jobs.example.com/2"));
+        await settled();
+
+        expect(made).toEqual([`jane-doe:${LINK}`]);
+        expect(asked).toEqual([LINK]);
+        expect(registry.list("jane-doe").map((run) => [run.runId, run.applicationId])).toEqual([
+          [runId, "application-1"],
+          [waiting, undefined],
+        ]);
+
+        answers.get(LINK)!(fetched);
+        await settled();
+
+        expect(written).toEqual([["application-1", { posting: POSTING, url: PAGE, details: {} }]]);
+        expect(started.map((run) => [run.runId, run.applicationId])).toEqual([[runId, "application-1"]]);
+        expect(made).toEqual([`jane-doe:${LINK}`, "jane-doe:https://jobs.example.com/2"]);
+      });
+
+      it("deletes the folder made for a link the X removed while its folder was being made, never fetching it", async () => {
+        const { execute } = manualRuns();
+        const { fetchPosting, asked } = manualFetches();
+        const { folders, held, removed, state } = memoryFolders();
+        state.hold = true;
+        const registry = createRunRegistry(execute, fetchPosting, undefined, folders);
+        const runId = registry.enqueue("jane-doe", "new", link());
+        await settled();
+
+        expect(registry.remove("jane-doe", runId)).toBe("removed");
+        held[0]();
+        await settled();
+
+        expect(removed).toEqual(["application-1"]);
+        expect(asked).toEqual([]);
+        expect(registry.list("jane-doe")).toEqual([]);
+      });
+
+      it("deletes the folder made for a link the X removed while it was fetched, writing nothing into it", async () => {
+        const { execute } = manualRuns();
+        const { fetchPosting, answers, signals } = manualFetches();
+        const { folders, written, removed } = memoryFolders();
+        const registry = createRunRegistry(execute, fetchPosting, undefined, folders);
+        const runId = registry.enqueue("jane-doe", "new", link());
+        await settled();
+
+        expect(registry.remove("jane-doe", runId)).toBe("removed");
+        expect(signals.get(LINK)!.aborted).toBe(true);
+        answers.get(LINK)!(fetched);
+        await settled();
+
+        expect(written).toEqual([]);
+        expect(removed).toEqual(["application-1"]);
+      });
+
+      it("leaves alone the folder of an application whose link is fetched again, when the X removes it", async () => {
+        const { execute } = manualRuns();
+        const { fetchPosting, answers } = manualFetches();
+        const { folders, made, removed } = memoryFolders();
+        const registry = createRunRegistry(execute, fetchPosting, undefined, folders);
+        const runId = registry.enqueue("jane-doe", "retry", { start: { url: LINK }, applicationId: "saved-application" });
+        await settled();
+
+        expect(registry.list("jane-doe")[0]).toMatchObject({ runId, status: "fetching", applicationId: "saved-application" });
+        expect(registry.remove("jane-doe", runId)).toBe("removed");
+        answers.get(LINK)!(refused);
+        await settled();
+
+        expect(made).toEqual([]);
+        expect(removed).toEqual([]);
+      });
+
+      it("fails the fetch when its folder can't be made, or its job.md can't take the posting", async () => {
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+        const { execute, started } = manualRuns();
+        const { fetchPosting, answers, asked } = manualFetches();
+        const { folders, state } = memoryFolders();
+        const registry = createRunRegistry(execute, fetchPosting, undefined, folders);
+        state.fails = true;
+        const unsaved = registry.enqueue("jane-doe", "new", link());
+        await settled();
+
+        expect(registry.list("jane-doe")[0]).toMatchObject({ runId: unsaved, status: "failed", error: FOLDER_FAILED, fetchFailed: true });
+        expect(asked).toEqual([]);
+        expect(error).toHaveBeenCalled();
+
+        state.fails = false;
+        state.problem = "applications/application-1/job.md has problems: url: is required";
+        const invalid = registry.enqueue("jane-doe", "new", link("https://jobs.example.com/2"));
+        await settled();
+        answers.get("https://jobs.example.com/2")!(fetched);
+        await settled();
+
+        expect(registry.list("jane-doe")[0]).toMatchObject({ runId: invalid, status: "failed", error: state.problem, applicationId: "application-1" });
+        expect(started).toEqual([]);
+      });
+
+      it("fetches a failed fetch's link again into the same folder when it is tried again", async () => {
+        const { execute } = manualRuns();
+        const { fetchPosting, answers, asked } = manualFetches();
+        const { folders, made, written } = memoryFolders();
+        const registry = createRunRegistry(execute, fetchPosting, undefined, folders);
+        const runId = registry.enqueue("jane-doe", "new", link());
+        await settled();
+        answers.get(LINK)!(refused);
+        await settled();
+        expect(registry.list("jane-doe")[0]).toMatchObject({ status: "failed", retryable: true, applicationId: "application-1" });
+
+        const again = registry.retry("jane-doe", runId);
+        await settled();
+        answers.get(LINK)!(fetched);
+        await settled();
+
+        expect(asked).toEqual([LINK, LINK]);
+        expect(made).toHaveLength(1);
+        expect(written).toEqual([["application-1", { posting: POSTING, url: PAGE, details: {} }]]);
+        expect(registry.list("jane-doe").find((run) => typeof again === "object" && run.runId === again.runId)).toMatchObject({
+          status: "running",
+          applicationId: "application-1",
+        });
+      });
+
+      it("says which application takes a run's pasted text, for a run that needs it only", async () => {
+        const { execute } = manualRuns();
+        const { fetchPosting, answers } = manualFetches();
+        const registry = createRunRegistry(execute, fetchPosting, undefined, memoryFolders().folders);
+        const runId = registry.enqueue("jane-doe", "new", link());
+        await settled();
+
+        expect(registry.pasteTarget("jane-doe", runId)).toBe("refused");
+        answers.get(LINK)!(refused);
+        await settled();
+        expect(registry.pasteTarget("jane-doe", runId)).toEqual({ applicationId: "application-1" });
+        expect(registry.pasteTarget("john-roe", runId)).toBe("unknown");
       });
     });
 

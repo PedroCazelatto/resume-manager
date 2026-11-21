@@ -1,4 +1,4 @@
-import { applicationFolderName, type ApplicationFile } from "../application/folder";
+import type { ApplicationFile } from "../application/folder";
 import { jobDetails, jobSummary, type JobSummary } from "../application/job";
 import { hasPostingText } from "../application/job-file";
 import { analysisSchema, jobSchema, type Job, type JobDetails } from "../application/schemas";
@@ -36,10 +36,11 @@ export type RunEvent =
   | { type: "done"; id: string }
   | { type: "error"; message: string };
 
-/** The application files of the selected profile, as the run needs them. */
+/**
+ * The application files of the selected profile, as the run needs them. The folder and its job.md
+ * exist before the run starts (F50).
+ */
 export interface ApplicationFiles {
-  /** Creates the application folder `id` with its first files; fails when it exists. */
-  create(id: string, files: Partial<Record<ApplicationFile, string>>): Promise<void>;
   read(id: string, file: ApplicationFile): Promise<string | null>;
   add(id: string, file: ApplicationFile, content: string): Promise<void>;
   replace(id: string, file: ApplicationFile, content: string): Promise<void>;
@@ -53,13 +54,12 @@ export interface RunInput {
   /** The template every new resume uses. */
   template: string;
   /**
-   * A new run starts from a posting and its link: pasted, or fetched from the link, with the
-   * details read from its page (F10, F46). A retry continues the application with this ID.
+   * The application the run works on. Its folder and job.md, with the posting's link and text,
+   * were written before the model ran: when its link was fetched, or its text pasted (F50). A
+   * step whose output file exists is skipped, so a retry continues where the application stopped.
    */
-  start: { posting: string; url: string; details?: JobDetails } | { id: string };
+  start: { id: string };
   now: () => Date;
-  /** A new random UUID, made outside core, that names a new application's folder (Art. IV.4, F50). */
-  newId: () => string;
   send: (event: RunEvent) => void;
   /** Aborted when the user cancels the run (F32). */
   signal?: AbortSignal;
@@ -97,54 +97,39 @@ export async function runApplication(input: RunInput): Promise<string> {
     return analysed;
   }
 
-  let id: string;
-  let posting: string;
+  const { id } = input.start;
+  const [jobSource, analysisSource] = await Promise.all([files.read(id, "job.md"), files.read(id, "analysis.md")]);
+  if (jobSource === null) throw new Error("This application has no saved posting and analysis. Start a new one.");
+  const savedJob = validateMarkdownFile(jobSchema, "job.md", jobSource);
+  if (!savedJob.ok) throw invalid("job.md", savedJob.error.problems);
+  const posting = savedJob.body;
+
   let job: Job;
   let analysis;
-  if ("posting" in input.start) {
-    posting = input.start.posting;
-    ({ job, analysis } = await analyse(posting, input.start.url, input.start.details));
+  if (analysisSource === null) {
+    // job.md was written before the model ran, with the posting's link and text (F50).
+    if (!hasPostingText(posting)) throw new Error("This application has no posting text yet. Paste the posting's text first.");
+    if (savedJob.data.url === undefined) throw invalid("job.md", ["url: is required"]);
+    const analysed = await analyse(posting, savedJob.data.url, jobDetails(savedJob.data));
 
     step("save", "running");
-    id = applicationFolderName(input.newId());
-    await files.create(id, {
-      "job.md": stringifyFrontmatter(job, `${posting}\n`),
-      "analysis.md": stringifyFrontmatter(analysis),
-    });
+    // The link, its platform and when the text arrived were written with the text; the
+    // analysis adds the details the model copied and the posting's language (Art. IV.7).
+    const found = Object.fromEntries(
+      Object.entries(analysed.job).filter(([field]) => field !== "url" && field !== "source" && field !== "fetched_at"),
+    );
+    await files.replace(id, "job.md", patchFrontmatter(jobSource, found));
+    await files.add(id, "analysis.md", stringifyFrontmatter(analysed.analysis));
     step("save", "done");
+    job = { ...savedJob.data, ...found };
+    analysis = analysed.analysis;
   } else {
-    id = input.start.id;
-    const [jobSource, analysisSource] = await Promise.all([files.read(id, "job.md"), files.read(id, "analysis.md")]);
-    if (jobSource === null) throw new Error("This application has no saved posting and analysis. Start a new one.");
-    const savedJob = validateMarkdownFile(jobSchema, "job.md", jobSource);
-    if (!savedJob.ok) throw invalid("job.md", savedJob.error.problems);
-    posting = savedJob.body;
-
-    if (analysisSource === null) {
-      // job.md was written before the model ran, with the posting's link and text (F50).
-      if (!hasPostingText(posting)) throw new Error("This application has no posting text yet. Paste the posting's text first.");
-      if (savedJob.data.url === undefined) throw invalid("job.md", ["url: is required"]);
-      const analysed = await analyse(posting, savedJob.data.url, jobDetails(savedJob.data));
-
-      step("save", "running");
-      // The link, its platform and when the text arrived were written with the text; the
-      // analysis adds the details the model copied and the posting's language (Art. IV.7).
-      const found = Object.fromEntries(
-        Object.entries(analysed.job).filter(([field]) => field !== "url" && field !== "source" && field !== "fetched_at"),
-      );
-      await files.replace(id, "job.md", patchFrontmatter(jobSource, found));
-      await files.add(id, "analysis.md", stringifyFrontmatter(analysed.analysis));
-      step("save", "done");
-      job = { ...savedJob.data, ...found };
-      analysis = analysed.analysis;
-    } else {
-      const savedAnalysis = validateMarkdownFile(analysisSchema, "analysis.md", analysisSource);
-      if (!savedAnalysis.ok) throw invalid("analysis.md", savedAnalysis.error.problems);
-      job = savedJob.data;
-      analysis = savedAnalysis.data;
-      step("analyse", "done");
-      step("save", "done");
-    }
+    const savedAnalysis = validateMarkdownFile(analysisSchema, "analysis.md", analysisSource);
+    if (!savedAnalysis.ok) throw invalid("analysis.md", savedAnalysis.error.problems);
+    job = savedJob.data;
+    analysis = savedAnalysis.data;
+    step("analyse", "done");
+    step("save", "done");
   }
   send({ type: "saved", id, job: jobSummary(job) });
 

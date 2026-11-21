@@ -31,7 +31,10 @@ export interface QueuedRun<Input = unknown> {
   status: RunStatus;
   /** When the run started, in milliseconds since the epoch; a page opened later counts from it (F39). */
   startedAt?: number;
-  /** The application folder, once it exists. */
+  /**
+   * The application folder, once it exists: made when a link's fetch starts, or when an Indeed
+   * link or pasted text is added; given for a run that continues a saved application (F50).
+   */
   applicationId?: string;
   /**
    * What the run knows about its job: its title, company, company website and platform, from
@@ -97,10 +100,13 @@ export function enqueue<I>(
   return [...runs, { ...run, status: "queued", events: [] }];
 }
 
-/** Adds a run started from a link at the end of the fetch queue (F10). */
+/**
+ * Adds a run started from a link at the end of the fetch queue (F10). A link fetched again into
+ * its application has the application's ID; a new link gets its folder when its fetch starts (F50).
+ */
 export function enqueueFetch<I>(
   runs: readonly QueuedRun<I>[],
-  run: Pick<QueuedRun<I>, "runId" | "profile" | "kind" | "input">,
+  run: Pick<QueuedRun<I>, "runId" | "profile" | "kind" | "input" | "applicationId">,
 ): QueuedRun<I>[] {
   return [...runs, { ...run, status: "fetching", events: [] }];
 }
@@ -113,6 +119,14 @@ export function nextFetch<I>(runs: readonly QueuedRun<I>[]): QueuedRun<I> | null
 /** Notes that a run's fetch has begun; the run stays in the fetch queue until it ends. */
 export function startFetch<I>(runs: readonly QueuedRun<I>[], runId: string): QueuedRun<I>[] {
   return recordEvent(runs, runId, { type: "step", step: "fetch", status: "running" });
+}
+
+/**
+ * Notes the application folder made for a run before its pipeline starts: when its link's fetch
+ * started, or when its posting's text was pasted (F50).
+ */
+export function madeApplication<I>(runs: readonly QueuedRun<I>[], runId: string, applicationId: string): QueuedRun<I>[] {
+  return update(runs, runId, (run) => ({ ...run, applicationId }));
 }
 
 /**
@@ -145,7 +159,7 @@ export function failFetch<I>(
  */
 export function addNotFetched<I>(
   runs: readonly QueuedRun<I>[],
-  run: Pick<QueuedRun<I>, "runId" | "profile" | "kind" | "input">,
+  run: Pick<QueuedRun<I>, "runId" | "profile" | "kind" | "input" | "applicationId">,
   reason: string,
   maxFinished = MAX_FINISHED_RUNS,
 ): QueuedRun<I>[] {
@@ -263,17 +277,24 @@ export function runsOf<I>(runs: readonly QueuedRun<I>[], profile: string): Queue
   ];
 }
 
+/** Whether a run got as far as saving its application's analysis, which its `saved` event tells (F50). */
+function analysisSaved(run: Pick<QueuedRun, "events">): boolean {
+  return run.events.some((event) => event.type === "saved");
+}
+
 /**
- * Whether the Runs list offers "Try again" on a run itself: a new application that failed or
- * was cancelled before its folder existed. One with a folder is tried again from its page (F19).
- * A run whose link the server never requests has none: trying again would fetch it (F47). An
- * archived run has none until it is restored (F48).
+ * Whether the Runs list offers "Try again" on a run itself: a new application that failed or was
+ * cancelled before its analysis was saved, or a link whose fetch failed again ("Try again" of
+ * a failed fetch's application). One whose analysis was saved is tried again from its page (F19).
+ * The application's folder may exist already, since it is made when the link's fetch starts; it
+ * is the one tried again (F50). A run whose link the server never requests has none: trying
+ * again would fetch it (F47). An archived run has none until it is restored (F48).
  */
-export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "applicationId" | "notFetched" | "archivedAt">): boolean {
+export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "events" | "notFetched" | "archivedAt">): boolean {
   return (
-    run.kind === "new" &&
+    (run.kind === "new" || (run.kind === "retry" && fetchFailed(run))) &&
     (run.status === "failed" || run.status === "cancelled") &&
-    run.applicationId === undefined &&
+    !analysisSaved(run) &&
     run.notFetched !== true &&
     run.archivedAt === undefined
   );

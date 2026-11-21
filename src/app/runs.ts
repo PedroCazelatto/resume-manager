@@ -1,8 +1,8 @@
 import { detailsSummary, type JobSummary } from "@/core/application/job";
-import type { RunEvent, RunInput, RunStep } from "@/core/pipeline/run";
+import type { RunEvent, RunStep } from "@/core/pipeline/run";
 import type { FetchedPosting, JobFetcher } from "@/core/posting/job-fetcher";
 import { INDEED_BLOCKED, isIndeedLink, linkPlatform } from "@/core/posting/sites";
-import { fetchedStart, type PastedStart } from "@/core/posting/start";
+import { fetchedStart, type PastedStart, type PostingStart } from "@/core/posting/start";
 import {
   addNotFetched,
   archiveRuns,
@@ -18,6 +18,7 @@ import {
   fetchFailed,
   findRun,
   finishRun,
+  madeApplication,
   nextFetch,
   nextRun,
   pasteText,
@@ -40,16 +41,48 @@ import {
 // The runs the server knows about (F42). They live in memory only and are gone after a
 // restart (Art. IV.1). One run uses the model at a time; the others wait their turn. A run
 // started from a link has its posting fetched first, in a queue of its own that doesn't
-// wait for the model, and joins the run queue only when the fetch worked (F10).
+// wait for the model, and joins the run queue only when the fetch worked (F10). Its
+// application's folder and job.md are made when its fetch starts, so what it got survives a
+// restart (F50).
 
 /**
  * What a run was asked to do. It stays with the run after it ends, so "Try again" can queue
  * the same posting or link. The posting is never logged or listed (Art. III.4).
  */
 export interface RunRequest {
-  /** A link alone is fetched first; the fetched posting then takes its place (F10). */
-  start: RunInput["start"] | { url: string };
+  /**
+   * A link alone is fetched first; the fetched posting then takes its place (F10). A posting
+   * (fetched or pasted) is also in its application's job.md, which the pipeline reads (F50).
+   * `{ id }` continues a saved application.
+   */
+  start: PostingStart | { id: string } | { url: string };
+  /**
+   * The application the run works on when its folder exists already: an Indeed link's or pasted
+   * text's, made when it was added, or a link fetched again into its application (F50).
+   */
+  applicationId?: string;
 }
+
+/**
+ * The application folders the fetch queue makes and writes, in the run's profile only
+ * (Art. III.7, F50). The app writes them through ProfileStore; tests may leave them out, and
+ * then nothing is saved before the pipeline.
+ */
+export interface RunFolders {
+  /** Makes a new application's folder and job.md, holding the link and its platform; returns its ID. */
+  create(profile: string, url: string): Promise<string>;
+  /**
+   * Writes a fetched posting into its application's job.md: the address it was read from, the
+   * page's details, when it arrived, and its text. Answers the problem that kept it from being
+   * written, an invalid job.md named with its path (Art. IV.6), or null once written.
+   */
+  fetched(profile: string, id: string, posting: PostingStart): Promise<string | null>;
+  /** Deletes the folder made when a link's fetch started, once the link was removed with the X. */
+  remove(profile: string, id: string): Promise<void>;
+}
+
+/** Why a link's fetch failed when its application's folder couldn't be made or written. */
+export const FOLDER_FAILED = "Couldn't save the application's folder. See the server console.";
 
 export type AppRun = QueuedRun<RunRequest>;
 
@@ -81,7 +114,7 @@ export interface RunSummary {
   /** The steps the run went through and their context-size warnings (F30, F40). */
   steps: RunStepState[];
   warnings: Partial<Record<RunStep, string>>;
-  /** The Runs list offers "Try again" on the run itself: it ended before its application was saved (F19). */
+  /** The Runs list offers "Try again" on the run itself: it ended before its analysis was saved (F19, F50). */
   retryable: boolean;
   /**
    * The posting's link: the link as given until its fetch worked, then the address the text was
@@ -114,11 +147,12 @@ function linkToFetch(start: RunRequest["start"]): string | null {
 /** Used where no run starts from a link. */
 const noFetcher: JobFetcher["fetchPosting"] = async () => ({ ok: false, reason: "Links can't be fetched here." });
 
-/** `now` is the clock that says when a run started. */
+/** `now` is the clock that says when a run started; `folders` saves what the fetch queue gets (F50). */
 export function createRunRegistry(
   execute: ExecuteRun,
   fetchPosting: JobFetcher["fetchPosting"] = noFetcher,
   now: () => number = Date.now,
+  folders?: RunFolders,
 ) {
   let runs: AppRun[] = [];
   const followers = new Map<string, Set<RunFollower>>();
@@ -172,28 +206,46 @@ export function createRunRegistry(
   /**
    * Fetches the postings of the runs started from a link, one after another, whether or
    * not a run is using the model. A run whose fetch worked joins the run queue; the others
-   * end as failed and never reach the model (F10).
+   * end as failed and never reach the model (F10). A new link's application folder is made
+   * when its fetch starts, and gets the posting once fetched; a link removed meanwhile has the
+   * folder made for it deleted again, so nothing of it is left (F50).
    */
   async function fetchWork() {
     if (fetching) return;
     for (let run = nextFetch(runs); run; run = nextFetch(runs)) {
-      const { runId, input } = run;
+      const { runId, profile, input } = run;
       const cancel = new AbortController();
       fetching = { runId, cancel };
       runs = startFetch(runs, runId);
       publish(runId);
-      let fetched: FetchedPosting;
+      const link = linkToFetch(input.start) ?? "";
+      const removed = () => !runs.some((other) => other.runId === runId);
+      /** The folder this fetch made, the only one the X deletes. */
+      let made: string | null = null;
+      let failure: string | null = null;
+      let read: { start: PostingStart } | { error: string } | null = null;
       try {
-        fetched = await fetchPosting(linkToFetch(input.start) ?? "", cancel.signal);
-      } catch {
-        fetched = { ok: false, reason: "Something went wrong while fetching the posting." };
+        if (folders && run.applicationId === undefined) {
+          made = await folders.create(profile, link);
+          if (!removed()) runs = madeApplication(runs, runId, made);
+        }
+        if (!removed()) read = fetchedStart(await fetchOne(link, cancel.signal));
+        const applicationId = made ?? run.applicationId;
+        if (read && "start" in read && folders && applicationId !== undefined && !removed()) {
+          failure = await folders.fetched(profile, applicationId, read.start);
+        }
+      } catch (error) {
+        // Folder errors carry file paths at most, never posting text (Art. III.4).
+        console.error(error);
+        failure = FOLDER_FAILED;
       }
       fetching = null;
-      // Removed while its posting was being fetched.
-      if (!runs.some((other) => other.runId === runId)) continue;
-      const read = fetchedStart(fetched);
-      if ("error" in read) {
-        runs = failFetch(runs, runId, read.error);
+      if (removed()) {
+        if (made !== null) await folders?.remove(profile, made).catch((error: unknown) => console.error(error));
+        continue;
+      }
+      if (failure !== null || read === null || "error" in read) {
+        runs = failFetch(runs, runId, failure ?? (read && "error" in read ? read.error : FOLDER_FAILED));
         publish(runId);
         close(runId);
       } else {
@@ -204,25 +256,36 @@ export function createRunRegistry(
     }
   }
 
+  /** Fetches one link; a fetcher that throws is a failed fetch. */
+  async function fetchOne(link: string, signal: AbortSignal): Promise<FetchedPosting> {
+    try {
+      return await fetchPosting(link, signal);
+    } catch {
+      return { ok: false, reason: "Something went wrong while fetching the posting." };
+    }
+  }
+
   /**
    * Adds a run and returns its ID right away. One started from a link goes to the fetch
    * queue first, except an Indeed link, which is never requested: it asks for its posting's
    * text at once (F47). Any other run goes to the run queue and starts when its turn comes.
+   * A run whose application exists already keeps its ID (F50).
    */
   function add(profile: string, kind: RunKind, input: RunRequest): string {
     const runId = crypto.randomUUID();
     const link = linkToFetch(input.start);
+    const applicationId = input.applicationId ?? ("id" in input.start ? input.start.id : undefined);
+    const run = { runId, profile, kind, input, ...(applicationId === undefined ? {} : { applicationId }) };
     if (link !== null && isIndeedLink(link)) {
-      runs = addNotFetched(runs, { runId, profile, kind, input }, INDEED_BLOCKED);
+      runs = addNotFetched(runs, run, INDEED_BLOCKED);
       return runId;
     }
     if (link !== null) {
-      runs = enqueueFetch(runs, { runId, profile, kind, input });
+      runs = enqueueFetch(runs, run);
       void fetchWork();
       return runId;
     }
-    const applicationId = "id" in input.start ? input.start.id : undefined;
-    runs = enqueue(runs, { runId, profile, kind, input, applicationId });
+    runs = enqueue(runs, run);
     void work();
     return runId;
   }
@@ -233,15 +296,28 @@ export function createRunRegistry(
     },
 
     /**
+     * Whether a run of this profile takes the posting's pasted text: its fetch failed, or it is
+     * an Indeed link's run, and it isn't archived (F48). Answers the application whose job.md
+     * gets the text, when it has one (F50).
+     */
+    pasteTarget(profile: string, runId: string): { applicationId?: string } | "refused" | "unknown" {
+      const run = findRun(runs, profile, runId);
+      if (!run) return "unknown";
+      if (!fetchFailed(run) || run.archivedAt !== undefined) return "refused";
+      return run.applicationId === undefined ? {} : { applicationId: run.applicationId };
+    },
+
+    /**
      * The posting's text, pasted with its link, for a run of this profile that needs it: its
      * fetch failed, or it is an Indeed link's run. The same run joins the end of the run queue
-     * and keeps its ID; no new run takes its place (F48).
+     * and keeps its ID; no new run takes its place (F48). The app has written the text into the
+     * run's application, `applicationId`, first (F50).
      */
-    paste(profile: string, runId: string, start: PastedStart): "queued" | "refused" | "unknown" {
+    paste(profile: string, runId: string, start: PastedStart, applicationId?: string): "queued" | "refused" | "unknown" {
       if (!findRun(runs, profile, runId)) return "unknown";
-      const result = pasteText(runs, profile, runId, { start });
+      const result = pasteText(runs, profile, runId, { start, ...(applicationId === undefined ? {} : { applicationId }) });
       if (!result.pasted) return "refused";
-      runs = result.runs;
+      runs = applicationId === undefined ? result.runs : madeApplication(result.runs, runId, applicationId);
       void work();
       return "queued";
     },
@@ -307,16 +383,19 @@ export function createRunRegistry(
     },
 
     /**
-     * "Try again" for a run of this profile that ended before its application was saved:
-     * queues a new run with the same posting, and returns its ID (F19). A run
-     * whose fetch failed has its link fetched again (F10). The button is used once: it comes
-     * back only when the run it queued is no longer listed.
+     * "Try again" for a run of this profile that ended before its analysis was saved:
+     * queues a new run with the same posting, and returns its ID (F19). A run whose fetch
+     * failed has its link fetched again (F10), into the same application (F50). The button is
+     * used once: it comes back only when the run it queued is no longer listed.
      */
     retry(profile: string, runId: string): { runId: string } | "refused" | "unknown" {
       const run = findRun(runs, profile, runId);
       if (!run) return "unknown";
       if (!offersTryAgain(runs, run)) return "refused";
-      const again = add(profile, "new", run.input);
+      // Its application, once made, is the one tried again: a failed fetch fetches its link
+      // again into it, any other run continues it from its job.md (F50).
+      const input = run.applicationId === undefined ? run.input : { ...run.input, applicationId: run.applicationId };
+      const again = add(profile, "new", input);
       runs = triedAgain(runs, runId, again);
       return { runId: again };
     },
