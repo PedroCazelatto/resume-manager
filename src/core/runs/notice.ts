@@ -9,12 +9,19 @@ export interface EndedRun {
   status: RunStatus;
   company?: string;
   role?: string;
+  /** The run's fetch failed, or its link is never requested, so it needs the posting's text (F10, F47). */
+  fetchFailed?: boolean;
+  /** The posting's link. */
+  url?: string;
 }
+
+/** What a failed fetch says instead of "Run failed" (F48). */
+export const FETCH_FAILED_TITLE = "Couldn't read the posting: paste the text";
 
 export interface RunNotice {
   /** The system notification's title. */
-  title: "Resume ready" | "Run failed" | "Verification finished" | "Verification failed";
-  /** The company and role, when known. */
+  title: "Resume ready" | "Run failed" | "Verification finished" | "Verification failed" | typeof FETCH_FAILED_TITLE;
+  /** The company and role, when known; for a failed fetch, the link. */
   body?: string;
   /** What the tab title starts with until the tab is focused again. */
   tab: "Done" | "Failed";
@@ -24,6 +31,10 @@ export interface RunNotice {
 export function runNotice(run: EndedRun): RunNotice | null {
   // A run the user cancelled is no news to them, and one still fetching, waiting or running hasn't ended.
   if (run.status !== "done" && run.status !== "failed") return null;
+  // A failed fetch asks for the posting's text, and names the link it couldn't read (F48).
+  if (run.status === "failed" && run.fetchFailed) {
+    return { title: FETCH_FAILED_TITLE, ...(run.url ? { body: run.url } : {}), tab: "Failed" };
+  }
   const body = [run.company, run.role].filter(Boolean).join(" · ");
   // "Verify again" writes no resume, so it has its own words.
   const verify = run.kind === "verify";

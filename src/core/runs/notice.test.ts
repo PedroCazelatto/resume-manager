@@ -39,6 +39,29 @@ describe("runNotice", () => {
     expect(runNotice({ kind: "verify", status: "cancelled" })).toBeNull();
   });
 
+  it("tells a failed fetch with its own words and the link as the body (F48)", () => {
+    const link = "https://jobs.example.com/backend-engineer";
+
+    expect(runNotice({ kind: "new", status: "failed", fetchFailed: true, url: link })).toEqual({
+      title: "Couldn't read the posting: paste the text",
+      body: link,
+      tab: "Failed",
+    });
+    expect(runNotice({ kind: "new", status: "failed", fetchFailed: true })).toEqual({
+      title: "Couldn't read the posting: paste the text",
+      tab: "Failed",
+    });
+    // Other failures keep their words, also when the run came from a link.
+    expect(runNotice({ kind: "new", status: "failed", fetchFailed: false, url: link, company: "Globex", role: "Backend Engineer" })).toEqual({
+      title: "Run failed",
+      body: "Globex · Backend Engineer",
+      tab: "Failed",
+    });
+    expect(runNotice({ kind: "new", status: "done", fetchFailed: false, url: link })).toEqual({ title: "Resume ready", tab: "Done" });
+    // A cancelled run is never told about, whatever it is.
+    expect(runNotice({ kind: "new", status: "cancelled", fetchFailed: true, url: link })).toBeNull();
+  });
+
   it("has nothing to tell about a run the user cancelled (F32)", () => {
     expect(runNotice({ kind: "new", status: "cancelled", company: "Globex", role: "Backend Engineer" })).toBeNull();
   });
