@@ -21,7 +21,7 @@ reported: 2026-11-15
 - `src/core/runs/queue.ts`: `startRun` takes the start time and keeps it as the run's `startedAt`; the stream's `started` event carries it as `at` (both in milliseconds since the epoch).
 - `src/core/runs/reconnect.ts`: `elapsedSeconds` (the timer's value from `startedAt`) and `activeRun` (the run that is working on an application or waiting for it: the running one first, then the waiting one that starts first; "Verify again" runs are kept apart from the ones that write the resume).
 - `src/app/runs.ts`: `createRunRegistry` takes the clock (`Date.now` by default); `RunSummary.startedAt` is in the answer of `GET /api/runs`.
-- `src/app/applications/[id]/page.tsx`: looks up the selected profile's active runs for the application on the server and hands `runId`, `kind` and `language` to `RetryRun` and `ResumeEditor` as `active`.
+- `src/app/applications/[id]/page.tsx`: looks up the selected profile's active runs for the application on the server and hands `runId` and `kind` to `RetryRun` and `ResumeEditor` as `active` (no `language` since [english-only-resumes](english-only-resumes.md)).
 - `src/components/use-active-run.ts`: `useActiveRun` follows that run through its replaying event stream and calls `router.refresh()` when it ends. It skips a run the page already follows.
 - `src/components/use-run.tsx`: the timer counts from the `started` event's time; `runId` says which run is followed; a `follow` that was replaced by a newer one no longer resets the newer one's state.
 - `src/components/retry-run.tsx`, `src/components/resume-editor.tsx`: take `active` and show the run as in progress.
@@ -41,7 +41,7 @@ reported: 2026-11-15
 - Art. V.3 (which run a page follows and the elapsed time are pure core functions; the clock is handed in by the app).
 - Art. V.8 (progress is shown again instead of an idle page).
 - Art. III.7 (the application page only looks at the selected profile's runs).
-- Art. III.4 (only the run's ID, kind and language are handed to the page; never its posting).
+- Art. III.4 (only the run's ID and kind are handed to the page; never its posting).
 
 ## Notes
 

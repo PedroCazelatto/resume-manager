@@ -16,7 +16,6 @@ Build order, decided 2026-11-21: the quickest tasks first, as far as what each d
 - [runs-list-changes.md](runs-list-changes.md) — Remove, cancel and archive runs, and other Runs list changes decided on 2026-11-17 (F48)
 - [home-applications-table.md](home-applications-table.md) — Home page as one table of all applications, with the queue in tabs (F26)
 - [application-uuids.md](application-uuids.md) — Name application folders with a UUID, and update old applications (F50)
-- [english-only-resumes.md](english-only-resumes.md) — Write every resume in English and remove the language choice (F51)
 - [edit-before-restart.md](edit-before-restart.md) — Edit the posting or add a note before starting a run again (F52)
 - [runs-list-push.md](runs-list-push.md) — Push the Runs list from the server instead of polling it (F53)
 
@@ -68,6 +67,7 @@ Build order, decided 2026-11-21: the quickest tasks first, as far as what each d
 - [context-size-warning.md](context-size-warning.md) — Warn when a model call won't fit the context window (F40)
 - [catch-number-words.md](catch-number-words.md) — Catch numbers written as words (F41)
 - [run-queue.md](run-queue.md) — Queue runs and track them on the server (F42)
+- [english-only-resumes.md](english-only-resumes.md) — Write every resume in English and remove the language choice (F51)
 
 ## Out of scope
 

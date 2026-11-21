@@ -12,7 +12,7 @@ reported: 2026-11-14
 - The run ends as `cancelled` and the next waiting run starts. A run that is between two steps stops before the next one.
 - Files of finished steps stay saved. Nothing is deleted or offered for deletion.
 - A cancelled run that has an application folder links to it from the Runs list; the application page offers "Try again", which skips the finished steps, as with a failed run.
-- A new run cancelled before its application was saved has "Try again" in the Runs list, which queues its posting and language again; see [try-again-failed-run](try-again-failed-run.md).
+- A new run cancelled before its application was saved has "Try again" in the Runs list, which queues its posting again; see [try-again-failed-run](try-again-failed-run.md).
 - A cancelled run keeps its steps in the Runs list, as it left them; see [run-queue](run-queue.md).
 - Cancelling is not an error: the Runs list says "cancelled", and the page that was following the run says "This run was cancelled. The finished steps stay saved." No error message is shown or stored.
 - A waiting run is still taken off the queue with "Remove" and leaves the list, as before. On the application page the button sits next to "Waiting for another run to finish…".

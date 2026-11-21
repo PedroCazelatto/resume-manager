@@ -8,7 +8,7 @@ reported: 2026-11-14
 ## What it does
 
 - The "From links" tab is a text area that takes several links, one per line. Blank lines and the spaces around a link are ignored.
-- Each link becomes its own run, in the order given, with the chosen language. Every link enters the fetch queue at once and joins the run queue when its fetch worked ([posting-by-url](posting-by-url.md)), so the runs use the model one after another without further action, each saving its own application folder.
+- Each link becomes its own run, in the order given. Every resume is written in English ([english-only-resumes](english-only-resumes.md)). Every link enters the fetch queue at once and joins the run queue when its fetch worked ([posting-by-url](posting-by-url.md)), so the runs use the model one after another without further action, each saving its own application folder.
 - A link given twice is queued once, where it came first. Two lines are the same link when they read as the same address (`https://Jobs.Example.com` and `https://jobs.example.com/`).
 - Every line is checked before anything starts. A line that is not an http or https link, that leads to this computer or a private network, or that is an Indeed link refuses the whole list: nothing is queued, and the message names each such line by its number and text, with the reason. The form checks first; the server checks again.
 - One Indeed link given alone still moves to "Paste text" with the link kept, as in [posting-by-url](posting-by-url.md).
@@ -20,7 +20,7 @@ reported: 2026-11-14
 
 - `src/core/posting/links.ts`: `splitLines`, `readLinks` (the links in order, blank lines dropped, duplicates dropped, or every refused line with its number, text and reason) and `refusedMessage`.
 - `src/core/posting/start.ts`: `readLinkStarts`, what `POST /api/applications` accepts as `urls`.
-- `src/app/api/applications/route.ts`: `{ urls: string[], language }` queues one run per link and answers `{ runIds }` with 202, or 400 with the message and nothing queued. `{ url, language }` and `{ posting, … }` still answer `{ runId }`.
+- `src/app/api/applications/route.ts`: `{ urls: string[] }` queues one run per link and answers `{ runIds }` with 202, or 400 with the message and nothing queued. `{ url }` and `{ posting, … }` still answer `{ runId }`.
 - `src/app/run.ts`: `enqueueRuns`, one `enqueue` per link for the selected profile.
 - `src/components/use-run.tsx`: `enqueueRuns`, which `enqueueRun` now goes through; every queued run is watched for its end ([notify-when-run-ends](notify-when-run-ends.md)).
 - `src/components/new-application-form.tsx` (the text area, the check before sending, the count), `src/components/runs-list.tsx` (the link on a run without an application).
@@ -30,7 +30,7 @@ reported: 2026-11-14
 
 - `src/core/posting/links.test.ts`: the order; blank lines and spaces; a link given twice, also written differently; a text of blank lines only; a refused line named by its number in the text as given; private addresses and Indeed; the message.
 - `src/core/posting/start.test.ts` ("readLinkStarts"): one start per link; nothing when a line is refused; an empty list; something that isn't a list of text.
-- `src/app/runs.test.ts` ("a list of links"), with a fake fetcher and a fake model: three links are fetched in order and run one after another by themselves, each with its own posting and the language; with the second link failing to fetch, the first and third still run, the second never reaches the model and is listed as failed with its reason, `retryable` and `fetchFailed`, and "Try again" fetches it again.
+- `src/app/runs.test.ts` ("a list of links"), with a fake fetcher and a fake model: three links are fetched in order and run one after another by themselves, each with its own posting; with the second link failing to fetch, the first and third still run, the second never reaches the model and is listed as failed with its reason, `retryable` and `fetchFailed`, and "Try again" fetches it again.
 - Checked by hand on 2026-11-17 against the dev server with `example-profiles` and no model configured or reachable: a list with a line that is not a link and an Indeed link answered 400 naming lines 3 and 4, and queued nothing; a list of blank lines answered 400; a list of `https://example.com/`, a name that doesn't exist and `https://example.org/`, with blank lines and the first link repeated, answered three `runIds`; all three were listed as `fetching` with their link and the language, the first and third finished their fetch and went on to the run queue (where they failed for lack of a model), the second was listed as a failed fetch with its reason, and `POST /api/runs/[runId]` queued it again. No page text was in the server log.
 - Not seen with a real model: three runs each producing an application folder. That order is covered by the tests with the fake model only.
 - Not looked at in a browser: the text area, the message naming the lines, the count, and the link in the Runs list.
@@ -56,4 +56,5 @@ reported: 2026-11-14
   - no maximum number of links (as built);
   - what a row shows comes from the job posting's details: title, company, source and state, with the link while the title isn't known ([job-posting-details](job-posting-details.md));
   - the form's "From links" tab becomes a modal opened from the home page's new table ([home-applications-table](home-applications-table.md)).
-  - the single-link request `{ url, language }` is removed ([link-handling-changes](link-handling-changes.md)).
+  - the single-link request `{ url }` is removed ([link-handling-changes](link-handling-changes.md)).
+- Decided 2026-11-17: the language choice is removed, so a list's runs carry no language and every resume is written in English ([english-only-resumes](english-only-resumes.md), built on 2026-11-21).
