@@ -1,4 +1,4 @@
-# Resumee Manager
+# Resume Manager
 
 Resumes tailored to each job, written by a local AI model from your own data. Nothing leaves your machine.
 
@@ -92,11 +92,12 @@ profiles/jane-doe/
 ├── summary.md
 ├── skills.md
 ├── languages.md
+├── experience/2019-03-initech-software-developer.md
 ├── experience/2023-01-acme-senior-developer.md
 ├── education/2015-usp-bsc-computer-science.md
-├── projects/resumee-manager.md
+├── projects/open-invoice.md
 ├── certifications/2024-06-aws-solutions-architect.md
-├── extras/
+├── extras/liffey-code-club-mentor.md
 └── applications/
     └── 2026-11-05-globex-backend-engineer/
         ├── job.md                # the posting
@@ -120,6 +121,8 @@ tags: [typescript, aws, postgresql]
 
 - Led the migration of the billing service from a monolith to event-driven microservices.
 - Cut p95 API latency from 800 ms to 120 ms by redesigning the caching layer.
+- Deployed the new services to Amazon EKS, with the infrastructure managed in Terraform.
+- Mentor two junior developers through weekly pairing sessions.
 ```
 
 The full schema for every file is in [`constitution.md`, Article IV](constitution.md#article-iv--data-markdown-is-the-source-of-truth). `profiles/` is gitignored. `example-profiles/` holds a fictional profile for tests.
