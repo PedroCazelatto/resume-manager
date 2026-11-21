@@ -28,6 +28,7 @@ Application folders are named `<YYYY-MM-DD>-<company>-<role>`, so a folder can o
 - [ ] The update lists what it will rewrite and delete, changes nothing if the user doesn't confirm, and after confirming leaves only applications with the new fields and a link.
 - [ ] Unknown frontmatter fields and every body survive the rewrite; another profile is never touched.
 - [ ] The rewrite and the list of changes are pure core code with unit tests on `example-profiles/` data copies; `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` pass.
+- [ ] The README's example application folder (under "Your data") is a UUID, updated in the file and left uncommitted for the user's review (Art. XI.5).
 - [ ] This file says `version: implemented` in the implemented format, `backlog/index.md` lists it under Implemented, and [application-folders](application-folders.md) describes the new names.
 
 ## Technical notes
