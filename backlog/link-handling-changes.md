@@ -13,7 +13,7 @@ The user's answers of 2026-11-17 change how links are accepted and fetched, as b
 
 1. **One lookup per request.** The fetcher resolves a link's host name once, checks every address it got (as today: no loopback, private or link-local address), and connects to a checked address. It never resolves the name a second time. Each redirect is handled the same way. HTTPS still checks the certificate against the host name.
 2. **No character limit on a posting's text.** The 50,000-character limit goes, for fetched text and for pasted text alike. The 5 MB page limit, the 30 seconds and the 5 redirects stay.
-3. **The single-link request is removed.** `POST /api/applications` no longer accepts `{ url, language }`; it accepts `{ urls, language }` (the form's links) and pasted text with its link.
+3. **The single-link request is removed.** `POST /api/applications` no longer accepts a single `{ url }`. It accepts `{ urls }` (the form's links) and pasted text with its link, and no `language` once [english-only-resumes](english-only-resumes.md) is built.
 4. **Every posting has its link.** A pasted posting without a link no longer exists: wherever pasted text is accepted, its link is required, and the server refuses pasted text without one.
 5. **LinkedIn job IDs.** Two LinkedIn links to the same job are the same link: `https://www.linkedin.com/jobs/search/?currentJobId=<id>`, `https://www.linkedin.com/jobs/view/<id>` and `https://www.linkedin.com/jobs/view/<words>-<id>` all name job `<id>`.
 6. **Indeed links become rows that need their text.** An Indeed link, alone or inside a list, no longer refuses anything and no longer moves the form to "Paste text". The other links of the list are queued as usual, and each Indeed link becomes a row in the Runs list in the state "needs the posting's text", with a "Paste the text" button, like a failed fetch but without any request to Indeed. (Reading Indeed pages is the [browser-extension](browser-extension.md)'s job; these rows are what happens without it.)
@@ -24,7 +24,7 @@ The user's answers of 2026-11-17 change how links are accepted and fetched, as b
 
 - [ ] The fetcher's tests show one lookup per host per request, and that the connection is made to the checked address.
 - [ ] A fetched page and a pasted posting with more than 50,000 characters of text both go on whole.
-- [ ] `{ url, language }` is refused with 400, and nothing in the app sends it; pasted text without a link is refused with 400.
+- [ ] A single `{ url }` is refused with 400, and nothing in the app sends it; pasted text without a link is refused with 400.
 - [ ] The three LinkedIn forms of one job count as one link; two different jobs stay two.
 - [ ] A list with an Indeed link queues the other links, and lists the Indeed link as needing its text with "Paste the text"; the server makes no request to Indeed. One Indeed link alone does the same.
 - [ ] A link already queued, fetching, waiting, running or finished in the Runs list, or saved in an application's `job.md`, is skipped and named; a failed or cancelled one is queued again.

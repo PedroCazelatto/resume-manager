@@ -8,7 +8,7 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Suggested order, from what each task depends on: english-only-resumes first (it removes code the others touch); runs-list-changes and link-handling-changes, one after the other (they share files); job-posting-details; application-uuids; edit-before-restart; home-applications-table; browser-extension last.
+Build order, decided 2026-11-21: the quickest tasks first, as far as what each depends on allows, and one task at a time, because almost every task touches the same files (`src/app/runs.ts`, `src/core/runs/queue.ts`, `src/components/runs-list.tsx`). The order is english-only-resumes, runs-list-push, link-handling-changes, runs-list-changes, job-posting-details, edit-before-restart, application-uuids, browser-extension, and home-applications-table last. A task still waiting for the user's answer to a question moves down, and the next one goes first.
 
 - [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
 - [job-posting-details.md](job-posting-details.md) — Job posting details: title, company, source and more (F46)
@@ -18,6 +18,7 @@ Suggested order, from what each task depends on: english-only-resumes first (it 
 - [application-uuids.md](application-uuids.md) — Name application folders with a UUID, and update old applications (F50)
 - [english-only-resumes.md](english-only-resumes.md) — Write every resume in English and remove the language choice (F51)
 - [edit-before-restart.md](edit-before-restart.md) — Edit the posting or add a note before starting a run again (F52)
+- [runs-list-push.md](runs-list-push.md) — Push the Runs list from the server instead of polling it (F53)
 
 ## Future version
 
