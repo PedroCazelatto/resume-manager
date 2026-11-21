@@ -21,6 +21,7 @@ import {
   startFetch,
   startRun,
   triedAgain,
+  waitingToFetch,
   type QueuedRun,
 } from "./queue";
 
@@ -251,6 +252,18 @@ describe("run queue", () => {
       const { runs: left, removed } = removeWaiting(runs, "jane-doe", "a");
       expect(removed).toBe(true);
       expect(brief(left)).toEqual(["john-b:fetching"]);
+    });
+
+    it("tells a link waiting for its turn from the one being fetched (F48)", () => {
+      const runs = startFetch(link(link(queued(), "a"), "b"), "a");
+      const waiting = (run: QueuedRun) => waitingToFetch({ status: run.status, steps: runSteps(run.events).steps });
+
+      expect(runs.map(waiting)).toEqual([false, true]);
+      // Once its own fetch has begun, the second one is fetching too.
+      const next = startFetch(failFetch(runs, "a", "The page answered 403."), "b");
+      expect(next.map(waiting)).toEqual([false, false]);
+      // Only a run of the fetch queue waits to fetch.
+      expect(queued("c").map(waiting)).toEqual([false]);
     });
 
     it("lists the runs being fetched after the waiting ones and before the finished ones", () => {

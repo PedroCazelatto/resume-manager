@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { LlmError, type LlmClient } from "@/core/llm";
 import type { FetchedPosting } from "@/core/posting/job-fetcher";
-import type { QueueEvent } from "@/core/runs/queue";
+import { waitingToFetch, type QueueEvent } from "@/core/runs/queue";
 import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "./runs";
 
 const POSTING = "Globex is hiring a Backend Engineer.";
@@ -570,6 +570,28 @@ describe("run registry", () => {
       expect(asked).toEqual(["https://jobs.example.com/1", "https://jobs.example.com/2"]);
       expect(registry.list("jane-doe")).toMatchObject([{ runId: first, status: "failed" }]);
       expect(registry.list("john-roe")).toMatchObject([{ runId: second, steps: [{ step: "fetch", status: "running" }] }]);
+    });
+
+    it("lists the first of two links as being fetched and the second as waiting to fetch, until the first is done (F48)", async () => {
+      const { execute } = manualRuns();
+      const { fetchPosting, answers } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const [first, second] = [LINK, "https://jobs.example.com/2"].map((url) => registry.enqueue("jane-doe", "new", link(url)));
+      const waiting = () => registry.list("jane-doe").map((run) => [run.runId, waitingToFetch(run)]);
+
+      expect(waiting()).toEqual([
+        [first, false],
+        [second, true],
+      ]);
+
+      answers.get(LINK)!(fetched);
+      await settled();
+
+      expect(waiting()).toEqual([
+        [first, false],
+        [second, false],
+      ]);
+      expect(registry.list("jane-doe")[1]).toMatchObject({ runId: second, status: "fetching", steps: [{ step: "fetch", status: "running" }] });
     });
 
     /** A link run whose fetch failed. */

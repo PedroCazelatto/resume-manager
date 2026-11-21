@@ -265,6 +265,14 @@ export function triedAgain<I>(runs: readonly QueuedRun<I>[], runId: string, as: 
 }
 
 /**
+ * Whether a run of the fetch queue is still waiting for its turn: only the link being fetched
+ * has begun its `fetch` step. The Runs list reads "waiting to fetch" for it (F48).
+ */
+export function waitingToFetch(run: { status: RunStatus; steps: readonly RunStepState[] }): boolean {
+  return run.status === "fetching" && !run.steps.some((state) => state.step === "fetch");
+}
+
+/**
  * Whether a run's fetch failed, or its link is one the server never requests, so it never
  * joined the run queue and the Runs list asks for the posting's text (F10, F47).
  */

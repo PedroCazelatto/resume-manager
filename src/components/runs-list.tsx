@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { RunSummary } from "@/app/runs";
+import { waitingToFetch } from "@/core/runs/queue";
 import { pasteInstead } from "@/components/new-application-form";
 import { tellEndedRuns } from "@/components/run-notifications";
 import { SectionCard } from "@/components/section-card";
@@ -35,6 +36,12 @@ const STATUS_TONES: Record<RunSummary["status"], Tone> = {
   failed: "red",
   cancelled: "neutral",
 };
+
+/** What a row says about its run: only the link being fetched is "fetching the posting" (F48). */
+function stateLabel(run: RunSummary): string {
+  if (run.fetchFailed) return "needs the posting's text";
+  return waitingToFetch(run) ? "waiting to fetch" : STATUS_LABELS[run.status];
+}
 
 /**
  * The selected profile's runs since the app started: the active one with its steps, the
@@ -99,9 +106,7 @@ export function RunsList() {
                 {/* Until its application exists, a run from a link is told apart by the link (F33). */}
                 {!run.applicationId && run.url && <span className="break-all">{` · ${run.url}`}</span>}
               </span>
-              <StatusBadge tone={run.fetchFailed ? "amber" : STATUS_TONES[run.status]}>
-                {run.fetchFailed ? "needs the posting's text" : STATUS_LABELS[run.status]}
-              </StatusBadge>
+              <StatusBadge tone={run.fetchFailed ? "amber" : STATUS_TONES[run.status]}>{stateLabel(run)}</StatusBadge>
               {(run.status === "queued" || run.status === "fetching") && (
                 <Button variant="outline" size="sm" onClick={() => remove(run.runId)}>
                   Remove
