@@ -32,7 +32,7 @@ Indeed is one of the two job sites that must work, and it refuses automated requ
 - The bookmark is a `javascript:` link built from the app's own address (so it works on any port). It only reads the page and opens `http://<app>/send#url=<encoded>&text=<encoded>`; it makes no network request from the job page, so the page's content-security rules don't apply to it. If the browser blocks the new tab, it navigates the current tab instead.
 - New route `src/app/send/page.tsx` (client component for reading `location.hash`); it posts to `POST /api/applications` with `{ posting, url }` (no language since [english-only-resumes](english-only-resumes.md)).
 - `POST /api/applications` gains an optional `url`, validated like any link (http/https only) and saved in `job.md`; `src/core/pipeline/run.ts` passes it to `analysePosting`, which today always writes `source: paste` without a link.
-- The text is untrusted input exactly like a pasted posting (Art. II.7); the 50,000-character limit of `src/app/api/applications/route.ts` applies.
+- The text is untrusted input exactly like a pasted posting (Art. II.7); like any posting, it has no character limit ([link-handling-changes](link-handling-changes.md)).
 - Art. III.2: the app itself makes no request to the job site. Art. V.10 is untouched: there is no fetch and no headless browser here.
 
 ## Depends on
