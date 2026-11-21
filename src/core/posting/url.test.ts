@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkPostingUrl, hostOf, isPublicAddress, parseLink, PRIVATE_ADDRESS } from "./url";
+import { checkPostingUrl, hostOf, isPublicAddress, parseLink, PRIVATE_ADDRESS, webAddress } from "./url";
 
 const refused = (link: string) => {
   const check = checkPostingUrl(link);
@@ -95,5 +95,15 @@ describe("hostOf", () => {
   it("gives the host without brackets, trailing dot or capitals", () => {
     expect(hostOf(new URL("https://Jobs.Example.com./x"))).toBe("jobs.example.com");
     expect(hostOf(new URL("http://[::1]:8080/"))).toBe("::1");
+  });
+});
+
+describe("webAddress", () => {
+  it("keeps only http and https addresses", () => {
+    expect(webAddress(" https://globex.example ")).toBe("https://globex.example/");
+    expect(webAddress("HTTP://Globex.example/a")).toBe("http://globex.example/a");
+    for (const value of ["javascript:alert(1)", "JaVaScRiPt:alert(1)", "vbscript:x", "mailto:a@b.c", "globex.example", "", 42, null]) {
+      expect(webAddress(value), String(value)).toBeUndefined();
+    }
   });
 });

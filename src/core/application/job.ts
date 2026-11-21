@@ -26,9 +26,14 @@ export function jobPlatform(job: Job): string | undefined {
   return job.url === undefined ? undefined : platformName(new URL(job.url));
 }
 
+/** Only the values that are known. */
+function known<T extends object>(values: T): T {
+  return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) as T;
+}
+
 /** The job's details, as the prompts carry them (F46). */
 export function jobDetails(job: Job): JobDetails {
-  const details: JobDetails = {
+  return known({
     title: jobTitle(job),
     company: job.company,
     company_url: job.company_url,
@@ -36,12 +41,15 @@ export function jobDetails(job: Job): JobDetails {
     salary: job.salary,
     work_model: job.work_model,
     hours: job.hours,
-  };
-  return Object.fromEntries(Object.entries(details).filter(([, value]) => value !== undefined));
+  });
+}
+
+/** What the Runs list shows of the details read from a posting's page, before its analysis is saved (F46). */
+export function detailsSummary(details: JobDetails): JobSummary {
+  return known({ title: details.title, company: details.company, companyUrl: details.company_url });
 }
 
 /** What the run tells about the job once its application is saved. */
 export function jobSummary(job: Job): JobSummary {
-  const summary: JobSummary = { title: jobTitle(job), company: job.company, companyUrl: job.company_url, source: jobPlatform(job) };
-  return Object.fromEntries(Object.entries(summary).filter(([, value]) => value !== undefined));
+  return known({ ...detailsSummary(jobDetails(job)), source: jobPlatform(job) });
 }

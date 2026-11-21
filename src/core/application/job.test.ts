@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { jobDetails, jobPlatform, jobSummary, jobTitle } from "./job";
+import { detailsSummary, jobDetails, jobPlatform, jobSummary, jobTitle } from "./job";
 import type { Job } from "./schemas";
 
 const NEW: Job = {
@@ -54,5 +54,13 @@ describe("reading job.md (F46)", () => {
     expect(jobDetails(OLD)).toEqual({ title: "Backend Engineer", company: "Globex" });
     expect(jobSummary(NEW)).toEqual({ title: "Senior Backend Engineer", company: "Globex", companyUrl: "https://globex.example/", source: "LinkedIn" });
     expect(jobSummary(OLD)).toEqual({ title: "Backend Engineer", company: "Globex", source: "Indeed" });
+  });
+
+  it("gives what the Runs list shows of a page's details", () => {
+    expect(detailsSummary({ title: "Backend Engineer", company_url: "https://globex.example/", salary: "€60,000 a year" })).toEqual({
+      title: "Backend Engineer",
+      companyUrl: "https://globex.example/",
+    });
+    expect(detailsSummary({})).toEqual({});
   });
 });

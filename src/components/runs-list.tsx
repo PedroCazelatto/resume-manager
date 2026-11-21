@@ -3,19 +3,21 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { RunSummary } from "@/app/runs";
+import { webAddress } from "@/core/posting/url";
 import { stopAction, waitingToFetch } from "@/core/runs/queue";
 import { Icon } from "@/components/icon";
 import { pasteInstead } from "@/components/new-application-form";
 import { tellEndedRuns } from "@/components/run-notifications";
 import { SectionCard } from "@/components/section-card";
 import { StatusBadge, type Tone } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RUNS_CHANGED, RunProgress, RunSteps, enqueueRun, useRun } from "@/components/use-run";
 
 const REFRESH_MS = 2000;
 
-const KIND_LABELS: Record<RunSummary["kind"], string> = {
-  new: "New application",
+/** The run's kind, as a small label; a new application has none, since every row is one (F46). */
+const KIND_LABELS: Partial<Record<RunSummary["kind"], string>> = {
   retry: "Try again",
   verify: "Verify again",
 };
@@ -110,22 +112,7 @@ export function RunsList() {
         {runs.map((run) => (
           <li key={run.runId} className="space-y-1 py-3 first:pt-0 last:pb-0">
             <div className="flex flex-wrap items-center gap-3">
-              <span>
-                {KIND_LABELS[run.kind]}
-                {run.applicationId && (
-                  <>
-                    {" · "}
-                    <Link
-                      href={`/applications/${run.applicationId}`}
-                      className="break-all text-primary underline underline-offset-2"
-                    >
-                      {run.applicationId}
-                    </Link>
-                  </>
-                )}
-                {/* Until its application exists, a run from a link is told apart by the link (F33). */}
-                {!run.applicationId && run.url && <span className="break-all">{` · ${run.url}`}</span>}
-              </span>
+              <RunJob run={run} />
               <StatusBadge tone={needsText(run) ? "amber" : STATUS_TONES[run.status]}>{stateLabel(run)}</StatusBadge>
               {/* A link of the fetch queue is removed: not fetched, nothing kept. A waiting run is
                   cancelled and stays listed; the running one has its X next to its step (F48). */}
@@ -173,6 +160,49 @@ export function RunsList() {
         ))}
       </ul>
     </SectionCard>
+  );
+}
+
+/**
+ * The job a row stands for (F46): its title, linked to the application once it exists, with the
+ * run's kind as a small label, and the company and platform under it, the company linked to its
+ * website when the posting gives one. Until the title is known the row shows the run's link. The
+ * details come from the posting's page, which is untrusted (Art. II.7): they are shown as text,
+ * and the website becomes a link only as an http or https address.
+ */
+function RunJob({ run }: { run: RunSummary }) {
+  const name = run.title ?? run.url ?? run.applicationId;
+  // A link or an ID has no spaces to wrap at.
+  const wrap = run.title === undefined ? "break-all" : "break-words";
+  const website = webAddress(run.companyUrl);
+  const kind = KIND_LABELS[run.kind];
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {run.applicationId ? (
+          <Link href={`/applications/${run.applicationId}`} className={`${wrap} font-medium text-primary underline underline-offset-2`}>
+            {name}
+          </Link>
+        ) : (
+          <span className={`${wrap} font-medium`}>{name}</span>
+        )}
+        {kind && <Badge variant="outline">{kind}</Badge>}
+      </p>
+      {(run.company || run.source) && (
+        <p className="text-xs break-words text-muted-foreground">
+          {run.company &&
+            (website ? (
+              <a href={website} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                {run.company}
+              </a>
+            ) : (
+              run.company
+            ))}
+          {run.company && run.source && " · "}
+          {run.source}
+        </p>
+      )}
+    </div>
   );
 }
 

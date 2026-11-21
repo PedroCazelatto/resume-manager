@@ -35,6 +35,12 @@ export function platformName(url: URL): string {
   return hostOf(url).replace(/^www\./, "");
 }
 
+/** `platformName` for a link as text; text that isn't an http or https link names none. */
+export function linkPlatform(link: string): string | undefined {
+  const parsed = parseLink(link);
+  return parsed.ok ? platformName(parsed.url) : undefined;
+}
+
 /** The job a LinkedIn jobs link shows in its panel (`/jobs/…?currentJobId=<id>`), or null. */
 function currentJobId(url: URL): string | null {
   if (!isLinkedInUrl(url) || !url.pathname.startsWith("/jobs/")) return null;

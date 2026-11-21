@@ -1,6 +1,7 @@
 import { parse, type HTMLElement } from "node-html-parser";
 import type { JobDetails } from "../application/schemas";
 import { pageText, type HtmlToTextOptions } from "./html-to-text";
+import { webAddress } from "./url";
 
 // A job posting's details read from its page's HTML before the model runs (F46, Art. VI.2):
 // the schema.org `JobPosting` data a page keeps in `<script type="application/ld+json">`.
@@ -81,17 +82,6 @@ function plainText(value: unknown): string | undefined {
   if (text === undefined) return undefined;
   const plain = parse(text).text.replace(/\s+/g, " ").trim();
   return plain === "" ? undefined : plain;
-}
-
-/** An http or https address, or undefined: the only kind of website that may become a link (Art. II.7). */
-export function webAddress(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  try {
-    const url = new URL(value.trim());
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /** Distinct values, compared without case, in the order given. */

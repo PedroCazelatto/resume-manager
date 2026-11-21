@@ -67,6 +67,7 @@ describe("run registry", () => {
         warnings: {},
         retryable: false,
         url: PASTED_LINK,
+        source: "jobs.example.com",
         fetchFailed: false,
         archivable: false,
       },
@@ -551,6 +552,7 @@ describe("run registry", () => {
           warnings: {},
           retryable: false,
           url: PASTED_LINK,
+          source: "jobs.example.com",
           fetchFailed: false,
           archivable: false,
         },
@@ -562,6 +564,7 @@ describe("run registry", () => {
           warnings: {},
           retryable: false,
           url: LINK,
+          source: "jobs.example.com",
           fetchFailed: false,
           archivable: false,
         },
@@ -589,6 +592,49 @@ describe("run registry", () => {
       expect(started[0].input).toEqual({ start: { posting: POSTING, url: PAGE, details: {} } });
       expect(statuses(registry)).toEqual(["running"]);
       expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
+    });
+
+    it("lists the job's details: the platform from the link, the page's once fetched, then job.md's once saved (F46)", async () => {
+      const { execute, sends } = manualRuns();
+      const { fetchPosting, answers } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const runId = registry.enqueue("jane-doe", "new", link("https://www.linkedin.com/jobs/search/?currentJobId=4321987650"));
+      const details = (run = registry.list("jane-doe")[0]) => ({ title: run.title, company: run.company, companyUrl: run.companyUrl, source: run.source });
+
+      // Until the title is known the row shows the link, and the platform is named from it.
+      expect(details()).toEqual({ source: "LinkedIn" });
+
+      answers.get("https://www.linkedin.com/jobs/search/?currentJobId=4321987650")!({
+        ok: true,
+        text: POSTING,
+        url: "https://www.linkedin.com/jobs/view/4321987650",
+        details: { title: "Backend Engineer", company: "Globex", company_url: "https://globex.example/", salary: "€60,000 a year" },
+      });
+      await settled();
+
+      // Known before the analysis ends, while the run is using the model.
+      expect(registry.list("jane-doe")[0]).toMatchObject({ status: "running", url: "https://www.linkedin.com/jobs/view/4321987650" });
+      expect(details()).toEqual({ title: "Backend Engineer", company: "Globex", companyUrl: "https://globex.example/", source: "LinkedIn" });
+      // Only what the row shows is listed.
+      expect(JSON.stringify(registry.list("jane-doe"))).not.toContain("€60,000");
+
+      sends.get(runId)!({ type: "saved", id: ID, job: { title: "Backend Engineer", company: "Globex Corporation", companyUrl: "https://globex.example/", source: "LinkedIn" } });
+      expect(details()).toEqual({ title: "Backend Engineer", company: "Globex Corporation", companyUrl: "https://globex.example/", source: "LinkedIn" });
+    });
+
+    it("keeps the page's details on a Try again of a fetched posting", async () => {
+      const { execute, ends } = manualRuns();
+      const registry = createRunRegistry(execute, async () => ({ ...fetched, details: { title: "Backend Engineer" } }));
+      const runId = registry.enqueue("jane-doe", "new", link());
+      await settled();
+      ends.get(runId)!.reject(new Error("Can't reach Ollama."));
+      await settled();
+
+      const again = registry.retry("jane-doe", runId);
+
+      expect(again).not.toBe("refused");
+      const retried = registry.list("jane-doe").find((run) => typeof again === "object" && run.runId === again.runId);
+      expect(retried).toMatchObject({ title: "Backend Engineer", source: "jobs.example.com", url: PAGE });
     });
 
     it("joins the run queue behind the runs that were already waiting when its fetch ended", async () => {
@@ -679,6 +725,7 @@ describe("run registry", () => {
           warnings: {},
           retryable: true,
           url: LINK,
+          source: "jobs.example.com",
           fetchFailed: true,
           archivable: true,
         },
@@ -729,6 +776,7 @@ describe("run registry", () => {
         warnings: {},
         retryable: false,
         url: LINK,
+        source: "jobs.example.com",
         fetchFailed: false,
         archivable: false,
       });
@@ -882,7 +930,19 @@ describe("run registry", () => {
 
         expect(asked).toEqual([]);
         expect(registry.list("jane-doe")).toEqual([
-          { runId, kind: "new", status: "failed", error: BLOCKED, steps: [], warnings: {}, retryable: false, url: INDEED, fetchFailed: true, archivable: true },
+          {
+            runId,
+            kind: "new",
+            status: "failed",
+            error: BLOCKED,
+            steps: [],
+            warnings: {},
+            retryable: false,
+            url: INDEED,
+            source: "Indeed",
+            fetchFailed: true,
+            archivable: true,
+          },
         ]);
         expect(registry.retry("jane-doe", runId)).toBe("refused");
         expect(await followed(registry, "jane-doe", runId)).toEqual([{ type: "error", message: BLOCKED }]);

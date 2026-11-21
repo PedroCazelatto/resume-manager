@@ -21,6 +21,16 @@ export function parseLink(link: string): LinkCheck {
   return { ok: true, url };
 }
 
+/**
+ * A website as an http or https address, or undefined. A page's company website is untrusted
+ * input: only such an address may become a link, since it can't run script (Art. II.7, F46).
+ */
+export function webAddress(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const parsed = parseLink(value);
+  return parsed.ok ? parsed.url.href : undefined;
+}
+
 /** The host of a URL as a plain name or address: no brackets, no trailing dot, lowercase. */
 export function hostOf(url: URL): string {
   return url.hostname

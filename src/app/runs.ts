@@ -1,6 +1,7 @@
+import { detailsSummary, type JobSummary } from "@/core/application/job";
 import type { RunEvent, RunInput, RunStep } from "@/core/pipeline/run";
 import type { FetchedPosting, JobFetcher } from "@/core/posting/job-fetcher";
-import { INDEED_BLOCKED, isIndeedLink } from "@/core/posting/sites";
+import { INDEED_BLOCKED, isIndeedLink, linkPlatform } from "@/core/posting/sites";
 import { fetchedStart, type PastedStart } from "@/core/posting/start";
 import {
   addNotFetched,
@@ -66,9 +67,16 @@ export interface RunSummary {
   /** When the run started, in milliseconds since the epoch (F39). */
   startedAt?: number;
   applicationId?: string;
-  /** The job's title and company, once known (F38, F46). */
+  /**
+   * The job's title, company and company website, once known: read from the posting's page once
+   * its fetch worked, then from job.md once the application is saved (F38, F46). Page text, never
+   * the posting's.
+   */
   title?: string;
   company?: string;
+  companyUrl?: string;
+  /** The job platform: named from the run's link, then as job.md says it (F46). */
+  source?: string;
   error?: string;
   /** The steps the run went through and their context-size warnings (F30, F40). */
   steps: RunStepState[];
@@ -240,21 +248,29 @@ export function createRunRegistry(
 
     /** The profile's own runs, in the order the Runs list shows them (Art. III.7). */
     list(profile: string): RunSummary[] {
-      return runsOf(runs, profile).map((run) => ({
-        runId: run.runId,
-        kind: run.kind,
-        status: run.status,
-        startedAt: run.startedAt,
-        applicationId: run.applicationId,
-        title: run.job?.title,
-        company: run.job?.company,
-        error: run.error,
-        ...runSteps(run.events),
-        retryable: offersTryAgain(runs, run),
-        url: "url" in run.input.start ? run.input.start.url : undefined,
-        fetchFailed: fetchFailed(run),
-        archivable: canArchive(runs, run),
-      }));
+      return runsOf(runs, profile).map((run) => {
+        const { start } = run.input;
+        const url = "url" in start ? start.url : undefined;
+        // The page's details come with the fetched posting; job.md's, once saved, come after (F46).
+        const job: JobSummary = { ...("details" in start && start.details ? detailsSummary(start.details) : {}), ...run.job };
+        return {
+          runId: run.runId,
+          kind: run.kind,
+          status: run.status,
+          startedAt: run.startedAt,
+          applicationId: run.applicationId,
+          title: job.title,
+          company: job.company,
+          companyUrl: job.companyUrl,
+          source: job.source ?? (url === undefined ? undefined : linkPlatform(url)),
+          error: run.error,
+          ...runSteps(run.events),
+          retryable: offersTryAgain(runs, run),
+          url,
+          fetchFailed: fetchFailed(run),
+          archivable: canArchive(runs, run),
+        };
+      });
     },
 
     /**

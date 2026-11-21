@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isIndeedLink, isIndeedUrl, isLinkedInUrl, jobKey, linkedInJobId, platformName, rewriteLinkedInUrl } from "./sites";
+import { isIndeedLink, isIndeedUrl, isLinkedInUrl, jobKey, linkedInJobId, linkPlatform, platformName, rewriteLinkedInUrl } from "./sites";
 
 const rewritten = (link: string) => rewriteLinkedInUrl(new URL(link)).href;
 
@@ -41,6 +41,14 @@ describe("platformName (F46)", () => {
     expect(platform("https://www.Globex.example/careers/1")).toBe("globex.example");
     expect(platform("https://notlinkedin.com/jobs/view/1")).toBe("notlinkedin.com");
     expect(platform("https://indeed.com.example.org/job")).toBe("indeed.com.example.org");
+  });
+});
+
+describe("linkPlatform", () => {
+  it("reads the platform from a link as text, and none from text that isn't a link", () => {
+    expect(linkPlatform(" https://www.linkedin.com/jobs/search/?currentJobId=1 ")).toBe("LinkedIn");
+    expect(linkPlatform("https://jobs.example.com/7")).toBe("jobs.example.com");
+    expect(linkPlatform("jobs.example.com/7")).toBeUndefined();
   });
 });
 

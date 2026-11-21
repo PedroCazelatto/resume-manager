@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readPostingPage, webAddress } from "./details";
+import { readPostingPage } from "./details";
 
 /**
  * A job page with the given JSON-LD blocks in its head, written by hand. As on a real page, `</`
@@ -208,15 +208,5 @@ describe("readPostingPage (F46)", () => {
       expect(readPostingPage(page([POSTING], body), { linkedIn: true }).text).toBe("Backend Engineer - Globex\nFrom LinkedIn's element.");
       expect(readPostingPage(page([POSTING], body)).text).toBe("We build payment systems.\n- TypeScript\n- PostgreSQL");
     });
-  });
-});
-
-describe("webAddress", () => {
-  it("keeps only http and https addresses", () => {
-    expect(webAddress(" https://globex.example ")).toBe("https://globex.example/");
-    expect(webAddress("HTTP://Globex.example/a")).toBe("http://globex.example/a");
-    for (const value of ["javascript:alert(1)", "JaVaScRiPt:alert(1)", "vbscript:x", "mailto:a@b.c", "globex.example", "", 42, null]) {
-      expect(webAddress(value), String(value)).toBeUndefined();
-    }
   });
 });
