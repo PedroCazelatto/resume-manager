@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseTemplate, type ResumeTemplate } from "../template/template";
 import { resumeFixture } from "./fixture.testing";
 import { formatDate, renderResume } from "./render";
-import type { Inference } from "./schema";
+import { resumeFileSchema, type Inference } from "./schema";
 
 function template(layout: string): ResumeTemplate {
   const result = parseTemplate("test", "templates/test.html", `<script type="text/markdown" id="rules">r</script>${layout}`);
@@ -68,6 +68,27 @@ describe("renderResume", () => {
     });
 
     expect(html).toBe("");
+  });
+
+  it("still opens and renders an older resume written in another language as it is (F51)", () => {
+    const fixture = resumeFixture();
+    const older = resumeFileSchema.parse({
+      ...fixture,
+      labels: { ...fixture.labels, experience: "Experiência profissional", present: "Atual" },
+      generated_at: "2026-11-10T10:05:00.000Z",
+      model: "fake-model",
+      template: "ireland",
+      language: "pt",
+      status: "ready",
+      inferences: [],
+    });
+
+    const html = renderResume(
+      template('<html lang="{{language}}"><h2>{{labels.experience}}</h2>{{#each experience}}{{date start}} – {{date end}}{{/each}}</html>'),
+      { content: older, language: older.language, inferences: older.inferences },
+    );
+
+    expect(html).toMatch(/^<html lang="pt"><h2>Experiência profissional<\/h2>jan.* 2023 – Atual<\/html>$/i);
   });
 });
 
