@@ -18,6 +18,7 @@ export function RetryRun({ id, needsResume, active }: { id: string; needsResume:
   // `active` covers the moment before the page starts following it.
   const working = run.running || active !== null;
 
+  // The page shows what the run left once it ends, however it ends (F48).
   async function retry() {
     if (await run.start(`/api/applications/${id}`, {}, "retry")) router.refresh();
   }

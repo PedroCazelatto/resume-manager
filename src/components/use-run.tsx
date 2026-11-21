@@ -40,10 +40,11 @@ export interface Run {
   /** The application folder, once it exists; a failed run can be tried again from it (F19). */
   savedId: string | null;
   /**
-   * Queues a run through a run endpoint and follows it; resolves with the application's ID
-   * when the run finishes. `kind` is what the endpoint queues.
+   * Queues a run through a run endpoint and follows it. Resolves with true once the run has
+   * ended, however it ended (finished, failed or cancelled), so the page can show what it left;
+   * with false when it couldn't be queued (F48). `kind` is what the endpoint queues.
    */
-  start(url: string, body: Record<string, string>, kind: RunKind): Promise<string | null>;
+  start(url: string, body: Record<string, string>, kind: RunKind): Promise<boolean>;
   /**
    * Follows a queued run through its event stream, which replays what already happened.
    * `kind` chooses the words that tell its end (F38).
@@ -200,7 +201,7 @@ export function useRun(): Run {
     return finished;
   }, []);
 
-  async function start(url: string, body: Record<string, string>, kind: RunKind): Promise<string | null> {
+  async function start(url: string, body: Record<string, string>, kind: RunKind): Promise<boolean> {
     setRunning(true);
     setSteps([]);
     setError(null);
@@ -209,9 +210,10 @@ export function useRun(): Run {
     if ("error" in queued) {
       setError(queued.error);
       setRunning(false);
-      return null;
+      return false;
     }
-    return follow(queued.runId, { kind });
+    await follow(queued.runId, { kind });
+    return true;
   }
 
   function cancel() {

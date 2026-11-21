@@ -71,6 +71,7 @@ export function ResumeEditor({ id, yaml, html, maxPages, blockers, reviewCurrent
     });
   }
 
+  // The page shows what the run left once it ends, however it ends (F48).
   async function verify() {
     setProblems([]);
     if (await verification.start(`/api/applications/${id}/verification`, {}, "verify")) router.refresh();
