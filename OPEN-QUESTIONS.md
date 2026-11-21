@@ -178,6 +178,21 @@ Asked 2026-11-21. Most of F46 is built and committed; the LinkedIn part waits fo
     - Next to it is a small label for "Try again" or "Verify again". A new application has no label, so "New application" is gone.
     - The second line is "company · source", small and grey. The company links to its website in a new tab.
 
+### 23. The main action of an Indeed row (F26 home-applications-table)
+Asked 2026-11-21, after your answers to questions 1 and 9.
+
+Answer 9 makes "try again" the main action of "a failed fetch, or an Indeed link that needs its text". Answer 1 says that without the browser extension, an Indeed row offers only "Paste the text" and the archive button, with no "Try again". The extension moved to the future version, so in this version no Indeed row has "Try again". It is undecided what an Indeed row's main action is until the extension exists.
+
+### 24. What "View PDF" does (F26 home-applications-table)
+Asked 2026-11-21, after your answer to question 9.
+
+Answer 9 makes "view PDF" the main action of a finished application and of an archived row. In this version the app saves no PDF: the resume is printed to PDF through the browser's print dialog on the application page (Art. V.9), and one-click PDF (F23) is in the future version. Printing is also blocked while a resume has undismissed verification failures, implied skills still pending, or a model review older than the last edit (Art. VI.7), which is the case for every resume still in `draft`. It is undecided what "View PDF" opens, and what it does for a finished application whose resume can't be printed yet.
+
+### 25. The main action of an archived row that never finished (F26 home-applications-table)
+Asked 2026-11-21, after your answer to question 9.
+
+The Archived tab holds finished applications, but also cancelled and failed rows. A row that never finished has no resume, so there is no PDF to view. It is undecided what main action such a row shows.
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 

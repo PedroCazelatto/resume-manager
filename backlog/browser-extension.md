@@ -16,6 +16,7 @@ Indeed is one of the two job sites that must work. It blocks every request the a
 - Indeed links are read one at a time, in the order given.
 - When Indeed shows a security check or a "blocked" page instead of the job, that link fails with "Indeed asked for a security check: open the link once yourself, then try again", the tab is left open and brought to the front so the user can pass the check, and the remaining links continue.
 - Without the extension, an Indeed link becomes a row that needs its text, with "Paste the text" ([link-handling-changes](link-handling-changes.md)), and a short message says how to install the extension; the home page links to the same instructions.
+- An Indeed row that needs its text offers "Paste the text" and the archive button. With the extension installed, it also offers "Try again", which asks the extension to read the page again; without it, there is no "Try again". A link the extension fails to read (security check, blocked page, 30-second limit) becomes that same row, showing the reason.
 - The text taken from the page is the visible text of its main area (the `main` element or `[role="main"]`), otherwise of the whole page, with no length limit ([link-handling-changes](link-handling-changes.md)). It keeps the title, company and location above the description.
 - The run's `job.md` has the link and `source: Indeed`, like any posting with an Indeed link ([job-posting-details](job-posting-details.md)).
 
@@ -60,4 +61,5 @@ Indeed is one of the two job sites that must work. It blocks every request the a
 - Decided 2026-11-15: whatever sends a posting, it goes to the queue when a run is already working.
 - Decided 2026-11-17: `source` names the platform ("LinkedIn", "Indeed" or another), not how the text arrived, so the extension needs no way to tell its text from pasted text.
 - Decided 2026-11-17 (the user): "We will use the browser extension (until I build a way to bypass the Indeed automation blocker)."
+- Decided 2026-11-21 (the user, Indeed rows and "Try again"): "Without the extension, an Indeed row offers only 'Paste the text' and the archive button, with no 'Try again'. With the extension installed, it also offers 'Try again', which asks the extension to read the page again. A link the extension fails to read becomes that same row, showing the reason."
 - Decided 2026-11-21 (the user): moved to the future version. Until it is built, Indeed links become rows that need their text, with "Paste the text" ([link-handling-changes](link-handling-changes.md)).

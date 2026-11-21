@@ -56,4 +56,5 @@ A row of the Runs list says little about its job until the analysis is saved: a 
 - Decided 2026-11-17: "The model can fill missing details if they come from the posting text."
 - Decided 2026-11-17: the company is a link to the company's website when the posting has it.
 - Decided 2026-11-17: application folders are named by a UUID, not by company and title ([application-uuids](application-uuids.md)).
+- Decided 2026-11-21 (the user): the real LinkedIn job page checked, with one request, for the top-card structure is https://www.linkedin.com/jobs/view/4488373441/.
 - Constitution amended for this task in versions 10.0.0 and 11.0.0 (2026-11-17).
