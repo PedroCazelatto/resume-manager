@@ -17,11 +17,20 @@ const LINKEDIN_DESCRIPTION = ".show-more-less-html__markup";
 export interface HtmlToTextOptions {
   /** The page is on linkedin.com: take the description from its known element when it is there. */
   linkedIn?: boolean;
+  /**
+   * The job's description as the page gives it in its data (schema.org `JobPosting`, F46): used
+   * before the page's main area when it has text.
+   */
+  description?: string;
 }
 
 /** The readable text of an HTML page; empty when it has none. */
 export function htmlToText(html: string, options: HtmlToTextOptions = {}): string {
-  const root = parse(html);
+  return pageText(parse(html), options);
+}
+
+/** `htmlToText` for a page already parsed. It removes the page's scripts and other boilerplate. */
+export function pageText(root: HTMLElement, options: HtmlToTextOptions = {}): string {
   // Read before <header> and the rest are removed; on LinkedIn it names the role and the company.
   const title = lines(root.querySelector("title")?.text ?? "");
   for (const element of root.querySelectorAll(REMOVED)) element.remove();
@@ -32,8 +41,27 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
     // The description alone doesn't say who is hiring, so the page's title goes above it.
     if (text !== "") return title === "" ? text : `${title}\n${text}`;
   }
+  const described = options.description === undefined ? "" : descriptionText(options.description);
+  if (described !== "") return described;
   const content = root.querySelector("main") ?? root.querySelector("article") ?? root.querySelector("body") ?? root;
   return lines(textOf(content));
+}
+
+/** An HTML start or end tag, as text. */
+const TAG = /<\/?[a-z][a-z0-9]*\b[^>]*>/i;
+
+const hasElements = (root: HTMLElement) => root.childNodes.some((node) => node.nodeType === NodeType.ELEMENT_NODE);
+
+/**
+ * The text of a description a page gives as data: HTML, HTML escaped once more (`&lt;p&gt;`),
+ * or plain text, whose lines are kept. Scripts and the other boilerplate are dropped.
+ */
+export function descriptionText(description: string): string {
+  let root = parse(description);
+  if (!hasElements(root) && TAG.test(root.text)) root = parse(root.text);
+  if (!hasElements(root)) return lines(root.text);
+  for (const element of root.querySelectorAll(REMOVED)) element.remove();
+  return lines(textOf(root));
 }
 
 /** The node's text on one line, with a line break around every block inside it. */

@@ -8,6 +8,27 @@ const timestamp = z.iso.datetime({ offset: true, error: "must be an ISO date-tim
 /** Two-letter ISO 639-1 code, e.g. `en`, `pt`. */
 export const languageCode = z.string().regex(/^[a-z]{2}$/, "must be a two-letter ISO 639-1 code, e.g. en");
 
+/** How the job is worked, as `job.md`'s `work_model` says it (Art. IV.5). */
+export const WORK_MODELS = ["remote", "hybrid", "on-site"] as const;
+export type WorkModel = (typeof WORK_MODELS)[number];
+
+/**
+ * A job posting's details, named as in `job.md` (Art. IV.5): read from the posting's page, or
+ * copied by the model from the posting's text when the page doesn't hold them (Art. VI.2, F46).
+ */
+export interface JobDetails {
+  title?: string;
+  company?: string;
+  /** The company's website: an http or https address. */
+  company_url?: string;
+  location?: string;
+  /** As the posting writes it, e.g. "€60,000–€70,000 a year". */
+  salary?: string;
+  work_model?: WorkModel;
+  /** As the posting writes it, e.g. "40 hours a week". */
+  hours?: string;
+}
+
 export const jobSchema = z.looseObject({
   source: z.enum(["url", "paste"]),
   url: z.url({ protocol: /^https?$/ }).optional(),
