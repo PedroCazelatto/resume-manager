@@ -432,3 +432,20 @@ export function restoreRuns<I>(runs: readonly QueuedRun<I>[], profile: string, t
     return restored;
   });
 }
+
+/**
+ * An application of this profile was renamed (the one-time update of old applications, F50):
+ * its runs, and the events that name it, name it by its new folder `to`.
+ */
+export function moveApplication<I>(runs: readonly QueuedRun<I>[], profile: string, from: string, to: string): QueuedRun<I>[] {
+  return runs.map((run) => {
+    if (run.profile !== profile || run.applicationId !== from) return run;
+    const events = run.events.map((event) => ((event.type === "saved" || event.type === "done") && event.id === from ? { ...event, id: to } : event));
+    return { ...run, applicationId: to, events };
+  });
+}
+
+/** An application of this profile was deleted (F50): its runs leave the list, since they have nothing left to show. */
+export function forgetApplication<I>(runs: readonly QueuedRun<I>[], profile: string, applicationId: string): QueuedRun<I>[] {
+  return runs.filter((run) => run.profile !== profile || run.applicationId !== applicationId);
+}

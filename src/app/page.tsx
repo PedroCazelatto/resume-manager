@@ -1,10 +1,13 @@
 import { Suspense } from "react";
+import { updateNeeded } from "@/core/application/update";
+import { ApplicationUpdate } from "@/components/application-update";
 import { ProfilePicker } from "@/components/profile-picker";
 import { FileProblems } from "@/components/file-problems";
 import { NewApplicationForm } from "@/components/new-application-form";
 import { RunsList } from "@/components/runs-list";
 import { profileStore, readSelectedProfile } from "./profiles";
 import { DEFAULT_TEMPLATE, templateStore } from "./templates";
+import { readUpdate, shownUpdate } from "./update";
 
 export default function Home() {
   return (
@@ -31,9 +34,11 @@ async function ProfileSection() {
     );
   }
 
-  const [result, template] = await Promise.all([
+  const [result, template, update] = await Promise.all([
     selected ? store.loadProfile(selected) : null,
     templateStore().loadTemplate(DEFAULT_TEMPLATE),
+    // Applications saved before F50 wait for the user to confirm their update.
+    selected ? readUpdate(selected) : null,
   ]);
 
   return (
@@ -49,6 +54,7 @@ async function ProfileSection() {
           Ignored folders (names must be lowercase kebab-case): {invalidNames.join(", ")}
         </p>
       )}
+      {update && updateNeeded(update) && <ApplicationUpdate update={shownUpdate(update)} problems={update.problems} />}
       {result && !result.ok && (
         <FileProblems
           title="This profile has problems"

@@ -18,7 +18,9 @@ import {
   fetchFailed,
   findRun,
   finishRun,
+  forgetApplication,
   madeApplication,
+  moveApplication,
   nextFetch,
   nextRun,
   pasteText,
@@ -380,6 +382,26 @@ export function createRunRegistry(
     /** Restores a row of this profile: an unfinished run comes back as cancelled, a finished one as it was (F48). */
     restore(profile: string, target: ArchiveTarget): void {
       runs = restoreRuns(runs, profile, target);
+    },
+
+    /**
+     * An application of this profile was renamed by the one-time update (F50): its runs, and
+     * what they were asked to do, name its new folder.
+     */
+    renamed(profile: string, from: string, to: string): void {
+      const rename = (id: string | undefined) => (id === from ? to : id);
+      runs = moveApplication(runs, profile, from, to).map((run) => {
+        if (run.applicationId !== to) return run;
+        const { start, applicationId } = run.input;
+        const input: RunRequest = { ...run.input, start: "id" in start ? { id: rename(start.id)! } : start };
+        if (applicationId !== undefined) input.applicationId = rename(applicationId);
+        return { ...run, input };
+      });
+    },
+
+    /** An application of this profile was deleted by the one-time update: its runs leave the list (F50). */
+    forget(profile: string, applicationId: string): void {
+      runs = forgetApplication(runs, profile, applicationId);
     },
 
     /**

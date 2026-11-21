@@ -13,7 +13,9 @@ import {
   fetchFailed,
   findRun,
   finishRun,
+  forgetApplication,
   madeApplication,
+  moveApplication,
   nextFetch,
   nextRun,
   offersTryAgain,
@@ -564,5 +566,35 @@ describe("run queue", () => {
       warnings: { analyse: "This step's prompt is large." },
     });
     expect(runSteps([])).toEqual({ steps: [], warnings: {} });
+  });
+});
+
+describe("renamed and deleted applications (F50)", () => {
+  const OLD = "2026-11-10-globex-backend-engineer";
+
+  it("names a renamed application's runs and events by its new folder, in its profile only", () => {
+    let runs = enqueue(queued("john-a"), { runId: "a", profile: "jane-doe", kind: "verify", input: null, applicationId: OLD });
+    runs = recordEvent(runs, "a", { type: "saved", id: OLD });
+    runs = enqueue(runs, { runId: "b", profile: "jane-doe", kind: "retry", input: null, applicationId: APPLICATION });
+    runs = runs.map((run) => (run.runId === "john-a" ? { ...run, applicationId: OLD } : run));
+
+    const moved = moveApplication(runs, "jane-doe", OLD, APPLICATION.replace("3f2b", "0000"));
+
+    expect(moved.map((run) => [run.runId, run.applicationId])).toEqual([
+      ["john-a", OLD],
+      ["a", APPLICATION.replace("3f2b", "0000")],
+      ["b", APPLICATION],
+    ]);
+    expect(moved[1].events).toEqual([{ type: "saved", id: APPLICATION.replace("3f2b", "0000") }]);
+  });
+
+  it("forgets a deleted application's runs, in its profile only", () => {
+    const runs = [
+      ...enqueue([], { runId: "a", profile: "jane-doe", kind: "verify", input: null, applicationId: OLD }),
+      ...enqueue([], { runId: "john-a", profile: "john-roe", kind: "verify", input: null, applicationId: OLD }),
+      ...enqueue([], { runId: "c", profile: "jane-doe", kind: "new", input: null }),
+    ];
+
+    expect(forgetApplication(runs, "jane-doe", OLD).map((run) => run.runId)).toEqual(["john-a", "c"]);
   });
 });
