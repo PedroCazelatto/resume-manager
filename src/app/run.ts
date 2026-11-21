@@ -3,6 +3,7 @@ import { runApplication } from "@/core/pipeline/run";
 import { verifyApplication } from "@/core/pipeline/verify";
 import { savedLinks, skipKnownLinks } from "@/core/posting/known-links";
 import type { ListedLink } from "@/core/posting/links";
+import { readNewRunStart } from "@/core/posting/start";
 import type { RunKind } from "@/core/runs/queue";
 import { createJobFetcher } from "@/adapters/job-fetcher";
 import { llmClient } from "@/app/llm";
@@ -77,14 +78,31 @@ async function readyProfile(): Promise<{ slug: string } | { error: Response }> {
 
 /**
  * Queues a run for the selected profile and answers `{ runId }` right away; its progress
- * arrives through the run's event stream (F42). `replaces` is the run whose failed fetch
- * this one's pasted posting makes up for (F10).
+ * arrives through the run's event stream (F42).
  */
-export async function enqueueRun(kind: RunKind, input: RunRequest, replaces?: string): Promise<Response> {
+export async function enqueueRun(kind: RunKind, input: RunRequest): Promise<Response> {
   const profile = await readyProfile();
   if ("error" in profile) return profile.error;
 
-  return Response.json({ runId: runRegistry().enqueue(profile.slug, kind, input, replaces) }, { status: 202 });
+  return Response.json({ runId: runRegistry().enqueue(profile.slug, kind, input) }, { status: 202 });
+}
+
+/**
+ * The posting's text, pasted with its link, for a run of the selected profile whose fetch failed
+ * or that is an Indeed link's run: the same run joins the end of the run queue, and the answer is
+ * its own `{ runId }` with 202 (F48). 400 when the text or its link is missing, 404 for an
+ * unknown or another profile's run, 409 for a run that doesn't need its text.
+ */
+export async function pasteRun(runId: string, body: { posting?: unknown; url?: unknown } | null): Promise<Response> {
+  const profile = await readyProfile();
+  if ("error" in profile) return profile.error;
+  const read = readNewRunStart(body);
+  if ("error" in read) return Response.json({ error: read.error }, { status: 400 });
+
+  const result = runRegistry().paste(profile.slug, runId, read.start);
+  if (result === "unknown") return Response.json({ error: "Unknown run." }, { status: 404 });
+  if (result === "refused") return Response.json({ error: "This run doesn't need the posting's text." }, { status: 409 });
+  return Response.json({ runId }, { status: 202 });
 }
 
 /**

@@ -128,7 +128,7 @@ export function RunsList() {
                 </Button>
               )}
               {/* The page couldn't be fetched, or is an Indeed page the server never requests: the
-                  form takes the text, and keeps the link (F10, F47). */}
+                  form takes the text and keeps the link, and this same run moves on (F10, F47, F48). */}
               {run.fetchFailed && run.url && (
                 <Button variant="outline" size="sm" onClick={() => pasteInstead(run.runId, run.url ?? "")}>
                   Paste the text

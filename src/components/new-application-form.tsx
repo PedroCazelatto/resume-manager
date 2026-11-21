@@ -16,8 +16,8 @@ const PASTE_INSTEAD = "paste-posting-instead";
 
 /**
  * Opens the form's "Paste text" tab with this link kept; the Runs list calls it for a run
- * whose fetch failed, or an Indeed link's run. The pasted text then takes that run's place
- * in the list (F10, F47).
+ * whose fetch failed, or an Indeed link's run. The pasted text then goes to that same run,
+ * which joins the run queue (F10, F47, F48).
  */
 export function pasteInstead(runId: string, url: string) {
   window.dispatchEvent(new CustomEvent<FailedFetch>(PASTE_INSTEAD, { detail: { runId, url } }));
@@ -41,7 +41,7 @@ export function NewApplicationForm() {
   /** The link saved with a pasted posting; required, since every posting has its link (F47). */
   const [keptLink, setKeptLink] = useState("");
   /** The run whose fetch failed and whose posting is being pasted. */
-  const [replaces, setReplaces] = useState<string | null>(null);
+  const [pastingFor, setPastingFor] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   /**
    * What the last submission added and skipped, and the saved files it couldn't check, until
@@ -57,7 +57,7 @@ export function NewApplicationForm() {
       const { runId, url } = (event as CustomEvent<FailedFetch>).detail;
       setTab("paste");
       setKeptLink(url);
-      setReplaces(runId);
+      setPastingFor(runId);
       setNotice("Paste the posting's text here. Its link is kept with the application.");
       setSent(null);
       setError(null);
@@ -87,17 +87,17 @@ export function NewApplicationForm() {
     }
     setSending(true);
     setNotice(null);
-    const body: Record<string, string | string[]> =
+    // Text pasted for a run whose fetch failed goes to that same run (F48).
+    const reply =
       tab === "links"
-        ? { urls: lines }
-        : { posting, url: keptLink, ...(replaces ? { replaces } : {}) };
-    const reply = await enqueueRuns("/api/applications", body);
+        ? await enqueueRuns("/api/applications", { urls: lines })
+        : await enqueueRuns(pastingFor ? `/api/runs/${pastingFor}/posting` : "/api/applications", { posting, url: keptLink });
     setSending(false);
     if ("error" in reply) {
       setError(reply.error);
       return;
     }
-    setReplaces(null);
+    setPastingFor(null);
     setSent({
       added: addedMessage(reply.runIds.length, reply.skipped),
       unchecked: reply.problems.length > 0 ? uncheckedMessage(reply.problems) : null,
@@ -113,7 +113,7 @@ export function NewApplicationForm() {
         value={tab}
         onValueChange={(next) => {
           setTab(next as Tab);
-          setReplaces(null);
+          setPastingFor(null);
           setSent(null);
           setError(null);
           setNotice(null);

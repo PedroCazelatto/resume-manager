@@ -1,13 +1,12 @@
 import type { RunEvent, RunInput, RunStep } from "@/core/pipeline/run";
 import type { FetchedPosting, JobFetcher } from "@/core/posting/job-fetcher";
 import { INDEED_BLOCKED, isIndeedLink } from "@/core/posting/sites";
-import { fetchedStart } from "@/core/posting/start";
+import { fetchedStart, type PastedStart } from "@/core/posting/start";
 import {
   addNotFetched,
   cancelRun,
   offersTryAgain,
   triedAgain,
-  dropFetchFailed,
   enqueue,
   enqueueFetch,
   failFetch,
@@ -17,6 +16,7 @@ import {
   finishRun,
   nextFetch,
   nextRun,
+  pasteText,
   recordEvent,
   removeLink,
   runsOf,
@@ -75,7 +75,10 @@ export interface RunSummary {
    * `job.md` (F10, F47). For pasted text, the link kept with it.
    */
   url?: string;
-  /** The run failed while fetching its link; the list offers "Paste the text instead" (F10). */
+  /**
+   * The run's fetch failed, or its link is one the server never requests: it needs the posting's
+   * text, and the list offers "Paste the text" (F10, F47, F48).
+   */
   fetchFailed: boolean;
 }
 
@@ -209,14 +212,22 @@ export function createRunRegistry(
   }
 
   return {
+    enqueue(profile: string, kind: RunKind, input: RunRequest): string {
+      return add(profile, kind, input);
+    },
+
     /**
-     * `replaces` is a run of this profile whose fetch failed and whose posting the user has
-     * now pasted: it leaves the list, since the new run stands for it (F10).
+     * The posting's text, pasted with its link, for a run of this profile that needs it: its
+     * fetch failed, or it is an Indeed link's run. The same run joins the end of the run queue
+     * and keeps its ID; no new run takes its place (F48).
      */
-    enqueue(profile: string, kind: RunKind, input: RunRequest, replaces?: string): string {
-      const runId = add(profile, kind, input);
-      if (replaces !== undefined) runs = dropFetchFailed(runs, profile, replaces);
-      return runId;
+    paste(profile: string, runId: string, start: PastedStart): "queued" | "refused" | "unknown" {
+      if (!findRun(runs, profile, runId)) return "unknown";
+      const result = pasteText(runs, profile, runId, { start });
+      if (!result.pasted) return "refused";
+      runs = result.runs;
+      void work();
+      return "queued";
     },
 
     /** The profile's own runs, in the order the Runs list shows them (Art. III.7). */

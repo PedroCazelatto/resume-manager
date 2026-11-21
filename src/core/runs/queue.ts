@@ -300,12 +300,28 @@ export function fetchFailed(run: Pick<QueuedRun, "status" | "events" | "notFetch
 }
 
 /**
- * Takes a run whose fetch failed off the list, once the user has pasted its posting's text
- * and that text is in the run queue (F10). Any other run stays.
+ * The user pasted the posting's text on a run of this profile that needs it: its fetch failed,
+ * or its link is one the server never requests. The same run moves on: it leaves the "needs the
+ * posting's text" state and joins the end of the run queue with `input`, which holds the text
+ * and its link. No other run takes its place (F48). Any other run stays as it is.
  */
-export function dropFetchFailed<I>(runs: readonly QueuedRun<I>[], profile: string, runId: string): QueuedRun<I>[] {
+export function pasteText<I>(
+  runs: readonly QueuedRun<I>[],
+  profile: string,
+  runId: string,
+  input: I,
+): { runs: QueuedRun<I>[]; pasted: boolean } {
   const run = findRun(runs, profile, runId);
-  return run && fetchFailed(run) ? runs.filter((other) => other !== run) : [...runs];
+  if (!run || !fetchFailed(run)) return { runs: [...runs], pasted: false };
+  const moved = moveToEnd(runs, runId, (failed) => {
+    const next: QueuedRun<I> = { ...failed, input, status: "queued", events: [] };
+    // Its failed fetch is behind it: no error, no step, and nothing that keeps it from "Try again".
+    delete next.error;
+    delete next.notFetched;
+    delete next.startedAt;
+    return next;
+  });
+  return { runs: moved, pasted: true };
 }
 
 /**

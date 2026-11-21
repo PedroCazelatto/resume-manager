@@ -41,11 +41,11 @@ describe("POST /api/applications", () => {
     expect(queued.run).not.toHaveBeenCalled();
   });
 
-  it("queues pasted text with its link, in place of the run whose fetch failed", async () => {
-    const response = await post({ posting: "Globex is hiring.", url: "https://jobs.example.com/7", replaces: "failed-run" });
+  it("queues pasted text with its link as a new run", async () => {
+    const response = await post({ posting: "Globex is hiring.", url: "https://jobs.example.com/7" });
 
     expect(response.status).toBe(202);
-    expect(queued.run).toHaveBeenCalledWith("new", { start: { posting: "Globex is hiring.", url: "https://jobs.example.com/7" } }, "failed-run");
+    expect(queued.run).toHaveBeenCalledWith("new", { start: { posting: "Globex is hiring.", url: "https://jobs.example.com/7" } });
   });
 
   it("queues a list of links, each with its line, an Indeed link included (F47)", async () => {

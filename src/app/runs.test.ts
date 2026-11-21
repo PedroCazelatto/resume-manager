@@ -682,24 +682,50 @@ describe("run registry", () => {
       expect(started[0].input).toEqual({ start: { posting: long, url: PAGE, fetched: true } });
     });
 
-    it("puts the pasted text in the run queue in place of the run whose fetch failed", async () => {
-      const { registry, runId, started } = await failedFetch();
+    it("moves the same run on with the pasted text, which joins the end of the run queue (F48)", async () => {
+      const { registry, runId, started, ends } = await failedFetch();
+      const busy = registry.enqueue("jane-doe", "new", posting());
+      const waiting = registry.enqueue("jane-doe", "new", posting());
 
-      const pasted = registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: LINK } }, runId);
+      expect(registry.paste("jane-doe", runId, { posting: POSTING, url: LINK })).toBe("queued");
 
-      expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.url])).toEqual([[pasted, "running", LINK]]);
-      expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: LINK } });
+      // The same row moves on: no second row, and it leaves the "needs the posting's text" state.
+      expect(registry.list("jane-doe").map((run) => [run.runId, run.status])).toEqual([
+        [busy, "running"],
+        [waiting, "queued"],
+        [runId, "queued"],
+      ]);
+      expect(registry.list("jane-doe")[2]).toEqual({
+        runId,
+        kind: "new",
+        status: "queued",
+        steps: [],
+        warnings: {},
+        retryable: false,
+        url: LINK,
+        fetchFailed: false,
+      });
+
+      for (const id of [busy, waiting]) {
+        const ended = followed(registry, "jane-doe", id);
+        ends.get(id)!.resolve();
+        await ended;
+      }
+      expect(started.at(-1)).toMatchObject({ runId, input: { start: { posting: POSTING, url: LINK } } });
+      expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
     });
 
-    it("only replaces a run of the same profile whose fetch failed", async () => {
+    it("pastes only on a run of the same profile that needs its text", async () => {
       const { registry, runId } = await failedFetch();
       const other = registry.enqueue("jane-doe", "new", posting());
 
-      registry.enqueue("john-roe", "new", posting(), runId);
-      registry.enqueue("jane-doe", "new", posting(), other);
-
-      expect(registry.list("jane-doe").map((run) => run.runId)).toContain(runId);
-      expect(registry.list("jane-doe").map((run) => run.runId)).toContain(other);
+      expect(registry.paste("john-roe", runId, { posting: POSTING, url: LINK })).toBe("unknown");
+      expect(registry.paste("jane-doe", other, { posting: POSTING, url: LINK })).toBe("refused");
+      expect(registry.paste("jane-doe", "no-such-run", { posting: POSTING, url: LINK })).toBe("unknown");
+      expect(registry.list("jane-doe").map((run) => [run.runId, run.status])).toEqual([
+        [other, "running"],
+        [runId, "failed"],
+      ]);
     });
 
     it("fetches the same link again on Try again", async () => {
@@ -856,15 +882,28 @@ describe("run registry", () => {
         ]);
       });
 
-      it("is replaced by its pasted text, which keeps the Indeed link", async () => {
-        const { execute, started } = manualRuns();
-        const registry = createRunRegistry(execute, manualFetches().fetchPosting);
+      it("moves on with its pasted text, which keeps the Indeed link, and never fetches it (F48)", async () => {
+        const { execute, started, ends } = manualRuns();
+        const { fetchPosting, asked } = manualFetches();
+        const registry = createRunRegistry(execute, fetchPosting);
         const runId = registry.enqueue("jane-doe", "new", link(INDEED));
 
-        const pasted = registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: INDEED } }, runId);
+        expect(registry.paste("jane-doe", runId, { posting: POSTING, url: INDEED })).toBe("queued");
 
-        expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.url])).toEqual([[pasted, "running", INDEED]]);
+        expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.url, run.fetchFailed])).toEqual([
+          [runId, "running", INDEED, false],
+        ]);
+        expect(started.at(-1)).toMatchObject({ runId, input: { start: { posting: POSTING, url: INDEED } } });
+
+        // Its generation fails: "Try again" queues the pasted text, and Indeed is still never requested.
+        const ended = followed(registry, "jane-doe", runId);
+        ends.get(runId)!.reject(new Error("Can't reach Ollama."));
+        await ended;
+        expect(registry.list("jane-doe")[0]).toMatchObject({ runId, status: "failed", fetchFailed: false, retryable: true });
+        registry.retry("jane-doe", runId);
+        await settled();
         expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: INDEED } });
+        expect(asked).toEqual([]);
       });
     });
 

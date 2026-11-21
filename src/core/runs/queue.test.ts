@@ -3,7 +3,6 @@ import {
   addNotFetched,
   cancelRun,
   canTryAgain,
-  dropFetchFailed,
   enqueue,
   enqueueFetch,
   failFetch,
@@ -14,6 +13,7 @@ import {
   nextFetch,
   nextRun,
   offersTryAgain,
+  pasteText,
   recordEvent,
   removeLink,
   runsOf,
@@ -313,13 +313,32 @@ describe("run queue", () => {
       expect(fetchFailed({ status: "fetching", events: [...fetching] })).toBe(false);
     });
 
-    it("drops a run whose fetch failed once its posting was pasted, and no other run", () => {
-      const runs = failFetch(startFetch(link(queued("a"), "b"), "b"), "b", "The page answered 403.");
+    it("moves the same run to the end of the run queue once its posting was pasted (F48)", () => {
+      let runs = failFetch(startFetch(link(queued("a"), "b"), "b"), "b", "The page answered 403.");
+      runs = enqueue(runs, { runId: "c", profile: "jane-doe", kind: "new", input: null });
+      const text = { posting: "Globex is hiring.", url: "https://jobs.example.com/b" };
 
-      expect(brief(dropFetchFailed(runs, "jane-doe", "b"))).toEqual(["a:queued"]);
-      expect(brief(dropFetchFailed(runs, "john-roe", "b"))).toEqual(["a:queued", "b:failed"]);
-      expect(brief(dropFetchFailed(runs, "jane-doe", "a"))).toEqual(["a:queued", "b:failed"]);
-      expect(brief(dropFetchFailed(runs, "jane-doe", "unknown"))).toEqual(["a:queued", "b:failed"]);
+      const { runs: pasted, pasted: moved } = pasteText(runs, "jane-doe", "b", text);
+
+      expect(moved).toBe(true);
+      expect(brief(pasted)).toEqual(["a:queued", "c:queued", "b:queued"]);
+      expect(pasted[2]).toEqual({ runId: "b", profile: "jane-doe", kind: "new", input: text, status: "queued", events: [] });
+      // It no longer needs its text, and it starts when its turn comes.
+      expect(fetchFailed(pasted[2])).toBe(false);
+      expect(waitingToFetch({ status: pasted[2].status, steps: runSteps(pasted[2].events).steps })).toBe(false);
+      expect(nextRun(finishRun(finishRun(startRun(pasted, "a", 0), "a", null), "c", null))?.runId).toBe("b");
+    });
+
+    it("pastes only on a run of the same profile that needs its text", () => {
+      const runs = failFetch(startFetch(link(queued("a"), "b"), "b"), "b", "The page answered 403.");
+      const text = { posting: "Globex is hiring.", url: "https://jobs.example.com/b" };
+      const failedLater = finishRun(startRun(runs, "a", 0), "a", "Can't reach Ollama.");
+
+      expect(pasteText(runs, "john-roe", "b", text)).toEqual({ runs, pasted: false });
+      expect(pasteText(runs, "jane-doe", "a", text)).toEqual({ runs, pasted: false });
+      expect(pasteText(runs, "jane-doe", "unknown", text)).toEqual({ runs, pasted: false });
+      expect(pasteText(failedLater, "jane-doe", "a", text).pasted).toBe(false);
+      expect(pasteText(link(queued(), "d"), "jane-doe", "d", text).pasted).toBe(false);
     });
   });
 
@@ -347,11 +366,20 @@ describe("run queue", () => {
       expect(offersTryAgain(runs, runs[0])).toBe(false);
     });
 
-    it("is dropped once its posting was pasted, like a failed fetch, for its own profile only", () => {
+    it("moves on with its pasted text, like a failed fetch, for its own profile only (F48)", () => {
       const runs = indeed(queued("b"), "a");
+      const text = { posting: "Globex is hiring.", url: "https://ie.indeed.com/viewjob?jk=1" };
 
-      expect(statuses(dropFetchFailed(runs, "john-roe", "a"))).toEqual(["b:queued", "a:failed"]);
-      expect(statuses(dropFetchFailed(runs, "jane-doe", "a"))).toEqual(["b:queued"]);
+      expect(statuses(pasteText(runs, "john-roe", "a", text).runs)).toEqual(["b:queued", "a:failed"]);
+      const pasted = pasteText(runs, "jane-doe", "a", text).runs;
+      expect(statuses(pasted)).toEqual(["b:queued", "a:queued"]);
+      expect(pasted[1].notFetched).toBeUndefined();
+      expect(pasted[1].error).toBeUndefined();
+
+      // If its generation fails later, "Try again" queues the pasted text: it has nothing left to fetch.
+      const failed = finishRun(startRun(finishRun(startRun(pasted, "b", 0), "b", null), "a", 0), "a", "Can't reach Ollama.");
+      expect(fetchFailed(findRun(failed, "jane-doe", "a")!)).toBe(false);
+      expect(canTryAgain(findRun(failed, "jane-doe", "a")!)).toBe(true);
     });
 
     it("is listed as the latest finished run, and counts among the finished runs it forgets", () => {
