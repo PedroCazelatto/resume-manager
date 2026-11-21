@@ -6,7 +6,7 @@ import type { QueueEvent } from "@/core/runs/queue";
 import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "./runs";
 
 const POSTING = "Globex is hiring a Backend Engineer.";
-const posting = (text = POSTING): RunRequest => ({ start: { posting: text }, language: null });
+const posting = (text = POSTING): RunRequest => ({ start: { posting: text } });
 const ID = "2026-11-10-globex-backend-engineer";
 
 /** Lets each run be ended by hand, in any order. */
@@ -54,16 +54,15 @@ describe("run registry", () => {
     const registry = createRunRegistry(execute, undefined, () => STARTED);
 
     const first = registry.enqueue("jane-doe", "new", posting());
-    const second = registry.enqueue("jane-doe", "retry", { start: { id: ID }, language: "pt" });
+    const second = registry.enqueue("jane-doe", "retry", { start: { id: ID } });
 
     expect(registry.list("jane-doe")).toEqual([
-      { runId: first, kind: "new", status: "running", startedAt: STARTED, language: null, steps: [], warnings: {}, retryable: false, fetchFailed: false },
+      { runId: first, kind: "new", status: "running", startedAt: STARTED, steps: [], warnings: {}, retryable: false, fetchFailed: false },
       {
         runId: second,
         kind: "retry",
         status: "queued",
         applicationId: ID,
-        language: "pt",
         steps: [],
         warnings: {},
         retryable: false,
@@ -108,8 +107,8 @@ describe("run registry", () => {
     const runs = [
       ["jane-doe", registry.enqueue("jane-doe", "new", posting())],
       ["john-roe", registry.enqueue("john-roe", "new", posting())],
-      ["jane-doe", registry.enqueue("jane-doe", "verify", { start: { id: ID }, language: null })],
-      ["john-roe", registry.enqueue("john-roe", "retry", { start: { id: ID }, language: null })],
+      ["jane-doe", registry.enqueue("jane-doe", "verify", { start: { id: ID } })],
+      ["john-roe", registry.enqueue("john-roe", "retry", { start: { id: ID } })],
     ];
     await Promise.all(runs.map(([profile, runId]) => followed(registry, profile, runId)));
 
@@ -384,18 +383,18 @@ describe("run registry", () => {
   });
 
   describe("trying a run without an application again (F19)", () => {
-    /** A new run in German that failed before its application was saved. */
+    /** A new run that failed before its application was saved. */
     async function failedRun() {
       const runs = manualRuns();
       const registry = createRunRegistry(runs.execute, undefined, () => STARTED);
-      const runId = registry.enqueue("jane-doe", "new", { start: { posting: POSTING }, language: "de" });
+      const runId = registry.enqueue("jane-doe", "new", { start: { posting: POSTING } });
       const ended = followed(registry, "jane-doe", runId);
       runs.ends.get(runId)!.reject(new Error("Can't reach Ollama."));
       await ended;
       return { ...runs, registry, runId };
     }
 
-    it("queues a new run with the same posting and language", async () => {
+    it("queues a new run with the same posting", async () => {
       const { registry, runId, started } = await failedRun();
       expect(registry.list("jane-doe")).toMatchObject([{ runId, status: "failed", retryable: true }]);
 
@@ -404,12 +403,12 @@ describe("run registry", () => {
       if (typeof again === "string") throw new Error(again);
       expect(again.runId).not.toBe(runId);
       expect(registry.list("jane-doe")).toMatchObject([
-        { runId: again.runId, kind: "new", status: "running", language: "de", retryable: false },
+        { runId: again.runId, kind: "new", status: "running", retryable: false },
         // Used once: the new run stands for it while it is listed.
-        { runId, status: "failed", language: "de", retryable: false },
+        { runId, status: "failed", retryable: false },
       ]);
       expect(registry.retry("jane-doe", runId)).toBe("refused");
-      expect(started[1]).toMatchObject({ runId: again.runId, input: { start: { posting: POSTING }, language: "de" } });
+      expect(started[1]).toMatchObject({ runId: again.runId, input: { start: { posting: POSTING } } });
       // The posting stays on the server (Art. III.4).
       expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
     });
@@ -470,7 +469,7 @@ describe("run registry", () => {
   describe("a run started from a link (F10)", () => {
     const LINK = "https://jobs.example.com/backend-engineer";
     const PAGE = "https://jobs.example.com/backend-engineer?from=redirect";
-    const link = (url = LINK, language: string | null = "de"): RunRequest => ({ start: { url }, language });
+    const link = (url = LINK): RunRequest => ({ start: { url } });
     const fetched: FetchedPosting = { ok: true, text: POSTING, url: PAGE };
     const refused: FetchedPosting = { ok: false, reason: "The page answered 403." };
 
@@ -500,12 +499,11 @@ describe("run registry", () => {
 
       expect(asked).toEqual([LINK]);
       expect(registry.list("jane-doe")).toEqual([
-        { runId: busy, kind: "new", status: "running", startedAt: STARTED, language: null, steps: [], warnings: {}, retryable: false, fetchFailed: false },
+        { runId: busy, kind: "new", status: "running", startedAt: STARTED, steps: [], warnings: {}, retryable: false, fetchFailed: false },
         {
           runId,
           kind: "new",
           status: "fetching",
-          language: "de",
           steps: [{ step: "fetch", status: "running" }],
           warnings: {},
           retryable: false,
@@ -533,7 +531,7 @@ describe("run registry", () => {
       await settled();
 
       expect(started.map((run) => run.runId)).toEqual([runId]);
-      expect(started[0].input).toEqual({ start: { posting: POSTING, url: PAGE, fetched: true }, language: "de" });
+      expect(started[0].input).toEqual({ start: { posting: POSTING, url: PAGE, fetched: true } });
       expect(statuses(registry)).toEqual(["running"]);
       expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
     });
@@ -600,7 +598,6 @@ describe("run registry", () => {
           kind: "new",
           status: "failed",
           error: "The page answered 403.",
-          language: "de",
           steps: [{ step: "fetch", status: "running" }],
           warnings: {},
           retryable: true,
@@ -628,10 +625,10 @@ describe("run registry", () => {
     it("puts the pasted text in the run queue in place of the run whose fetch failed", async () => {
       const { registry, runId, started } = await failedFetch();
 
-      const pasted = registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: LINK }, language: "de" }, runId);
+      const pasted = registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: LINK } }, runId);
 
       expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.url])).toEqual([[pasted, "running", LINK]]);
-      expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: LINK }, language: "de" });
+      expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: LINK } });
     });
 
     it("only replaces a run of the same profile whose fetch failed", async () => {
@@ -704,13 +701,13 @@ describe("run registry", () => {
 
       registry.retry("jane-doe", runId);
       expect(asked).toEqual([LINK]);
-      expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: PAGE, fetched: true }, language: "de" });
+      expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: PAGE, fetched: true } });
     });
 
     it("lists the link kept with a pasted posting, never the posting", () => {
       const { execute } = manualRuns();
       const registry = createRunRegistry(execute);
-      registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: LINK }, language: null });
+      registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: LINK } });
 
       expect(registry.list("jane-doe")[0]).toMatchObject({ url: LINK, fetchFailed: false });
       expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
@@ -758,7 +755,7 @@ describe("run registry", () => {
         }
 
         expect(started.map((run) => run.input)).toEqual(
-          LINKS.map((url) => ({ start: { posting: `${POSTING} ${url}`, url, fetched: true }, language: "de" })),
+          LINKS.map((url) => ({ start: { posting: `${POSTING} ${url}`, url, fetched: true } })),
         );
         expect(statuses(registry)).toEqual(["done", "done", "done"]);
       });

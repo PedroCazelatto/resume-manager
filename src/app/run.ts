@@ -1,4 +1,3 @@
-import { isLanguageCode } from "@/core/application/languages";
 import { LlmError } from "@/core/llm";
 import { runApplication } from "@/core/pipeline/run";
 import { verifyApplication } from "@/core/pipeline/verify";
@@ -8,15 +7,6 @@ import { llmClient } from "@/app/llm";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "@/app/runs";
 import { DEFAULT_TEMPLATE, templateStore } from "@/app/templates";
-
-/** Reads the optional resume language from a request body; `error` when it isn't a known code. */
-export function readLanguage(value: unknown): { language: string | null } | { error: Response } {
-  const language = typeof value === "string" && value !== "" ? value : null;
-  if (language !== null && !isLanguageCode(language)) {
-    return { error: Response.json({ error: "Unknown resume language." }, { status: 400 }) };
-  }
-  return { language };
-}
 
 /** Does the work of one queued run for its profile: the pipeline, or "Verify again" (F42). */
 const executeRun: ExecuteRun = async (run: AppRun, send, signal) => {
@@ -109,7 +99,7 @@ export async function enqueueRuns(inputs: RunRequest[]): Promise<Response> {
 
 /**
  * "Try again" for a run that ended before its application was saved: queues a new run with
- * the posting and language the server kept with it, and answers `{ runId }` (F19).
+ * the posting the server kept with it, and answers `{ runId }` (F19).
  */
 export async function retryRun(runId: string): Promise<Response> {
   const profile = await readyProfile();

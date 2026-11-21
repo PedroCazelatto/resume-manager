@@ -70,7 +70,7 @@ export function RunsList() {
     await refresh();
   }
 
-  /** Queues the run's posting or link and language again; the server kept them with the run (F19). */
+  /** Queues the run's posting or link again; the server kept it with the run (F19). */
   async function tryAgain(runId: string) {
     const reply = await enqueueRun(`/api/runs/${runId}`, {});
     setRefused("error" in reply ? { runId, error: reply.error } : null);

@@ -18,7 +18,7 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/runs
 
 /**
  * "Try again" for a run of the selected profile that failed or was cancelled before its
- * application was saved: queues a new run with the same posting and language (F19).
+ * application was saved: queues a new run with the same posting (F19).
  */
 export async function POST(_request: Request, context: RouteContext<"/api/runs/[runId]">): Promise<Response> {
   const { runId } = await context.params;

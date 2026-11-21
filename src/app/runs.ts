@@ -35,13 +35,11 @@ import {
 
 /**
  * What a run was asked to do. It stays with the run after it ends, so "Try again" can queue
- * the same posting or link and language. The posting is never logged or listed (Art. III.4).
+ * the same posting or link. The posting is never logged or listed (Art. III.4).
  */
 export interface RunRequest {
   /** A link alone is fetched first; the fetched posting then takes its place (F10). */
   start: RunInput["start"] | { url: string };
-  /** The user's choice of resume language; null means the posting's language. */
-  language: string | null;
 }
 
 export type AppRun = QueuedRun<RunRequest>;
@@ -64,8 +62,6 @@ export interface RunSummary {
   company?: string;
   role?: string;
   error?: string;
-  /** The resume language chosen when the run was queued; null means the posting's language. */
-  language: string | null;
   /** The steps the run went through and their context-size warnings (F30, F40). */
   steps: RunStepState[];
   warnings: Partial<Record<RunStep, string>>;
@@ -222,7 +218,6 @@ export function createRunRegistry(
         company: run.company,
         role: run.role,
         error: run.error,
-        language: run.input.language,
         ...runSteps(run.events),
         retryable: offersTryAgain(runs, run),
         url: "url" in run.input.start ? run.input.start.url : undefined,
@@ -232,7 +227,7 @@ export function createRunRegistry(
 
     /**
      * "Try again" for a run of this profile that ended before its application was saved:
-     * queues a new run with the same posting and language, and returns its ID (F19). A run
+     * queues a new run with the same posting, and returns its ID (F19). A run
      * whose fetch failed has its link fetched again (F10). The button is used once: it comes
      * back only when the run it queued is no longer listed.
      */

@@ -9,5 +9,5 @@ export async function POST(
   const { id } = await context.params;
   if (!isApplicationId(id)) return Response.json({ error: "Unknown application." }, { status: 404 });
 
-  return enqueueRun("verify", { start: { id }, language: null });
+  return enqueueRun("verify", { start: { id } });
 }
