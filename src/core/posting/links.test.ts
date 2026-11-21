@@ -23,6 +23,20 @@ describe("readLinks", () => {
     });
   });
 
+  it("keeps the LinkedIn forms of one job once, and two jobs twice (F47)", () => {
+    expect(
+      readLinks([
+        "https://www.linkedin.com/jobs/search/?currentJobId=4321987650",
+        "https://www.linkedin.com/jobs/view/4321987650",
+        "https://www.linkedin.com/jobs/view/senior-backend-engineer-at-globex-4321987650",
+        "https://www.linkedin.com/jobs/view/4321987651",
+      ]),
+    ).toEqual({
+      ok: true,
+      urls: ["https://www.linkedin.com/jobs/search/?currentJobId=4321987650", "https://www.linkedin.com/jobs/view/4321987651"],
+    });
+  });
+
   it("has no links when every line is blank", () => {
     expect(readLinks(splitLines(""))).toEqual({ ok: true, urls: [] });
     expect(readLinks(splitLines(" \n\n"))).toEqual({ ok: true, urls: [] });

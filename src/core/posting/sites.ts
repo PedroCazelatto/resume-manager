@@ -18,14 +18,40 @@ export function isLinkedInUrl(url: URL): boolean {
   return onSite(url, "linkedin.com");
 }
 
+/** The job a LinkedIn jobs link shows in its panel (`/jobs/…?currentJobId=<id>`), or null. */
+function currentJobId(url: URL): string | null {
+  if (!isLinkedInUrl(url) || !url.pathname.startsWith("/jobs/")) return null;
+  const id = url.searchParams.get("currentJobId");
+  return id !== null && /^\d+$/.test(id) ? id : null;
+}
+
 /**
  * LinkedIn links copied while logged in (`/jobs/collections/…?currentJobId=<id>`,
  * `/jobs/search/?currentJobId=<id>`) show the job in a panel only a logged-in browser gets.
  * Returns the job's public page instead; any other link is returned as it is.
  */
 export function rewriteLinkedInUrl(url: URL): URL {
-  if (!isLinkedInUrl(url) || !url.pathname.startsWith("/jobs/")) return url;
-  const id = url.searchParams.get("currentJobId");
-  if (id === null || !/^\d+$/.test(id)) return url;
-  return new URL(`https://www.linkedin.com/jobs/view/${id}`);
+  const id = currentJobId(url);
+  return id === null ? url : new URL(`https://www.linkedin.com/jobs/view/${id}`);
+}
+
+/**
+ * The LinkedIn job a link names, or null: `/jobs/…?currentJobId=<id>`, `/jobs/view/<id>` and
+ * `/jobs/view/<words>-<id>` all name job `<id>` (F47).
+ */
+export function linkedInJobId(url: URL): string | null {
+  const current = currentJobId(url);
+  if (current !== null) return current;
+  if (!isLinkedInUrl(url)) return null;
+  return /^\/jobs\/view\/(?:[^/]*-)?(\d+)\/?$/.exec(url.pathname)?.[1] ?? null;
+}
+
+/**
+ * What two links of the same job have in common: the LinkedIn job ID for a LinkedIn job,
+ * otherwise the address itself, so `https://Jobs.Example.com` and `https://jobs.example.com/`
+ * are the same link (F33, F47).
+ */
+export function jobKey(url: URL): string {
+  const id = linkedInJobId(url);
+  return id === null ? url.href : `linkedin-job:${id}`;
 }
