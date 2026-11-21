@@ -66,9 +66,9 @@ export interface RunSummary {
   /** When the run started, in milliseconds since the epoch (F39). */
   startedAt?: number;
   applicationId?: string;
-  /** The posting's company and role, once known (F38). */
+  /** The job's title and company, once known (F38, F46). */
+  title?: string;
   company?: string;
-  role?: string;
   error?: string;
   /** The steps the run went through and their context-size warnings (F30, F40). */
   steps: RunStepState[];
@@ -246,8 +246,8 @@ export function createRunRegistry(
         status: run.status,
         startedAt: run.startedAt,
         applicationId: run.applicationId,
-        company: run.company,
-        role: run.role,
+        title: run.job?.title,
+        company: run.job?.company,
         error: run.error,
         ...runSteps(run.events),
         retryable: offersTryAgain(runs, run),

@@ -2,7 +2,7 @@ import { lookup } from "node:dns/promises";
 import { request as httpRequest, type IncomingMessage } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { isIP, type LookupFunction } from "node:net";
-import { htmlToText } from "@/core/posting/html-to-text";
+import { readPostingPage } from "@/core/posting/details";
 import type { FetchedPosting, JobFetcher } from "@/core/posting/job-fetcher";
 import { INDEED_BLOCKED, isIndeedUrl, isLinkedInUrl, rewriteLinkedInUrl } from "@/core/posting/sites";
 import { PRIVATE_ADDRESS, checkPostingUrl, hostOf, isIpAddress, isPublicAddress } from "@/core/posting/url";
@@ -155,9 +155,9 @@ export function createJobFetcher(send: SendRequest = sendWithNode, resolve: Reso
         throw new Refused("The link doesn't lead to a web page.");
       }
       const html = decode(await readLimited(response), type);
-      const text = htmlToText(html, { linkedIn: isLinkedInUrl(url) });
+      const { text, details } = readPostingPage(html, { linkedIn: isLinkedInUrl(url) });
       if (text === "") throw new Refused("The page has no readable text.");
-      return { ok: true, text, url: url.href };
+      return { ok: true, text, url: url.href, details };
     }
   }
 

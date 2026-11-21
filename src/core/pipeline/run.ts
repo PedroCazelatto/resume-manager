@@ -1,9 +1,11 @@
 import { applicationFolderName, type ApplicationFile } from "../application/folder";
-import { analysisSchema, jobSchema, type Job } from "../application/schemas";
+import { jobDetails, jobSummary, type JobSummary } from "../application/job";
+import { analysisSchema, jobSchema, type JobDetails } from "../application/schemas";
 import { stopIfCancelled, type LlmClient, type LlmProgress } from "../llm";
 import { patchFrontmatter, stringifyFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile } from "../markdown/validate";
 import type { Profile } from "../profile/profile";
+import { postingWithDetails } from "../prompts/posting";
 import { resumeFileSchema } from "../resume/schema";
 import type { ParseTemplateResult } from "../template/template";
 import { checkResume } from "../verification/checks";
@@ -26,10 +28,10 @@ export type RunEvent =
   /** The step's prompt may not leave room for the reply; the run continues (F40). */
   | { type: "warning"; step: RunStep; message: string }
   /**
-   * The application folder exists from here on, even if a later step fails. The posting's
-   * company and role come along when job.md gave them (F38).
+   * The application folder exists from here on, even if a later step fails. The job's title,
+   * company, company website and platform come along when job.md gives them (F38, F46).
    */
-  | { type: "saved"; id: string; company?: string; role?: string }
+  | { type: "saved"; id: string; job?: JobSummary }
   | { type: "done"; id: string }
   | { type: "error"; message: string };
 
@@ -50,10 +52,10 @@ export interface RunInput {
   /** The template every new resume uses. */
   template: string;
   /**
-   * A new run starts from a posting: pasted, with its link when the user kept one, or
-   * `fetched` from `url` (F10). A retry continues the application with this ID.
+   * A new run starts from a posting and its link: pasted, or fetched from the link, with the
+   * details read from its page (F10, F46). A retry continues the application with this ID.
    */
-  start: { posting: string; url?: string; fetched?: boolean } | { id: string };
+  start: { posting: string; url: string; details?: JobDetails } | { id: string };
   now: () => Date;
   /** Today's date as YYYY-MM-DD, for the application folder's name. */
   today: () => string;
@@ -80,7 +82,6 @@ export async function runApplication(input: RunInput): Promise<string> {
   let analysis;
   if ("posting" in input.start) {
     posting = input.start.posting;
-    const origin: Pick<Job, "source" | "url"> = { source: input.start.fetched ? "url" : "paste", url: input.start.url };
 
     stopIfCancelled(signal);
     step("analyse", "running");
@@ -88,7 +89,8 @@ export async function runApplication(input: RunInput): Promise<string> {
       llm,
       profile,
       posting,
-      origin,
+      url: input.start.url,
+      details: input.start.details,
       now,
       onProgress: progress("analyse"),
       onWarning: warning("analyse"),
@@ -98,7 +100,7 @@ export async function runApplication(input: RunInput): Promise<string> {
 
     stopIfCancelled(signal);
     step("save", "running");
-    id = await files.create(applicationFolderName(input.today(), job.company, job.role), {
+    id = await files.create(applicationFolderName(input.today(), job.company ?? "", job.title ?? ""), {
       "job.md": stringifyFrontmatter(job, `${posting}\n`),
       "analysis.md": stringifyFrontmatter(analysis),
     });
@@ -119,7 +121,7 @@ export async function runApplication(input: RunInput): Promise<string> {
     step("analyse", "done");
     step("save", "done");
   }
-  send({ type: "saved", id, company: job.company, role: job.role });
+  send({ type: "saved", id, job: jobSummary(job) });
 
   let resume;
   const resumeSource = await files.read(id, "resume.md");
@@ -132,7 +134,8 @@ export async function runApplication(input: RunInput): Promise<string> {
     resume = await tailorResume({
       llm,
       profile,
-      posting,
+      // The job's details go with its text, as in the analysis (F46).
+      posting: postingWithDetails(jobDetails(job), posting),
       analysis,
       template: template.template,
       now,

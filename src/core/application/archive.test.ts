@@ -89,6 +89,6 @@ describe("restoredJob (F48)", () => {
 
   it("leaves a job.md that isn't archived alone, and reports one that isn't valid", () => {
     expect(restoredJob(JOB, FILE)).toEqual({ ok: false, reason: "not archived" });
-    expect(restoredJob("---\nsource: url\n---\n", FILE)).toMatchObject({ ok: false, reason: "invalid", error: { file: FILE } });
+    expect(restoredJob("---\nsource: LinkedIn\n---\n", FILE)).toMatchObject({ ok: false, reason: "invalid", error: { file: FILE } });
   });
 });

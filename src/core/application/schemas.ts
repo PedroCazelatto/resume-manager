@@ -29,17 +29,35 @@ export interface JobDetails {
   hours?: string;
 }
 
-export const jobSchema = z.looseObject({
-  source: z.enum(["url", "paste"]),
-  url: z.url({ protocol: /^https?$/ }).optional(),
-  fetched_at: timestamp,
-  company: text,
-  role: text,
-  language: languageCode,
-  location: text.optional(),
-  /** When the application was archived; restoring it removes the field (F48). */
-  archived_at: timestamp.optional(),
-});
+const webAddress = z.url({ protocol: /^https?$/, error: "must be an http or https address" });
+
+/**
+ * job.md: the posting's details, its link and the platform it came from; the posting's text is
+ * the body (F46). A file written before F46 is still read, until application-uuids rewrites it:
+ * its `source` says how the text arrived (`url` or `paste`), a pasted posting may have no `url`,
+ * and its title is `role`.
+ */
+export const jobSchema = z
+  .looseObject({
+    title: text.optional(),
+    company: text.optional(),
+    company_url: webAddress.optional(),
+    url: webAddress.optional(),
+    /** The job platform ("LinkedIn", "Indeed", otherwise the link's host name without `www.`). */
+    source: text,
+    fetched_at: timestamp.optional(),
+    language: languageCode.optional(),
+    location: text.optional(),
+    salary: text.optional(),
+    work_model: z.enum(WORK_MODELS).optional(),
+    hours: text.optional(),
+    /** When the application was archived; restoring it removes the field (F48). */
+    archived_at: timestamp.optional(),
+    /** The title, in a job.md written before F46. */
+    role: text.optional(),
+  })
+  // Every posting has its link (F47); only a file written before F46, whose source is `url` or `paste`, may lack it.
+  .refine((job) => job.url !== undefined || job.source === "url" || job.source === "paste", { path: ["url"], message: "is required" });
 
 export const IMPORTANCE = ["must-have", "nice-to-have"] as const;
 export const MATCH_STATUS = ["matched", "partial", "missing"] as const;

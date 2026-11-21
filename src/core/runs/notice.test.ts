@@ -3,25 +3,25 @@ import { endedRuns, noticeTabTitle, runNotice, showsNotification } from "./notic
 import type { RunStatus } from "./queue";
 
 describe("runNotice", () => {
-  it("says the resume is ready, with the company and role", () => {
-    expect(runNotice({ kind: "new", status: "done", company: "Globex", role: "Backend Engineer" })).toEqual({
+  it("says the resume is ready, with the company and title", () => {
+    expect(runNotice({ kind: "new", status: "done", company: "Globex", title: "Backend Engineer" })).toEqual({
       title: "Resume ready",
       body: "Globex · Backend Engineer",
       tab: "Done",
     });
   });
 
-  it("says the run failed, with the company and role", () => {
-    expect(runNotice({ kind: "new", status: "failed", company: "Globex", role: "Backend Engineer" })).toEqual({
+  it("says the run failed, with the company and title", () => {
+    expect(runNotice({ kind: "new", status: "failed", company: "Globex", title: "Backend Engineer" })).toEqual({
       title: "Run failed",
       body: "Globex · Backend Engineer",
       tab: "Failed",
     });
   });
 
-  it("has no body while the company and role aren't known", () => {
+  it("has no body while the company and title aren't known", () => {
     expect(runNotice({ kind: "new", status: "failed" })).toEqual({ title: "Run failed", tab: "Failed" });
-    expect(runNotice({ kind: "new", status: "done", company: "", role: "" })).toEqual({ title: "Resume ready", tab: "Done" });
+    expect(runNotice({ kind: "new", status: "done", company: "", title: "" })).toEqual({ title: "Resume ready", tab: "Done" });
   });
 
   it("says the same for \"Try again\" as for a new run", () => {
@@ -30,7 +30,7 @@ describe("runNotice", () => {
   });
 
   it("has its own words for \"Verify again\"", () => {
-    expect(runNotice({ kind: "verify", status: "done", company: "Globex", role: "Backend Engineer" })).toEqual({
+    expect(runNotice({ kind: "verify", status: "done", company: "Globex", title: "Backend Engineer" })).toEqual({
       title: "Verification finished",
       body: "Globex · Backend Engineer",
       tab: "Done",
@@ -52,7 +52,7 @@ describe("runNotice", () => {
       tab: "Failed",
     });
     // Other failures keep their words, also when the run came from a link.
-    expect(runNotice({ kind: "new", status: "failed", fetchFailed: false, url: link, company: "Globex", role: "Backend Engineer" })).toEqual({
+    expect(runNotice({ kind: "new", status: "failed", fetchFailed: false, url: link, company: "Globex", title: "Backend Engineer" })).toEqual({
       title: "Run failed",
       body: "Globex · Backend Engineer",
       tab: "Failed",
@@ -63,12 +63,12 @@ describe("runNotice", () => {
   });
 
   it("has nothing to tell about a run the user cancelled (F32)", () => {
-    expect(runNotice({ kind: "new", status: "cancelled", company: "Globex", role: "Backend Engineer" })).toBeNull();
+    expect(runNotice({ kind: "new", status: "cancelled", company: "Globex", title: "Backend Engineer" })).toBeNull();
   });
 
   it("has nothing to tell about a run that hasn't ended", () => {
     expect(runNotice({ kind: "new", status: "queued" })).toBeNull();
-    expect(runNotice({ kind: "new", status: "running", company: "Globex", role: "Backend Engineer" })).toBeNull();
+    expect(runNotice({ kind: "new", status: "running", company: "Globex", title: "Backend Engineer" })).toBeNull();
   });
 });
 

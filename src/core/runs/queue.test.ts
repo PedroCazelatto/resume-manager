@@ -87,16 +87,17 @@ describe("run queue", () => {
       { type: "saved", id: "2026-11-10-globex-backend-engineer" },
     ]);
     expect(runs[0].applicationId).toBe("2026-11-10-globex-backend-engineer");
-    expect(runs[0].company).toBeUndefined();
+    expect(runs[0].job).toBeUndefined();
   });
 
-  it("keeps the company and role a run tells when its application is saved (F38)", () => {
+  it("keeps what a run tells about its job when its application is saved (F38, F46)", () => {
+    const job = { title: "Backend Engineer", company: "Globex", companyUrl: "https://globex.example/", source: "LinkedIn" };
     let runs = startRun(queued("a"), "a", STARTED);
-    runs = recordEvent(runs, "a", { type: "saved", id: "2026-11-10-globex-backend-engineer", company: "Globex", role: "Backend Engineer" });
+    runs = recordEvent(runs, "a", { type: "saved", id: "2026-11-10-globex-backend-engineer", job });
     runs = recordEvent(runs, "a", { type: "step", step: "tailor", status: "running" });
 
-    expect(runs[0]).toMatchObject({ company: "Globex", role: "Backend Engineer" });
-    expect(finishRun(runs, "a", "Can't reach Ollama.")[0]).toMatchObject({ status: "failed", company: "Globex", role: "Backend Engineer" });
+    expect(runs[0]).toMatchObject({ job });
+    expect(finishRun(runs, "a", "Can't reach Ollama.")[0]).toMatchObject({ status: "failed", job });
   });
 
   it("ends a failed run with its error as the last event", () => {

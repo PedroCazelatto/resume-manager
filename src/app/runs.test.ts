@@ -6,7 +6,8 @@ import { waitingToFetch, type QueueEvent } from "@/core/runs/queue";
 import { createRunRegistry, type AppRun, type ExecuteRun, type RunRegistry, type RunRequest } from "./runs";
 
 const POSTING = "Globex is hiring a Backend Engineer.";
-const posting = (text = POSTING): RunRequest => ({ start: { posting: text } });
+const PASTED_LINK = "https://jobs.example.com/pasted";
+const posting = (text = POSTING): RunRequest => ({ start: { posting: text, url: PASTED_LINK } });
 const ID = "2026-11-10-globex-backend-engineer";
 
 /** Lets each run be ended by hand, in any order. */
@@ -57,7 +58,18 @@ describe("run registry", () => {
     const second = registry.enqueue("jane-doe", "retry", { start: { id: ID } });
 
     expect(registry.list("jane-doe")).toEqual([
-      { runId: first, kind: "new", status: "running", startedAt: STARTED, steps: [], warnings: {}, retryable: false, fetchFailed: false, archivable: false },
+      {
+        runId: first,
+        kind: "new",
+        status: "running",
+        startedAt: STARTED,
+        steps: [],
+        warnings: {},
+        retryable: false,
+        url: PASTED_LINK,
+        fetchFailed: false,
+        archivable: false,
+      },
       {
         runId: second,
         kind: "retry",
@@ -418,7 +430,7 @@ describe("run registry", () => {
     async function failedRun() {
       const runs = manualRuns();
       const registry = createRunRegistry(runs.execute, undefined, () => STARTED);
-      const runId = registry.enqueue("jane-doe", "new", { start: { posting: POSTING } });
+      const runId = registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: PASTED_LINK } });
       const ended = followed(registry, "jane-doe", runId);
       runs.ends.get(runId)!.reject(new Error("Can't reach Ollama."));
       await ended;
@@ -501,7 +513,7 @@ describe("run registry", () => {
     const LINK = "https://jobs.example.com/backend-engineer";
     const PAGE = "https://jobs.example.com/backend-engineer?from=redirect";
     const link = (url = LINK): RunRequest => ({ start: { url } });
-    const fetched: FetchedPosting = { ok: true, text: POSTING, url: PAGE };
+    const fetched: FetchedPosting = { ok: true, text: POSTING, url: PAGE, details: {} };
     const refused: FetchedPosting = { ok: false, reason: "The page answered 403." };
 
     /** Lets each fetch be answered by hand. */
@@ -530,7 +542,18 @@ describe("run registry", () => {
 
       expect(asked).toEqual([LINK]);
       expect(registry.list("jane-doe")).toEqual([
-        { runId: busy, kind: "new", status: "running", startedAt: STARTED, steps: [], warnings: {}, retryable: false, fetchFailed: false, archivable: false },
+        {
+          runId: busy,
+          kind: "new",
+          status: "running",
+          startedAt: STARTED,
+          steps: [],
+          warnings: {},
+          retryable: false,
+          url: PASTED_LINK,
+          fetchFailed: false,
+          archivable: false,
+        },
         {
           runId,
           kind: "new",
@@ -563,7 +586,7 @@ describe("run registry", () => {
       await settled();
 
       expect(started.map((run) => run.runId)).toEqual([runId]);
-      expect(started[0].input).toEqual({ start: { posting: POSTING, url: PAGE, fetched: true } });
+      expect(started[0].input).toEqual({ start: { posting: POSTING, url: PAGE, details: {} } });
       expect(statuses(registry)).toEqual(["running"]);
       expect(JSON.stringify(registry.list("jane-doe"))).not.toContain(POSTING);
     });
@@ -678,11 +701,11 @@ describe("run registry", () => {
       const { execute, started } = manualRuns();
       const long = `${POSTING} `.repeat(2_000);
       expect(long.length).toBeGreaterThan(50_000);
-      const registry = createRunRegistry(execute, async () => ({ ok: true, text: long, url: PAGE }));
+      const registry = createRunRegistry(execute, async () => ({ ok: true, text: long, url: PAGE, details: {} }));
       registry.enqueue("jane-doe", "new", link());
       await settled();
 
-      expect(started[0].input).toEqual({ start: { posting: long, url: PAGE, fetched: true } });
+      expect(started[0].input).toEqual({ start: { posting: long, url: PAGE, details: {} } });
     });
 
     it("moves the same run on with the pasted text, which joins the end of the run queue (F48)", async () => {
@@ -791,7 +814,7 @@ describe("run registry", () => {
 
       registry.retry("jane-doe", runId);
       expect(asked).toEqual([LINK]);
-      expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: PAGE, fetched: true } });
+      expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: PAGE, details: {} } });
     });
 
     it("lists the link as given until the fetch worked, then the address the text was read from (F47)", async () => {
@@ -806,7 +829,7 @@ describe("run registry", () => {
       const url = (id: string) => registry.list("jane-doe").find((run) => run.runId === id)?.url;
 
       expect(url(runId)).toBe(given);
-      answers.get(given)!({ ok: true, text: POSTING, url: read });
+      answers.get(given)!({ ok: true, text: POSTING, url: read, details: {} });
       await settled();
       expect(url(runId)).toBe(read);
 
@@ -913,7 +936,7 @@ describe("run registry", () => {
 
     describe("a list of links (F33)", () => {
       const LINKS = ["https://jobs.example.com/1", "https://jobs.example.com/2", "https://jobs.example.com/3"];
-      const page = (url: string): FetchedPosting => ({ ok: true, text: `${POSTING} ${url}`, url });
+      const page = (url: string): FetchedPosting => ({ ok: true, text: `${POSTING} ${url}`, url, details: {} });
 
       it("runs the links one after another in the order given, without further action", async () => {
         const { execute, started, ends } = manualRuns();
@@ -937,7 +960,7 @@ describe("run registry", () => {
         }
 
         expect(started.map((run) => run.input)).toEqual(
-          LINKS.map((url) => ({ start: { posting: `${POSTING} ${url}`, url, fetched: true } })),
+          LINKS.map((url) => ({ start: { posting: `${POSTING} ${url}`, url, details: {} } })),
         );
         expect(statuses(registry)).toEqual(["done", "done", "done"]);
       });

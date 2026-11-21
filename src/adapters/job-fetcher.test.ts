@@ -80,9 +80,19 @@ describe("createJobFetcher", () => {
 
     const result = await createJobFetcher(send, resolve).fetchPosting(JOB);
 
-    expect(result).toEqual({ ok: true, text: "Backend Engineer\nGlobex is hiring.", url: JOB });
+    expect(result).toEqual({ ok: true, text: "Backend Engineer\nGlobex is hiring.", url: JOB, details: {} });
     expect(asked).toEqual(["jobs.example.com"]);
     expect(calls).toHaveLength(1);
+  });
+
+  it("returns the details the page's JobPosting data holds, and its description as the text (F46)", async () => {
+    const posting = { "@type": "JobPosting", title: "Backend Engineer", hiringOrganization: { name: "Globex" }, description: "<p>We build payment systems.<\/p>" };
+    const page = `<html><head><script type="application/ld+json">${JSON.stringify(posting)}</script></head><body><main><p>Apply now</p></main></body></html>`;
+    const { send } = fakeSend({ [JOB]: () => html(page) });
+
+    const result = await createJobFetcher(send, fakeResolver().resolve).fetchPosting(JOB);
+
+    expect(result).toEqual({ ok: true, text: "We build payment systems.", url: JOB, details: { title: "Backend Engineer", company: "Globex" } });
   });
 
   describe("one lookup per request (F47)", () => {
@@ -400,6 +410,7 @@ describe("createJobFetcher", () => {
         ok: true,
         text: "Globex hiring Backend Engineer in Dublin | LinkedIn\nWe build payment systems.",
         url: PUBLIC_PAGE,
+        details: {},
       });
       expect(urls()).toEqual([PUBLIC_PAGE]);
       expect(asked).toEqual(["www.linkedin.com"]);

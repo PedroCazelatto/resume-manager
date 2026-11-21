@@ -4,9 +4,9 @@ import { fetchedStart, readLinkStarts, readNewRunStart } from "./start";
 describe("fetchedStart", () => {
   const page = "https://jobs.example.com/7";
 
-  it("starts from the fetched text and the page it came from", () => {
-    expect(fetchedStart({ ok: true, text: "Globex is hiring.", url: page })).toEqual({
-      start: { posting: "Globex is hiring.", url: page, fetched: true },
+  it("starts from the fetched text, the page it came from and the details the page holds (F46)", () => {
+    expect(fetchedStart({ ok: true, text: "Globex is hiring.", url: page, details: { title: "Backend Engineer" } })).toEqual({
+      start: { posting: "Globex is hiring.", url: page, details: { title: "Backend Engineer" } },
     });
   });
 
@@ -17,7 +17,7 @@ describe("fetchedStart", () => {
   it("takes text of any length whole: there is no character limit (F47)", () => {
     const long = "Globex is hiring. ".repeat(10_000);
     expect(long.length).toBeGreaterThan(50_000);
-    expect(fetchedStart({ ok: true, text: long, url: page })).toEqual({ start: { posting: long, url: page, fetched: true } });
+    expect(fetchedStart({ ok: true, text: long, url: page, details: {} })).toEqual({ start: { posting: long, url: page, details: {} } });
   });
 });
 

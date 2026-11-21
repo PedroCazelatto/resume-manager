@@ -3,12 +3,12 @@ import type { RunKind, RunStatus } from "./queue";
 // What the browser tells the user when a run ends (F38). These functions only decide the
 // words and which runs to tell about; the page shows the notification and sets the title.
 
-/** A run that ended, with the posting's company and role when the run got far enough to know them. */
+/** A run that ended, with the job's company and title when the run got far enough to know them. */
 export interface EndedRun {
   kind: RunKind;
   status: RunStatus;
   company?: string;
-  role?: string;
+  title?: string;
   /** The run's fetch failed, or its link is never requested, so it needs the posting's text (F10, F47). */
   fetchFailed?: boolean;
   /** The posting's link. */
@@ -21,7 +21,7 @@ export const FETCH_FAILED_TITLE = "Couldn't read the posting: paste the text";
 export interface RunNotice {
   /** The system notification's title. */
   title: "Resume ready" | "Run failed" | "Verification finished" | "Verification failed" | typeof FETCH_FAILED_TITLE;
-  /** The company and role, when known; for a failed fetch, the link. */
+  /** The company and title, when known; for a failed fetch, the link. */
   body?: string;
   /** What the tab title starts with until the tab is focused again. */
   tab: "Done" | "Failed";
@@ -35,7 +35,7 @@ export function runNotice(run: EndedRun): RunNotice | null {
   if (run.status === "failed" && run.fetchFailed) {
     return { title: FETCH_FAILED_TITLE, ...(run.url ? { body: run.url } : {}), tab: "Failed" };
   }
-  const body = [run.company, run.role].filter(Boolean).join(" · ");
+  const body = [run.company, run.title].filter(Boolean).join(" · ");
   // "Verify again" writes no resume, so it has its own words.
   const verify = run.kind === "verify";
   const ready = verify ? "Verification finished" : "Resume ready";

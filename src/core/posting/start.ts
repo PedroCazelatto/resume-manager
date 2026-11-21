@@ -1,9 +1,13 @@
+import type { JobDetails } from "../application/schemas";
 import type { FetchedPosting } from "./job-fetcher";
 import { readLinks, refusedMessage, type ListedLink } from "./links";
 import { parseLink } from "./url";
 
-/** A posting a run can start from: pasted, with its link when one was kept, or `fetched` from `url`. */
-export type PostingStart = { posting: string; url?: string; fetched?: boolean };
+/**
+ * A posting a run can start from: its text and its link, pasted, or fetched from the link with
+ * the details read from its page (F10, F46).
+ */
+export type PostingStart = { posting: string; url: string; details?: JobDetails };
 
 /** Pasted text with its link: every posting has its link (F47). */
 export type PastedStart = { posting: string; url: string };
@@ -14,7 +18,7 @@ export type PastedStart = { posting: string; url: string };
  */
 export function fetchedStart(fetched: FetchedPosting): { start: PostingStart } | { error: string } {
   if (!fetched.ok) return { error: fetched.reason };
-  return { start: { posting: fetched.text, url: fetched.url, fetched: true } };
+  return { start: { posting: fetched.text, url: fetched.url, details: fetched.details } };
 }
 
 /**

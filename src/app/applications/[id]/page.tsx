@@ -12,6 +12,7 @@ import type { ActiveRun } from "@/components/use-active-run";
 import { Card, CardContent } from "@/components/ui/card";
 import { VerificationView } from "@/components/verification-view";
 import { isApplicationId } from "@/core/application/folder";
+import { jobTitle } from "@/core/application/job";
 import { analysisSchema, jobSchema } from "@/core/application/schemas";
 import { languageName } from "@/core/application/languages";
 import { validateMarkdownFile, type FileError } from "@/core/markdown/validate";
@@ -92,11 +93,12 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
 
   const header = (
     <header className="space-y-1">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        {job.data.role} · {job.data.company}
+      {/* The title or the company may be unknown (F46); the link names the job then. */}
+      <h1 className="text-2xl font-semibold tracking-tight break-words">
+        {[jobTitle(job.data), job.data.company].filter(Boolean).join(" · ") || job.data.url || id}
       </h1>
       <p className="text-sm text-muted-foreground">
-        {[job.data.location, languageName(job.data.language)].filter(Boolean).join(" · ")}
+        {[job.data.location, job.data.language && languageName(job.data.language)].filter(Boolean).join(" · ")}
       </p>
     </header>
   );

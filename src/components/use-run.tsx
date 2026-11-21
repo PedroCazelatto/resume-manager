@@ -151,7 +151,7 @@ export function useRun(): Run {
     setFollowedId(runId);
     let finished: string | null = null;
     let failed = false;
-    let job: { company?: string; role?: string } = {};
+    let job: { company?: string; title?: string } = {};
     try {
       const response = await fetch(`/api/runs/${runId}/events`, { signal: options.signal });
       if (!response.ok || !response.body) {
@@ -178,7 +178,7 @@ export function useRun(): Run {
           setWarnings((current) => ({ ...current, [event.step]: event.message }));
         } else if (event.type === "saved") {
           setSavedId(event.id);
-          job = { company: event.company, role: event.role };
+          job = { company: event.job?.company, title: event.job?.title };
         } else if (event.type === "error") {
           setError(event.message);
           failed = true;
