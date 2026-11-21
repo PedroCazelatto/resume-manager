@@ -1,7 +1,7 @@
 ---
 title: Push the Runs list from the server instead of polling it
 id: F53
-version: next version
+version: future version
 reported: 2026-11-21
 ---
 
@@ -42,9 +42,10 @@ The Runs list (`src/components/runs-list.tsx`) and the sidebar's runs count (`sr
 ## Depends on
 
 - [run-queue](run-queue.md), [notify-when-run-ends](notify-when-run-ends.md), [visual-pass](visual-pass.md) (implemented).
-- [home-applications-table](home-applications-table.md) later moves the count from the sidebar to the Generating tab. It uses the same pushed list.
+- [home-applications-table](home-applications-table.md) is built before this task: it replaces the Runs list and the sidebar's count with the home page's table and its Generating tab, and the pushed list feeds those instead. Check the file names in the technical notes against the code when this task is picked up.
 
 ## Decisions
 
 - Decided 2026-11-21 (the user): the list is pushed by the server ("Server push"), chosen over polling only while a run is open and over polling more slowly. No polling at all, and instant updates, also for runs started from another tab.
 - Decided 2026-11-21 (the user): this is a backlog task of the next version, not an immediate fix ("Do not implement it now, create a backlog file and add it to the next-version feature list").
+- Decided 2026-11-21 (the user): moved to the future version. Until it is built, the list keeps its 2-second refresh.

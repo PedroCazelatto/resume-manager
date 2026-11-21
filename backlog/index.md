@@ -8,17 +8,20 @@ How the next task is chosen: use the app for real applications, write down what 
 
 ## Next version
 
-Build order, decided 2026-11-21: the quickest tasks first, as far as what each depends on allows, and one task at a time, because almost every task touches the same files (`src/app/runs.ts`, `src/core/runs/queue.ts`, `src/components/runs-list.tsx`). The order is english-only-resumes, runs-list-push, link-handling-changes, runs-list-changes, job-posting-details, edit-before-restart, application-uuids, browser-extension, and home-applications-table last. A task still waiting for the user's answer to a question moves down, and the next one goes first.
+Build order, decided 2026-11-21: the quickest tasks first, as far as what each depends on allows, and one task at a time, because almost every task touches the same files (`src/app/runs.ts`, `src/core/runs/queue.ts`, `src/components/runs-list.tsx`). The order is runs-list-changes, job-posting-details, application-uuids, and home-applications-table last. A task still waiting for the user's answer to a question moves down, and the next one goes first.
 
-- [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
-- [job-posting-details.md](job-posting-details.md) — Job posting details: title, company, source and more (F46)
+Also decided 2026-11-21 (the user): the next version keeps only link-handling-changes (since implemented), runs-list-changes, job-posting-details, application-uuids and home-applications-table. Browser-extension, edit-before-restart and runs-list-push move to the future version.
+
 - [runs-list-changes.md](runs-list-changes.md) — Remove, cancel and archive runs, and other Runs list changes decided on 2026-11-17 (F48)
-- [home-applications-table.md](home-applications-table.md) — Home page as one table of all applications, with the queue in tabs (F26)
+- [job-posting-details.md](job-posting-details.md) — Job posting details: title, company, source and more (F46)
 - [application-uuids.md](application-uuids.md) — Name application folders with a UUID, and update old applications (F50)
-- [edit-before-restart.md](edit-before-restart.md) — Edit the posting or add a note before starting a run again (F52)
-- [runs-list-push.md](runs-list-push.md) — Push the Runs list from the server instead of polling it (F53)
+- [home-applications-table.md](home-applications-table.md) — Home page as one table of all applications, with the queue in tabs (F26)
 
 ## Future version
+
+- [browser-extension.md](browser-extension.md) — Read Indeed links through a browser extension (F45)
+- [edit-before-restart.md](edit-before-restart.md) — Edit the posting or add a note before starting a run again (F52)
+- [runs-list-push.md](runs-list-push.md) — Push the Runs list from the server instead of polling it (F53)
 
 - [create-and-rename-profiles.md](create-and-rename-profiles.md) — Create and rename profiles in the app (F04)
 - [profile-editor.md](profile-editor.md) — Edit profile files in the app (F05)

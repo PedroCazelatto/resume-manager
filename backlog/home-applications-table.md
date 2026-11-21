@@ -16,7 +16,7 @@ Past applications can only be found as folders on disk or by their URL, and the 
   - **Ready**: only applications whose generation finished and that aren't archived, newest first. Each row opens the application's page. This is the tab shown first when no resume is being generated.
   - **Generating** (the resume queue): the runs waiting for the model, the links still in the fetch queue, and the runs that failed or were cancelled, in queue order, none of them archived.
   - **Archived**: the archived rows ([runs-list-changes](runs-list-changes.md)), finished or not, newest archived first (by `archived_at`), with the same columns. Each row has "Restore": an unfinished one goes back to Generating as cancelled, with "Try again"; a finished one goes back to Ready.
-- After a restart, runs in memory are gone (Art. IV.1). An application whose generation never finished (it was fetching, waiting, running, failed or cancelled) and that isn't archived is listed in Generating as cancelled, with "Try again", "Edit" ([edit-before-restart](edit-before-restart.md)) or "Paste the text" when it has no posting text, and the archive button. Nothing starts again by itself.
+- After a restart, runs in memory are gone (Art. IV.1). An application whose generation never finished (it was fetching, waiting, running, failed or cancelled) and that isn't archived is listed in Generating as cancelled, with "Try again", "Paste the text" when it has no posting text, and the archive button. Nothing starts again by itself. ("Edit" comes later, with [edit-before-restart](edit-before-restart.md).)
 - The Generating tab's label shows two numbers: valid runs waiting for the model / links still being fetched (for example "3 / 2"). When some runs have problems (a failed fetch, a link that needs its text, a failed generation), a red circle with their count is added.
 - The generation in progress, if there is one, is shown on its own above the tabs, with its steps, timer, token counts and its X ([runs-list-changes](runs-list-changes.md)).
 - Failed generations stay at their position in the list.
@@ -25,7 +25,7 @@ Past applications can only be found as folders on disk or by their URL, and the 
   1. the status, as a glowing ball in the status colour: running and finished green, failed red, needing the posting's text amber, the others grey;
   2. the job's title, with the company under it in a smaller font, the company being a link to its website when the posting gives it; the URL while the title isn't known ([job-posting-details](job-posting-details.md));
   3. the state, with the source under it, and the run's kind as a small label ("Try again", "Verify again");
-  4. the row's actions button (open, cancel, try again, edit, paste the text, archive, restore, as the row allows).
+  4. the row's actions button (open, cancel, try again, paste the text, archive, restore, as the row allows; edit is added later by [edit-before-restart](edit-before-restart.md)).
 - A finished application's state is draft or ready, or "has problems" when one of its files is invalid (Art. IV.6).
 - The runs count leaves the sidebar, since it is on the tab now.
 - The selected sidebar entry and the keyboard focus ring use the green accent.
@@ -36,10 +36,10 @@ Past applications can only be found as folders on disk or by their URL, and the 
 - [ ] Every finished application under the profile's `applications/` appears once in "Ready"; a folder with an invalid `job.md` is listed as "has problems" instead of breaking the page; with none, the tab says so.
 - [ ] The Generating tab lists waiting runs and fetch-queue links in order, with the two counts and the red problem count.
 - [ ] Archived rows appear only in the Archived tab, newest archived first; "Restore" puts an unfinished one back in Generating as cancelled and a finished one back in Ready.
-- [ ] After a restart, an unfinished application that isn't archived is in Generating as cancelled, with "Try again" and the archive button, plus "Edit" or "Paste the text" depending on whether it has posting text; no run starts by itself.
+- [ ] After a restart, an unfinished application that isn't archived is in Generating as cancelled, with "Try again" and the archive button, plus "Paste the text" when it has no posting text; no run starts by itself.
 - [ ] The generation in progress appears above the tabs, and only while there is one; the first tab shown follows the rule above.
 - [ ] The modal queues links exactly as the "From links" tab does today, including its messages.
-- [ ] Nothing that works on the home page today is lost: remove, cancel, archive, restore, "Try again", "Edit", pasting the text on a failed fetch, notifications.
+- [ ] Nothing that works on the home page today is lost: remove, cancel, archive, restore, "Try again", pasting the text on a failed fetch, notifications.
 - [ ] Light and dark mode, 1440 px and 390 px wide, checked with screenshots.
 - [ ] Deriving a row (title, company, source, date, status, tab) from an application's files and the runs in memory, and the counts, are pure functions in `src/core/` with unit tests; `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` pass.
 - [ ] This file says `version: implemented` in the implemented format, `backlog/index.md` lists it under Implemented, and [run-queue](run-queue.md), [visual-pass](visual-pass.md) and [list-of-posting-urls](list-of-posting-urls.md) describe the new home page.
@@ -55,7 +55,6 @@ Past applications can only be found as folders on disk or by their URL, and the 
 ## Depends on
 
 - [runs-list-changes](runs-list-changes.md) (the X and archive buttons, archiving and restoring, the states) and [link-handling-changes](link-handling-changes.md).
-- [edit-before-restart](edit-before-restart.md), for the "Edit" button.
 - [job-posting-details](job-posting-details.md), for the row's title, company and source; [application-uuids](application-uuids.md); [english-only-resumes](english-only-resumes.md).
 
 ## Decisions
@@ -69,3 +68,4 @@ Past applications can only be found as folders on disk or by their URL, and the 
 - Decided 2026-11-17: the form's "Paste text" tab is removed.
 - Decided 2026-11-21 (the archived list): "Now the archived applications can go to a new tab instead of the sidebar." Archived rows are sorted newest archived first (chosen the same day). Cancelled runs, failed runs and finished applications can be archived. Restoring: "Put the row back in Generating" for an unfinished one; a finished one goes back to Ready (chosen the same day).
 - Decided 2026-11-21: after a restart, an unfinished application is listed in Generating as cancelled; nothing starts again by itself (chosen over saving the queue to disk).
+- Decided 2026-11-21 (the user): [edit-before-restart](edit-before-restart.md) moves to the future version, so this task is built without the "Edit" button; that task adds it to the table's rows when it is built. [runs-list-push](runs-list-push.md) moves to the future version too, so the table is still fed by `GET /api/runs` every 2 seconds.

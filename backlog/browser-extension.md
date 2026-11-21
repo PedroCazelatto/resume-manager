@@ -1,7 +1,7 @@
 ---
 title: Read Indeed links through a browser extension
 id: F45
-version: next version
+version: future version
 reported: 2026-11-15
 ---
 
@@ -60,3 +60,4 @@ Indeed is one of the two job sites that must work. It blocks every request the a
 - Decided 2026-11-15: whatever sends a posting, it goes to the queue when a run is already working.
 - Decided 2026-11-17: `source` names the platform ("LinkedIn", "Indeed" or another), not how the text arrived, so the extension needs no way to tell its text from pasted text.
 - Decided 2026-11-17 (the user): "We will use the browser extension (until I build a way to bypass the Indeed automation blocker)."
+- Decided 2026-11-21 (the user): moved to the future version. Until it is built, Indeed links become rows that need their text, with "Paste the text" ([link-handling-changes](link-handling-changes.md)).

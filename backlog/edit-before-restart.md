@@ -1,7 +1,7 @@
 ---
 title: Edit the posting or add a note before starting a run again
 id: F52
-version: next version
+version: future version
 reported: 2026-11-17
 ---
 
@@ -44,6 +44,7 @@ The user cancels a generation so it "can be restarted with something edited" ([r
 
 - [runs-list-changes](runs-list-changes.md): the X that cancels a waiting or running generation.
 - [english-only-resumes](english-only-resumes.md): the dialog has no language field.
+- [home-applications-table](home-applications-table.md) is built before this task: the Runs list becomes the home page's table, so "Edit" goes in the table rows' actions, the unfinished applications listed as cancelled after a restart included.
 - Constitution version 12.0.0 (Art. IV.5: `note?` in `analysis.md`, and `change_request?` in `resume.md` also holding the resume note of a run started again).
 
 ## Decisions
@@ -53,3 +54,4 @@ The user cancels a generation so it "can be restarted with something edited" ([r
 - Decided 2026-11-21 (where): "Yes, the notes need to be saved in the application, not only on memory." Chosen the same day: in each step's own file, `analysis.md`'s `note` and `resume.md`'s `change_request`, kept in memory until that file exists; chosen over two fields in `job.md` or a new `notes.md`.
 - Decided 2026-11-21: a new or changed note for a step whose output is saved makes the run start again from that step; an existing `resume.md` is moved to `archive/<NN>/` first (Art. VI).
 - Decided 2026-11-21: "Try again starts right away, if the user wants to edit something it needs to click the edit button before." The dialog's "Save" stores the changes without starting the run. "Edit" is on cancelled runs and failed generations; a failed fetch keeps "Paste the text" (chosen the same day).
+- Decided 2026-11-21 (the user): moved to the future version; the home page's table is built first, without "Edit".
