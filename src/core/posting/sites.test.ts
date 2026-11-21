@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isIndeedUrl, isLinkedInUrl, jobKey, linkedInJobId, rewriteLinkedInUrl } from "./sites";
+import { isIndeedLink, isIndeedUrl, isLinkedInUrl, jobKey, linkedInJobId, rewriteLinkedInUrl } from "./sites";
 
 const rewritten = (link: string) => rewriteLinkedInUrl(new URL(link)).href;
 
@@ -14,6 +14,14 @@ describe("isIndeedUrl", () => {
     for (const link of ["https://notindeed.com/job", "https://indeed.com.example.org/job", "https://example.com/indeed.com"]) {
       expect(isIndeedUrl(new URL(link)), link).toBe(false);
     }
+  });
+});
+
+describe("isIndeedLink", () => {
+  it("reads the link from text", () => {
+    expect(isIndeedLink(" https://ie.indeed.com/viewjob?jk=1 ")).toBe(true);
+    expect(isIndeedLink("https://jobs.example.com/indeed")).toBe(false);
+    expect(isIndeedLink("indeed.com/viewjob?jk=1")).toBe(false);
   });
 });
 

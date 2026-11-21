@@ -1,8 +1,9 @@
-import { INDEED_BLOCKED, isIndeedUrl, jobKey } from "./sites";
+import { jobKey } from "./sites";
 import { checkPostingUrl } from "./url";
 
 // A list of posting links, one per line (F33). Every line is checked before anything is
-// queued: one line that can't be fetched refuses the whole list.
+// queued: one line that isn't a link the server may fetch refuses the whole list. An Indeed
+// link is accepted: it becomes a run that asks for its text, without any request (F47).
 
 /** A line that can't be queued: its number in the text as given, counting blank lines, and why. */
 export interface RefusedLine {
@@ -27,7 +28,6 @@ export function readLinks(lines: readonly string[]): LinkList {
     if (text === "") return;
     const checked = checkPostingUrl(text);
     if (!checked.ok) refused.push({ line: index + 1, text, reason: checked.reason });
-    else if (isIndeedUrl(checked.url)) refused.push({ line: index + 1, text, reason: INDEED_BLOCKED });
     else if (!jobs.has(jobKey(checked.url))) {
       jobs.add(jobKey(checked.url));
       urls.push(checked.url.href);

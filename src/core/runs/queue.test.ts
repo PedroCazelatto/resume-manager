@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addNotFetched,
   cancelRun,
   canTryAgain,
   dropFetchFailed,
@@ -286,6 +287,46 @@ describe("run queue", () => {
       expect(brief(dropFetchFailed(runs, "john-roe", "b"))).toEqual(["a:queued", "b:failed"]);
       expect(brief(dropFetchFailed(runs, "jane-doe", "a"))).toEqual(["a:queued", "b:failed"]);
       expect(brief(dropFetchFailed(runs, "jane-doe", "unknown"))).toEqual(["a:queued", "b:failed"]);
+    });
+  });
+
+  describe("a link the server never requests (F47)", () => {
+    const INDEED_BLOCKED = "Indeed blocks automated requests. Paste the posting's text instead.";
+    const indeed = (runs: QueuedRun[], runId: string, profile = "jane-doe", maxFinished?: number) =>
+      addNotFetched(runs, { runId, profile, kind: "new", input: { url: "https://ie.indeed.com/viewjob?jk=1" } }, INDEED_BLOCKED, maxFinished);
+
+    it("never enters the fetch queue or the run queue, and starts as needing the posting's text", () => {
+      const runs = indeed(queued(), "a");
+
+      expect(nextFetch(runs)).toBeNull();
+      expect(nextRun(runs)).toBeNull();
+      expect(runs[0]).toMatchObject({ status: "failed", error: INDEED_BLOCKED, notFetched: true, input: { url: "https://ie.indeed.com/viewjob?jk=1" } });
+      expect(runs[0].events).toEqual([{ type: "error", message: INDEED_BLOCKED }]);
+      // No step was taken: nothing was fetched.
+      expect(runSteps(runs[0].events).steps).toEqual([]);
+      expect(fetchFailed(runs[0])).toBe(true);
+    });
+
+    it("offers no \"Try again\", which would fetch the link", () => {
+      const runs = indeed(queued(), "a");
+
+      expect(canTryAgain(runs[0])).toBe(false);
+      expect(offersTryAgain(runs, runs[0])).toBe(false);
+    });
+
+    it("is dropped once its posting was pasted, like a failed fetch, for its own profile only", () => {
+      const runs = indeed(queued("b"), "a");
+
+      expect(statuses(dropFetchFailed(runs, "john-roe", "a"))).toEqual(["b:queued", "a:failed"]);
+      expect(statuses(dropFetchFailed(runs, "jane-doe", "a"))).toEqual(["b:queued"]);
+    });
+
+    it("is listed as the latest finished run, and counts among the finished runs it forgets", () => {
+      let runs = runNext(queued("a", "b"));
+      runs = indeed(runs, "c");
+
+      expect(runsOf(runs, "jane-doe").map((run) => run.runId)).toEqual(["b", "c", "a"]);
+      expect(statuses(indeed(runs, "d", "jane-doe", 1))).toEqual(["b:queued", "d:failed"]);
     });
   });
 

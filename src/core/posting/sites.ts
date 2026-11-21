@@ -1,4 +1,4 @@
-import { hostOf } from "./url";
+import { hostOf, parseLink } from "./url";
 
 // What the app knows about the two job sites that must work (F10).
 
@@ -12,6 +12,12 @@ export const INDEED_BLOCKED = "Indeed blocks automated requests. Paste the posti
 /** A link to indeed.com or one of its country subdomains; the server never fetches these. */
 export function isIndeedUrl(url: URL): boolean {
   return onSite(url, "indeed.com");
+}
+
+/** `isIndeedUrl` for a link as text; text that isn't an http or https link isn't one. */
+export function isIndeedLink(link: string): boolean {
+  const parsed = parseLink(link);
+  return parsed.ok && isIndeedUrl(parsed.url);
 }
 
 export function isLinkedInUrl(url: URL): boolean {

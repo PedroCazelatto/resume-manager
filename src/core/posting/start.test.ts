@@ -74,11 +74,17 @@ describe("readLinkStarts", () => {
   });
 
   it("starts nothing when one line can't be fetched, and names it", () => {
-    expect(readLinkStarts(["https://jobs.example.com/1", "not a link", "https://ie.indeed.com/viewjob?jk=1"])).toEqual({
+    expect(readLinkStarts(["https://jobs.example.com/1", "not a link", "http://192.168.1.1/"])).toEqual({
       error:
         "Nothing was queued.\n" +
         "Line 2 (not a link): This is not a link. It must start with http:// or https://.\n" +
-        "Line 3 (https://ie.indeed.com/viewjob?jk=1): Indeed blocks automated requests. Paste the posting's text instead.",
+        "Line 3 (http://192.168.1.1/): This link leads to this computer or a private network, which the app doesn't fetch.",
+    });
+  });
+
+  it("starts an Indeed link like any other: the run asks for its text (F47)", () => {
+    expect(readLinkStarts(["https://jobs.example.com/1", "https://ie.indeed.com/viewjob?jk=1"])).toEqual({
+      starts: [{ url: "https://jobs.example.com/1" }, { url: "https://ie.indeed.com/viewjob?jk=1" }],
     });
   });
 

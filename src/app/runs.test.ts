@@ -737,6 +737,58 @@ describe("run registry", () => {
       expect(JSON.stringify([registry.list("jane-doe"), events])).not.toContain(POSTING);
     });
 
+    describe("an Indeed link (F47)", () => {
+      const INDEED = "https://ie.indeed.com/viewjob?jk=1";
+      const BLOCKED = "Indeed blocks automated requests. Paste the posting's text instead.";
+
+      it("becomes a row that needs its text, without any request and without Try again", async () => {
+        const { execute, started } = manualRuns();
+        const { fetchPosting, asked } = manualFetches();
+        const registry = createRunRegistry(execute, fetchPosting);
+
+        const runId = registry.enqueue("jane-doe", "new", link(INDEED));
+
+        expect(asked).toEqual([]);
+        expect(registry.list("jane-doe")).toEqual([
+          { runId, kind: "new", status: "failed", error: BLOCKED, steps: [], warnings: {}, retryable: false, url: INDEED, fetchFailed: true },
+        ]);
+        expect(registry.retry("jane-doe", runId)).toBe("refused");
+        expect(await followed(registry, "jane-doe", runId)).toEqual([{ type: "error", message: BLOCKED }]);
+        await settled();
+        expect(asked).toEqual([]);
+        expect(started).toEqual([]);
+      });
+
+      it("leaves the other links of a list to be fetched and run as usual", async () => {
+        const { execute, started } = manualRuns();
+        const { fetchPosting, asked, answers } = manualFetches();
+        const registry = createRunRegistry(execute, fetchPosting);
+        const [first, indeed, last] = [LINK, INDEED, "https://jobs.example.com/2"].map((url) => registry.enqueue("jane-doe", "new", link(url)));
+
+        answers.get(LINK)!(fetched);
+        await settled();
+
+        expect(asked).toEqual([LINK, "https://jobs.example.com/2"]);
+        expect(started.map((run) => run.runId)).toEqual([first]);
+        expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.fetchFailed])).toEqual([
+          [first, "running", false],
+          [last, "fetching", false],
+          [indeed, "failed", true],
+        ]);
+      });
+
+      it("is replaced by its pasted text, which keeps the Indeed link", async () => {
+        const { execute, started } = manualRuns();
+        const registry = createRunRegistry(execute, manualFetches().fetchPosting);
+        const runId = registry.enqueue("jane-doe", "new", link(INDEED));
+
+        const pasted = registry.enqueue("jane-doe", "new", { start: { posting: POSTING, url: INDEED } }, runId);
+
+        expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.url])).toEqual([[pasted, "running", INDEED]]);
+        expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: INDEED } });
+      });
+    });
+
     describe("a list of links (F33)", () => {
       const LINKS = ["https://jobs.example.com/1", "https://jobs.example.com/2", "https://jobs.example.com/3"];
       const page = (url: string): FetchedPosting => ({ ok: true, text: `${POSTING} ${url}`, url });

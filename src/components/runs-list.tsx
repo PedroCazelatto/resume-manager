@@ -113,10 +113,11 @@ export function RunsList() {
                   Try again
                 </Button>
               )}
-              {/* The page couldn't be fetched: the form takes the text, and keeps the link (F10). */}
+              {/* The page couldn't be fetched, or is an Indeed page the server never requests: the
+                  form takes the text, and keeps the link (F10, F47). */}
               {run.fetchFailed && run.url && (
                 <Button variant="outline" size="sm" onClick={() => pasteInstead(run.runId, run.url ?? "")}>
-                  Paste the text instead
+                  Paste the text
                 </Button>
               )}
             </div>

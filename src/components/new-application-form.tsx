@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { readLinks, refusedMessage, splitLines } from "@/core/posting/links";
-import { INDEED_BLOCKED, isIndeedUrl } from "@/core/posting/sites";
-import { parseLink } from "@/core/posting/url";
 import { SectionCard } from "@/components/section-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +15,8 @@ const PASTE_INSTEAD = "paste-posting-instead";
 
 /**
  * Opens the form's "Paste text" tab with this link kept; the Runs list calls it for a run
- * whose fetch failed. The pasted text then takes that run's place in the list (F10).
+ * whose fetch failed, or an Indeed link's run. The pasted text then takes that run's place
+ * in the list (F10, F47).
  */
 export function pasteInstead(runId: string, url: string) {
   window.dispatchEvent(new CustomEvent<FailedFetch>(PASTE_INSTEAD, { detail: { runId, url } }));
@@ -45,28 +44,23 @@ export function NewApplicationForm() {
   /** How many runs the last submission queued. */
   const [queued, setQueued] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  /** Why the form moved to "Paste text" by itself. */
+  /** Why the form moved to "Paste text" for a run of the Runs list. */
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const paste = (event: Event) => {
       const { runId, url } = (event as CustomEvent<FailedFetch>).detail;
-      openPaste(url, "Paste the posting's text here. Its link is kept with the application.");
+      setTab("paste");
+      setKeptLink(url);
       setReplaces(runId);
+      setNotice("Paste the posting's text here. Its link is kept with the application.");
+      setQueued(0);
+      setError(null);
       document.getElementById("new-application")?.scrollIntoView({ block: "nearest" });
     };
     window.addEventListener(PASTE_INSTEAD, paste);
     return () => window.removeEventListener(PASTE_INSTEAD, paste);
   }, []);
-
-  function openPaste(url: string, why: string) {
-    setTab("paste");
-    setKeptLink(url);
-    setReplaces(null);
-    setNotice(why);
-    setQueued(0);
-    setError(null);
-  }
 
   /** One run per link or pasted posting: the button unlocks again when the input changes. */
   function change(set: (value: string) => void, value: string) {
@@ -78,15 +72,8 @@ export function NewApplicationForm() {
     setError(null);
     const lines = splitLines(links);
     if (tab === "links") {
-      // Indeed answers the server with a security check, so its links aren't queued. One
-      // given alone moves to "Paste text" (F10); in a list it is refused like an invalid line.
-      const given = lines.map((line) => line.trim()).filter((line) => line !== "");
-      const only = given.length === 1 ? parseLink(given[0]) : null;
-      if (only?.ok && isIndeedUrl(only.url)) {
-        openPaste(given[0], `${INDEED_BLOCKED} The link is kept with the application.`);
-        return;
-      }
-      // Every line is checked before anything starts (F33).
+      // Every line is checked before anything starts (F33). An Indeed link is queued like the
+      // others: the server lists it as needing its text, without requesting it (F47).
       const read = readLinks(lines);
       if (!read.ok) {
         setError(refusedMessage(read.refused));

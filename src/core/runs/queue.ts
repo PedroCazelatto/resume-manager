@@ -41,6 +41,12 @@ export interface QueuedRun<Input = unknown> {
   error?: string;
   /** The run that "Try again" queued in this one's place (F19). */
   triedAgainAs?: string;
+  /**
+   * The run's link is one the server never requests (Indeed): the run never entered the fetch
+   * queue and asks for its posting's text from the start. It has no "Try again", which would
+   * fetch the link (F47).
+   */
+  notFetched?: boolean;
 }
 
 /** A step of a run and how far it got. */
@@ -122,6 +128,22 @@ export function failFetch<I>(
 ): QueuedRun<I>[] {
   const failed = endRun(runs, runId, (run) => ({ ...run, status: "failed", error: reason }));
   return forgetOldest(recordEvent(failed, runId, { type: "error", message: reason }), maxFinished);
+}
+
+/**
+ * Adds a run whose link the server never requests (Indeed). It never enters the fetch queue:
+ * it starts where a failed fetch ends, listed as needing the posting's text with `reason`,
+ * without any request (F47).
+ */
+export function addNotFetched<I>(
+  runs: readonly QueuedRun<I>[],
+  run: Pick<QueuedRun<I>, "runId" | "profile" | "kind" | "input">,
+  reason: string,
+  maxFinished = MAX_FINISHED_RUNS,
+): QueuedRun<I>[] {
+  const added: QueuedRun<I> = { ...run, status: "failed", error: reason, notFetched: true, events: [{ type: "error", message: reason }] };
+  // It ended as it was added, so it is the latest of the finished runs.
+  return forgetOldest([...runs, added], maxFinished);
 }
 
 /** The run to start now: the one that has waited longest, or null while another is running. */
@@ -218,9 +240,15 @@ export function runsOf<I>(runs: readonly QueuedRun<I>[], profile: string): Queue
 /**
  * Whether the Runs list offers "Try again" on a run itself: a new application that failed or
  * was cancelled before its folder existed. One with a folder is tried again from its page (F19).
+ * A run whose link the server never requests has none: trying again would fetch it (F47).
  */
-export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "applicationId">): boolean {
-  return run.kind === "new" && (run.status === "failed" || run.status === "cancelled") && run.applicationId === undefined;
+export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "applicationId" | "notFetched">): boolean {
+  return (
+    run.kind === "new" &&
+    (run.status === "failed" || run.status === "cancelled") &&
+    run.applicationId === undefined &&
+    run.notFetched !== true
+  );
 }
 
 /**
@@ -237,11 +265,12 @@ export function triedAgain<I>(runs: readonly QueuedRun<I>[], runId: string, as: 
 }
 
 /**
- * Whether a run's fetch failed, so it never joined the run queue and the Runs list asks for
- * the posting's text with "Paste the text instead" (F10).
+ * Whether a run's fetch failed, or its link is one the server never requests, so it never
+ * joined the run queue and the Runs list asks for the posting's text (F10, F47).
  */
-export function fetchFailed(run: Pick<QueuedRun, "status" | "events">): boolean {
-  return run.status === "failed" && runSteps(run.events).steps.some((s) => s.step === "fetch" && s.status === "running");
+export function fetchFailed(run: Pick<QueuedRun, "status" | "events" | "notFetched">): boolean {
+  if (run.status !== "failed") return false;
+  return run.notFetched === true || runSteps(run.events).steps.some((s) => s.step === "fetch" && s.status === "running");
 }
 
 /**

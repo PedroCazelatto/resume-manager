@@ -1,7 +1,9 @@
 import type { RunEvent, RunInput, RunStep } from "@/core/pipeline/run";
 import type { FetchedPosting, JobFetcher } from "@/core/posting/job-fetcher";
+import { INDEED_BLOCKED, isIndeedLink } from "@/core/posting/sites";
 import { fetchedStart } from "@/core/posting/start";
 import {
+  addNotFetched,
   cancelRun,
   offersTryAgain,
   triedAgain,
@@ -181,11 +183,17 @@ export function createRunRegistry(
 
   /**
    * Adds a run and returns its ID right away. One started from a link goes to the fetch
-   * queue first; any other goes to the run queue and starts when its turn comes.
+   * queue first, except an Indeed link, which is never requested: it asks for its posting's
+   * text at once (F47). Any other run goes to the run queue and starts when its turn comes.
    */
   function add(profile: string, kind: RunKind, input: RunRequest): string {
     const runId = crypto.randomUUID();
-    if (linkToFetch(input.start) !== null) {
+    const link = linkToFetch(input.start);
+    if (link !== null && isIndeedLink(link)) {
+      runs = addNotFetched(runs, { runId, profile, kind, input }, INDEED_BLOCKED);
+      return runId;
+    }
+    if (link !== null) {
       runs = enqueueFetch(runs, { runId, profile, kind, input });
       void fetchWork();
       return runId;

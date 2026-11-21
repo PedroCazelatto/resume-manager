@@ -53,7 +53,7 @@ describe("readLinks", () => {
   });
 
   it("refuses a link the server must not fetch", () => {
-    expect(readLinks([A, "http://127.0.0.1:11434/api/tags", "https://ie.indeed.com/viewjob?jk=1"])).toEqual({
+    expect(readLinks([A, "http://127.0.0.1:11434/api/tags"])).toEqual({
       ok: false,
       refused: [
         {
@@ -61,13 +61,13 @@ describe("readLinks", () => {
           text: "http://127.0.0.1:11434/api/tags",
           reason: "This link leads to this computer or a private network, which the app doesn't fetch.",
         },
-        {
-          line: 3,
-          text: "https://ie.indeed.com/viewjob?jk=1",
-          reason: "Indeed blocks automated requests. Paste the posting's text instead.",
-        },
       ],
     });
+  });
+
+  it("accepts an Indeed link, alone or in a list: it becomes a run that asks for its text (F47)", () => {
+    expect(readLinks(["https://ie.indeed.com/viewjob?jk=1"])).toEqual({ ok: true, urls: ["https://ie.indeed.com/viewjob?jk=1"] });
+    expect(readLinks([A, "https://ie.indeed.com/viewjob?jk=1", B])).toEqual({ ok: true, urls: [A, "https://ie.indeed.com/viewjob?jk=1", B] });
   });
 });
 
