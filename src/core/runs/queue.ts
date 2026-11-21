@@ -201,10 +201,24 @@ export function finishRun<I>(
   return forgetOldest(ended, maxFinished);
 }
 
-/** Ends the running run as cancelled by the user, which is not a failure (F32). */
+/**
+ * Ends a run as cancelled by the user, which is not a failure: the running run once its work
+ * has stopped (F32), or a waiting run at once, which then never starts. Either stays listed as
+ * cancelled, so it can be started again (F48).
+ */
 export function cancelRun<I>(runs: readonly QueuedRun<I>[], runId: string, maxFinished = MAX_FINISHED_RUNS): QueuedRun<I>[] {
   const cancelled = endRun(runs, runId, (run) => ({ ...run, status: "cancelled" }));
   return forgetOldest(recordEvent(cancelled, runId, { type: "cancelled" }), maxFinished);
+}
+
+/**
+ * What the X on a run's row does, or null when the row has none (F48): a link of the fetch queue
+ * is removed, a waiting or running run is cancelled, and a run that ended has no X, a failed one
+ * included, since it can't be cancelled.
+ */
+export function stopAction(run: Pick<QueuedRun, "status">): "remove" | "cancel" | null {
+  if (run.status === "fetching") return "remove";
+  return run.status === "queued" || run.status === "running" ? "cancel" : null;
 }
 
 /** A profile's own run, or null: another profile's run is as good as unknown (Art. III.7). */
@@ -212,14 +226,18 @@ export function findRun<I>(runs: readonly QueuedRun<I>[], profile: string, runId
   return runs.find((run) => run.runId === runId && run.profile === profile) ?? null;
 }
 
-/** Takes a run of this profile off the run queue or the fetch queue. Any other run stays where it is. */
-export function removeWaiting<I>(
+/**
+ * Takes a link of this profile off the fetch queue and off the list: it is not fetched, and
+ * nothing of it is kept (F48). Any other run stays where it is; a run waiting for the model is
+ * cancelled instead (`cancelRun`).
+ */
+export function removeLink<I>(
   runs: readonly QueuedRun<I>[],
   profile: string,
   runId: string,
 ): { runs: QueuedRun<I>[]; removed: boolean } {
   const run = findRun(runs, profile, runId);
-  if (run?.status !== "queued" && run?.status !== "fetching") return { runs: [...runs], removed: false };
+  if (run?.status !== "fetching") return { runs: [...runs], removed: false };
   return { runs: runs.filter((other) => other !== run), removed: true };
 }
 

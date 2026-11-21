@@ -38,7 +38,7 @@ export function RetryRun({ id, needsResume, active }: { id: string; needsResume:
           {working ? "Working…" : "Try again"}
         </Button>
       </div>
-      <RunProgress run={run} removable />
+      <RunProgress run={run} cancellable />
       {run.error && <p className="text-sm text-destructive">{run.error}</p>}
     </SectionCard>
   );

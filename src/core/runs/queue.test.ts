@@ -15,11 +15,12 @@ import {
   nextRun,
   offersTryAgain,
   recordEvent,
-  removeWaiting,
+  removeLink,
   runsOf,
   runSteps,
   startFetch,
   startRun,
+  stopAction,
   triedAgain,
   waitingToFetch,
   type QueuedRun,
@@ -114,7 +115,7 @@ describe("run queue", () => {
     expect(nextRun(runs)?.runId).toBe("b");
     // A cancelled run counts as finished: the limit applies and it can't be removed.
     expect(statuses(cancelRun(startRun(runs, "b", STARTED), "b", 1))).toEqual(["b:cancelled"]);
-    expect(removeWaiting(runs, "jane-doe", "a").removed).toBe(false);
+    expect(removeLink(runs, "jane-doe", "a").removed).toBe(false);
   });
 
   it("forgets the oldest finished runs beyond the limit, never a waiting one", () => {
@@ -126,21 +127,35 @@ describe("run queue", () => {
     expect(statuses(runs)).toEqual(["b:failed", "c:done", "d:queued"]);
   });
 
-  it("removes a waiting run, which then never starts", () => {
-    const { runs, removed } = removeWaiting(startRun(queued("a", "b", "c"), "a", STARTED), "jane-doe", "b");
+  it("cancels a waiting run, which stays listed as cancelled, can be tried again and never starts (F48)", () => {
+    const runs = cancelRun(startRun(queued("a", "b", "c"), "a", STARTED), "b");
 
-    expect(removed).toBe(true);
-    expect(statuses(runs)).toEqual(["a:running", "c:queued"]);
+    expect(statuses(runs)).toEqual(["a:running", "b:cancelled", "c:queued"]);
+    expect(runs[1].events).toEqual([{ type: "cancelled" }]);
+    expect(runs[1].error).toBeUndefined();
+    expect(offersTryAgain(runs, runs[1])).toBe(true);
     expect(nextRun(finishRun(runs, "a", null))?.runId).toBe("c");
+    expect(statuses(runsOf(runs, "jane-doe"))).toEqual(["a:running", "c:queued", "b:cancelled"]);
   });
 
-  it("doesn't remove a run that is running, finished or unknown", () => {
+  it("has an X that removes a link of the fetch queue or cancels a waiting or running run, and none on a run that ended (F48)", () => {
+    expect(stopAction({ status: "fetching" })).toBe("remove");
+    expect(stopAction({ status: "queued" })).toBe("cancel");
+    expect(stopAction({ status: "running" })).toBe("cancel");
+    // A failed run can't be cancelled: it has "Try again" and the archive button instead.
+    expect(stopAction({ status: "failed" })).toBeNull();
+    expect(stopAction({ status: "cancelled" })).toBeNull();
+    expect(stopAction({ status: "done" })).toBeNull();
+  });
+
+  it("removes only a link of the fetch queue, never a run that waits, runs, ended or is unknown (F48)", () => {
     const running = startRun(queued("a", "b"), "a", STARTED);
     const finished = finishRun(running, "a", null);
 
-    expect(removeWaiting(running, "jane-doe", "a")).toEqual({ runs: running, removed: false });
-    expect(removeWaiting(finished, "jane-doe", "a").removed).toBe(false);
-    expect(removeWaiting(finished, "jane-doe", "nope").removed).toBe(false);
+    expect(removeLink(running, "jane-doe", "a")).toEqual({ runs: running, removed: false });
+    expect(removeLink(running, "jane-doe", "b")).toEqual({ runs: running, removed: false });
+    expect(removeLink(finished, "jane-doe", "a").removed).toBe(false);
+    expect(removeLink(finished, "jane-doe", "nope").removed).toBe(false);
   });
 
   it("keeps one profile from finding or removing another's run (Art. III.7)", () => {
@@ -148,7 +163,7 @@ describe("run queue", () => {
 
     expect(findRun(runs, "jane-doe", "john-b")).toBeNull();
     expect(findRun(runs, "john-roe", "john-b")?.runId).toBe("john-b");
-    expect(removeWaiting(runs, "jane-doe", "john-b")).toEqual({ runs, removed: false });
+    expect(removeLink(runs, "jane-doe", "john-b")).toEqual({ runs, removed: false });
   });
 
   it("lists a profile's runs: the active one, the waiting ones in order, then the latest finished first", () => {
@@ -174,8 +189,13 @@ describe("run queue", () => {
     expect(offersTryAgain(failedAgain, findRun(failedAgain, "jane-doe", "b")!)).toBe(true);
     expect(offersTryAgain(failedAgain, findRun(failedAgain, "jane-doe", "a")!)).toBe(false);
 
-    // The new run was removed while it waited: the posting can be tried again from the first.
-    const left = removeWaiting(runs, "jane-doe", "b").runs;
+    // The new run was cancelled while it waited: it stays listed, with its own button (F48).
+    const cancelled = cancelRun(runs, "b");
+    expect(offersTryAgain(cancelled, findRun(cancelled, "jane-doe", "b")!)).toBe(true);
+    expect(offersTryAgain(cancelled, findRun(cancelled, "jane-doe", "a")!)).toBe(false);
+
+    // The new run has left the list: the posting can be tried again from the first.
+    const left = runs.filter((run) => run.runId !== "b");
     expect(offersTryAgain(left, findRun(left, "jane-doe", "a")!)).toBe(true);
   });
 
@@ -248,8 +268,8 @@ describe("run queue", () => {
     it("removes a run from the fetch queue, for its own profile only", () => {
       const runs = startFetch(link(link(queued(), "a"), "john-b", "john-roe"), "a");
 
-      expect(removeWaiting(runs, "jane-doe", "john-b").removed).toBe(false);
-      const { runs: left, removed } = removeWaiting(runs, "jane-doe", "a");
+      expect(removeLink(runs, "jane-doe", "john-b").removed).toBe(false);
+      const { runs: left, removed } = removeLink(runs, "jane-doe", "a");
       expect(removed).toBe(true);
       expect(brief(left)).toEqual(["john-b:fetching"]);
     });

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { RunSummary } from "@/app/runs";
-import { waitingToFetch } from "@/core/runs/queue";
+import { stopAction, waitingToFetch } from "@/core/runs/queue";
+import { Icon } from "@/components/icon";
 import { pasteInstead } from "@/components/new-application-form";
 import { tellEndedRuns } from "@/components/run-notifications";
 import { SectionCard } from "@/components/section-card";
@@ -72,7 +73,8 @@ export function RunsList() {
     };
   }, [refresh]);
 
-  async function remove(runId: string) {
+  /** Removes a link from the fetch queue, or cancels a waiting run (F48). */
+  async function stop(runId: string) {
     await fetch(`/api/runs/${runId}`, { method: "DELETE" }).catch(() => null);
     await refresh();
   }
@@ -107,9 +109,16 @@ export function RunsList() {
                 {!run.applicationId && run.url && <span className="break-all">{` · ${run.url}`}</span>}
               </span>
               <StatusBadge tone={run.fetchFailed ? "amber" : STATUS_TONES[run.status]}>{stateLabel(run)}</StatusBadge>
-              {(run.status === "queued" || run.status === "fetching") && (
-                <Button variant="outline" size="sm" onClick={() => remove(run.runId)}>
-                  Remove
+              {/* A link of the fetch queue is removed: not fetched, nothing kept. A waiting run is
+                  cancelled and stays listed; the running one has its X next to its step (F48). */}
+              {run.status !== "running" && stopAction(run) && (
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label={stopAction(run) === "remove" ? "Remove link" : "Cancel"}
+                  onClick={() => stop(run.runId)}
+                >
+                  <Icon name="x" />
                 </Button>
               )}
               {/* A run with an application is tried again from its page. */}

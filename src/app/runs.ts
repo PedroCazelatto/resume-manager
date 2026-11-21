@@ -18,7 +18,7 @@ import {
   nextFetch,
   nextRun,
   recordEvent,
-  removeWaiting,
+  removeLink,
   runsOf,
   runSteps,
   startFetch,
@@ -272,19 +272,26 @@ export function createRunRegistry(
     },
 
     /**
-     * Stops a run of this profile. A waiting run leaves the queue and never starts; so does
-     * one in the fetch queue, whose fetch is stopped if it had begun (F10). The
-     * running one is told to stop: it ends as `cancelled` once its model call has stopped,
-     * and the next run starts then (F32).
+     * Stops a run of this profile. A link in the fetch queue leaves it and the list: it is not
+     * fetched, its fetch is stopped if it had begun, and nothing is kept (F10, F48). A waiting
+     * run is cancelled at once and never starts; it stays listed as cancelled (F48). The running
+     * one is told to stop: it ends as `cancelled` once its model call has stopped, and the next
+     * run starts then (F32).
      */
-    remove(profile: string, runId: string): "removed" | "cancelling" | "ended" | "unknown" {
+    remove(profile: string, runId: string): "removed" | "cancelled" | "cancelling" | "ended" | "unknown" {
       const run = findRun(runs, profile, runId);
       if (!run) return "unknown";
       if (run.status === "running" && active?.runId === runId) {
         active.cancel.abort();
         return "cancelling";
       }
-      const result = removeWaiting(runs, profile, runId);
+      if (run.status === "queued") {
+        runs = cancelRun(runs, runId);
+        publish(runId);
+        close(runId);
+        return "cancelled";
+      }
+      const result = removeLink(runs, profile, runId);
       if (!result.removed) return "ended";
       if (fetching?.runId === runId) fetching.cancel.abort();
       runs = result.runs;

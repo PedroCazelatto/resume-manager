@@ -235,7 +235,7 @@ describe("run registry", () => {
     expect(statuses(registry)).toEqual(["running", "queued"]);
   });
 
-  it("removes a waiting run, which then never starts", async () => {
+  it("cancels a waiting run, which stays listed as cancelled with Try again and never starts (F48)", async () => {
     const { execute, started, ends } = manualRuns();
     const registry = createRunRegistry(execute, undefined, () => STARTED);
     const first = registry.enqueue("jane-doe", "new", posting());
@@ -243,16 +243,46 @@ describe("run registry", () => {
     const third = registry.enqueue("jane-doe", "new", posting());
     const events = followed(registry, "jane-doe", second);
 
-    expect(registry.remove("jane-doe", second)).toBe("removed");
+    expect(registry.remove("jane-doe", second)).toBe("cancelled");
 
-    expect(await events).toEqual([{ type: "waiting" }, { type: "removed" }]);
-    expect(registry.list("jane-doe").map((run) => run.runId)).toEqual([first, third]);
-    expect(registry.follow("jane-doe", second, { event: () => {}, close: () => {} })).toBeNull();
+    // Cancelling is not an error, and the page that follows the run is told at once.
+    expect(await events).toEqual([{ type: "waiting" }, { type: "cancelled" }]);
+    expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.retryable])).toEqual([
+      [first, "running", false],
+      [third, "queued", false],
+      [second, "cancelled", true],
+    ]);
+    expect(registry.list("jane-doe")[2].error).toBeUndefined();
+    expect(registry.remove("jane-doe", second)).toBe("ended");
 
     const ended = followed(registry, "jane-doe", first);
     ends.get(first)!.resolve();
     await ended;
     expect(started.map((run) => run.runId)).toEqual([first, third]);
+
+    // "Try again" starts its posting again.
+    const again = registry.retry("jane-doe", second);
+    if (typeof again === "string") throw new Error(again);
+    expect(registry.list("jane-doe").find((run) => run.runId === again.runId)).toMatchObject({ status: "queued" });
+    const thirdEnded = followed(registry, "jane-doe", third);
+    ends.get(third)!.resolve();
+    await thirdEnded;
+    expect(started.at(-1)).toMatchObject({ runId: again.runId, input: { start: { posting: POSTING } } });
+  });
+
+  it("keeps the application of a waiting \"Try again\" or \"Verify again\" that was cancelled, so its page tries again", () => {
+    const { execute } = manualRuns();
+    const registry = createRunRegistry(execute, undefined, () => STARTED);
+    registry.enqueue("jane-doe", "new", posting());
+    const retry = registry.enqueue("jane-doe", "retry", { start: { id: ID } });
+    const verify = registry.enqueue("jane-doe", "verify", { start: { id: ID } });
+
+    expect([registry.remove("jane-doe", retry), registry.remove("jane-doe", verify)]).toEqual(["cancelled", "cancelled"]);
+
+    expect(registry.list("jane-doe").slice(1)).toMatchObject([
+      { runId: verify, status: "cancelled", applicationId: ID, retryable: false },
+      { runId: retry, status: "cancelled", applicationId: ID, retryable: false },
+    ]);
   });
 
   it("doesn't remove a run that has ended or that it doesn't know", async () => {

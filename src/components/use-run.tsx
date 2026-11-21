@@ -6,6 +6,7 @@ import type { SkippedLine } from "@/core/posting/known-links";
 import type { FileError } from "@/core/markdown/validate";
 import type { QueueEvent, RunKind, RunStepState } from "@/core/runs/queue";
 import { elapsedSeconds } from "@/core/runs/reconnect";
+import { Icon } from "@/components/icon";
 import { askToNotify, tellRunEnded, watchRun } from "@/components/run-notifications";
 import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/lib/utils";
@@ -34,10 +35,8 @@ export interface Run {
   /** Steps whose prompt may not fit the context window, with the message to show (F40). */
   warnings: Partial<Record<RunStep, string>>;
   error: string | null;
-  /** The user cancelled the run; that is not an error (F32). */
+  /** The user cancelled the run, running or waiting; that is not an error (F32, F48). */
   cancelled: boolean;
-  /** The user removed the run while it waited; that is not an error either (F42). */
-  removed: boolean;
   /** The application folder, once it exists; a failed run can be tried again from it (F19). */
   savedId: string | null;
   /**
@@ -51,11 +50,11 @@ export interface Run {
    */
   follow(runId: string, options: FollowOptions): Promise<string | null>;
   /**
-   * Asks the server to stop the run being followed: a waiting run leaves the queue (F42), the
-   * running one is cancelled, and the run's stream says when it has stopped (F32).
+   * Asks the server to cancel the run being followed, waiting or running; the run's stream says
+   * when it has stopped (F32, F48).
    */
   cancel(): void;
-  /** True once Cancel or Remove was asked for, until the run ends. */
+  /** True once the X was pressed, until the run ends. */
   cancelling: boolean;
   /** The run being followed, or the last one that was. */
   runId: string | null;
@@ -66,7 +65,7 @@ interface FollowOptions {
   signal?: AbortSignal;
 }
 
-/** Tells the Runs list that a run was queued or removed, so it doesn't wait for its next refresh. */
+/** Tells the Runs list that a run was queued or cancelled, so it doesn't wait for its next refresh. */
 export const RUNS_CHANGED = "runs-changed";
 
 /** Queues a run through a run endpoint (F42). Starting a run is when the notification permission is asked (F38). */
@@ -122,7 +121,6 @@ export function useRun(): Run {
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [cancelled, setCancelled] = useState(false);
-  const [removed, setRemoved] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [followedId, setFollowedId] = useState<string | null>(null);
   /** When the followed run started on the server, once its stream has told (F39). */
@@ -140,9 +138,8 @@ export function useRun(): Run {
     const mine = ++follows.current;
     setStartedAt(null);
     setRunning(true);
-    // Not waiting until the stream says so: a run that starts at once never shows "Remove".
+    // Not waiting until the stream says so: a run that starts at once never shows the waiting line.
     setWaiting(false);
-    setRemoved(false);
     setElapsed(0);
     setSteps([]);
     setProgress(null);
@@ -169,7 +166,7 @@ export function useRun(): Run {
           setStartedAt(event.at);
           setElapsed(elapsedSeconds(event.at, Date.now()));
         } else if (event.type === "removed") {
-          setRemoved(true);
+          // Only a link of the fetch queue is removed, and no page follows one (F48).
         } else if (event.type === "cancelled") {
           setCancelled(true);
         } else if (event.type === "step") {
@@ -188,7 +185,7 @@ export function useRun(): Run {
           finished = event.id;
         }
       }
-      // A cancelled or removed run, or a lost connection, is not told about (F38).
+      // A cancelled run, or a lost connection, is not told about (F38).
       if (finished !== null || failed) tellRunEnded(runId, { kind: options.kind, status: failed ? "failed" : "done", ...job });
     } catch {
       // Not an error when the page itself stopped following.
@@ -208,7 +205,6 @@ export function useRun(): Run {
     setSteps([]);
     setError(null);
     setCancelled(false);
-    setRemoved(false);
     const queued = await enqueueRun(url, body);
     if ("error" in queued) {
       setError(queued.error);
@@ -238,7 +234,6 @@ export function useRun(): Run {
     warnings,
     error,
     cancelled,
-    removed,
     savedId,
     start,
     follow,
@@ -277,21 +272,35 @@ export function RunSteps({
   );
 }
 
-/** `removable` offers "Remove" while the run waits, where no Runs list sits next to it (F42). */
-export function RunProgress({ run, removable = false }: { run: Run; removable?: boolean }) {
+/** The X that cancels a waiting or running run (F48). */
+function CancelButton({ run, size, className }: { run: Run; size: "icon-xs" | "icon-sm"; className?: string }) {
+  return (
+    <Button
+      variant="outline"
+      size={size}
+      className={className}
+      aria-label="Cancel"
+      disabled={run.cancelling}
+      onClick={run.cancel}
+    >
+      <Icon name="x" />
+    </Button>
+  );
+}
+
+/**
+ * The followed run's waiting line or steps. The running step has the X that cancels the run;
+ * `cancellable` adds it to the waiting line too, where no Runs list sits next to it (F42, F48).
+ */
+export function RunProgress({ run, cancellable = false }: { run: Run; cancellable?: boolean }) {
   if (run.waiting) {
     return (
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
         <span>Waiting for another run to finish…</span>
-        {removable && (
-          <Button variant="outline" size="sm" disabled={run.cancelling} onClick={run.cancel}>
-            Remove
-          </Button>
-        )}
+        {cancellable && <CancelButton run={run} size="icon-sm" />}
       </div>
     );
   }
-  if (run.removed) return <p className="text-sm text-muted-foreground">This run was removed from the queue.</p>;
   if (run.steps.length === 0 && !run.cancelled) return null;
   return (
     <div className="space-y-1 text-sm">
@@ -310,9 +319,7 @@ export function RunProgress({ run, removable = false }: { run: Run; removable?: 
                       ` · ${run.progress.phase}, ${run.progress.tokens.toLocaleString("en")} tokens`}
                     )
                   </span>
-                  <Button variant="outline" size="xs" className="ml-2" disabled={run.cancelling} onClick={run.cancel}>
-                    {run.cancelling ? "Cancelling…" : "Cancel"}
-                  </Button>
+                  <CancelButton run={run} size="icon-xs" className="ml-2 align-middle" />
                 </>
               )
             : undefined
