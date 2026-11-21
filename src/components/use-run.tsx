@@ -45,8 +45,7 @@ export interface Run {
   start(url: string, body: Record<string, string>, kind: RunKind): Promise<string | null>;
   /**
    * Follows a queued run through its event stream, which replays what already happened.
-   * `kind` chooses the words that tell its end (F38); `language` is the run's resume
-   * language, remembered once the application exists.
+   * `kind` chooses the words that tell its end (F38).
    */
   follow(runId: string, options: FollowOptions): Promise<string | null>;
   /**
@@ -62,7 +61,6 @@ export interface Run {
 
 interface FollowOptions {
   kind: RunKind;
-  language?: string;
   signal?: AbortSignal;
 }
 
@@ -96,19 +94,6 @@ export async function enqueueRuns(
   } catch {
     return { error: "Can't reach the app." };
   }
-}
-
-// The chosen resume language is remembered in this browser only, per application, so
-// "Try again" can reuse it.
-const languageKey = (id: string) => `resume-language:${id}`;
-
-export function rememberedLanguage(id: string): string {
-  return window.localStorage.getItem(languageKey(id)) ?? "";
-}
-
-function rememberLanguage(id: string, language: string) {
-  if (language) window.localStorage.setItem(languageKey(id), language);
-  else window.localStorage.removeItem(languageKey(id));
 }
 
 /** Follows a queued run step by step (F30, F42). */
@@ -181,7 +166,6 @@ export function useRun(): Run {
         } else if (event.type === "saved") {
           setSavedId(event.id);
           job = { company: event.company, role: event.role };
-          if (options.language !== undefined) rememberLanguage(event.id, options.language);
         } else if (event.type === "error") {
           setError(event.message);
           failed = true;
@@ -216,7 +200,7 @@ export function useRun(): Run {
       setRunning(false);
       return null;
     }
-    return follow(queued.runId, { kind, language: body.language });
+    return follow(queued.runId, { kind });
   }
 
   function cancel() {

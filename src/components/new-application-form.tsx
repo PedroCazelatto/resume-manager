@@ -5,7 +5,6 @@ import { readLinks, refusedMessage, splitLines } from "@/core/posting/links";
 import { INDEED_BLOCKED, isIndeedUrl } from "@/core/posting/sites";
 import { parseLink } from "@/core/posting/url";
 import { SectionCard } from "@/components/section-card";
-import { LanguageSelect } from "@/components/language-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,7 +41,6 @@ export function NewApplicationForm() {
   const [keptLink, setKeptLink] = useState("");
   /** The run whose fetch failed and whose posting is being pasted. */
   const [replaces, setReplaces] = useState<string | null>(null);
-  const [language, setLanguage] = useState("");
   const [sending, setSending] = useState(false);
   /** How many runs the last submission queued. */
   const [queued, setQueued] = useState(0);
@@ -99,8 +97,8 @@ export function NewApplicationForm() {
     setNotice(null);
     const body: Record<string, string | string[]> =
       tab === "links"
-        ? { urls: lines, language }
-        : { posting, language, ...(keptLink.trim() ? { url: keptLink } : {}), ...(replaces ? { replaces } : {}) };
+        ? { urls: lines }
+        : { posting, ...(keptLink.trim() ? { url: keptLink } : {}), ...(replaces ? { replaces } : {}) };
     const reply = await enqueueRuns("/api/applications", body);
     setSending(false);
     setQueued("runIds" in reply ? reply.runIds.length : 0);
@@ -159,7 +157,6 @@ export function NewApplicationForm() {
         </TabsContent>
       </Tabs>
       <div className="flex flex-wrap items-center gap-3">
-        <LanguageSelect value={language} disabled={sending} onChange={setLanguage} />
         <Button disabled={sending || queued > 0 || empty} onClick={generate}>
           Generate resume
         </Button>

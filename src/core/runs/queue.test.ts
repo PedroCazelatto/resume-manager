@@ -10,7 +10,6 @@ import {
   fetchFailed,
   findRun,
   finishRun,
-  latestGeneration,
   nextFetch,
   nextRun,
   offersTryAgain,
@@ -313,31 +312,5 @@ describe("run queue", () => {
       warnings: { analyse: "This step's prompt is large." },
     });
     expect(runSteps([])).toEqual({ steps: [], warnings: {} });
-  });
-
-  it("finds the run that last asked for an application's resume, never a \"Verify again\"", () => {
-    const id = "2026-11-10-globex-backend-engineer";
-    const run = (runId: string, kind: QueuedRun["kind"], status: QueuedRun["status"], applicationId = id) => ({
-      runId,
-      kind,
-      status,
-      applicationId,
-    });
-
-    // As `runsOf` lists them: running, waiting in order, then the latest finished first.
-    const finished = [run("retry-1", "retry", "failed"), run("new", "new", "failed")];
-    expect(latestGeneration(finished, id)?.runId).toBe("retry-1");
-    expect(latestGeneration([run("verify", "verify", "done"), ...finished], id)?.runId).toBe("retry-1");
-    expect(latestGeneration([run("retry-2", "retry", "running"), ...finished], id)?.runId).toBe("retry-2");
-    expect(
-      latestGeneration(
-        [run("retry-2", "retry", "running"), run("retry-3", "retry", "queued"), run("retry-4", "retry", "queued"), ...finished],
-        id,
-      )?.runId,
-    ).toBe("retry-4");
-
-    expect(latestGeneration([run("other", "new", "done", "2026-11-11-initech-developer")], id)).toBeNull();
-    expect(latestGeneration([run("verify", "verify", "done")], id)).toBeNull();
-    expect(latestGeneration([], id)).toBeNull();
   });
 });

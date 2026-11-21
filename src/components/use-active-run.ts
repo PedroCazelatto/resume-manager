@@ -6,7 +6,7 @@ import type { RunSummary } from "@/app/runs";
 import type { Run } from "@/components/use-run";
 
 /** The run that was working on an application, or waiting for it, when its page was rendered. */
-export type ActiveRun = Pick<RunSummary, "runId" | "kind" | "language">;
+export type ActiveRun = Pick<RunSummary, "runId" | "kind">;
 
 /**
  * Follows the run the page found for its application when it was opened or reloaded, as if
@@ -23,15 +23,13 @@ export function useActiveRun(run: Run, active: ActiveRun | null) {
 
   const runId = active?.runId;
   const kind = active?.kind;
-  // Only a new application's language is news; "Try again" already remembered its own.
-  const language = kind === "new" ? (active?.language ?? "") : undefined;
 
   useEffect(() => {
     if (runId === undefined || kind === undefined || followed.current === runId) return;
     const leaving = new AbortController();
-    void follow(runId, { kind, language, signal: leaving.signal }).then(() => {
+    void follow(runId, { kind, signal: leaving.signal }).then(() => {
       if (!leaving.signal.aborted) router.refresh();
     });
     return () => leaving.abort();
-  }, [follow, runId, kind, language, router]);
+  }, [follow, runId, kind, router]);
 }

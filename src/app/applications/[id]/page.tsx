@@ -179,7 +179,7 @@ async function Application({ params }: { params: Promise<{ id: string }> }) {
 
 /** What the browser needs of a run to follow it; nothing else of the run is sent. */
 function followed(run: RunSummary | null): ActiveRun | null {
-  return run && { runId: run.runId, kind: run.kind, language: run.language };
+  return run && { runId: run.runId, kind: run.kind };
 }
 
 /** The headings of skills.md each approved implied skill it doesn't list yet can go under (F07). */

@@ -272,18 +272,3 @@ export function runSteps(events: readonly QueueEvent[]): {
   }
   return { steps, warnings };
 }
-
-/**
- * The run that last asked for an application's resume (a new application or "Try again",
- * not "Verify again"), or null. `runs` is one profile's list in the order of `runsOf`.
- * Its resume language is what "Try again" starts from.
- */
-export function latestGeneration<Run extends Pick<QueuedRun, "kind" | "status" | "applicationId">>(
-  runs: readonly Run[],
-  applicationId: string,
-): Run | null {
-  const own = runs.filter((run) => run.applicationId === applicationId && run.kind !== "verify");
-  // Waiting runs are listed in the order they were queued, after the running one; the
-  // finished ones follow, latest first.
-  return own.findLast((run) => run.status === "queued") ?? own[0] ?? null;
-}

@@ -1,20 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import type { RunSummary } from "@/app/runs";
 import { SectionCard } from "@/components/section-card";
-import { LanguageSelect } from "@/components/language-select";
 import { Button } from "@/components/ui/button";
 import { useActiveRun, type ActiveRun } from "@/components/use-active-run";
-import { RunProgress, rememberedLanguage, useRun } from "@/components/use-run";
-import { latestGeneration } from "@/core/runs/queue";
+import { RunProgress, useRun } from "@/components/use-run";
 
 /**
  * Shown while an application's run is incomplete: continues it from the first step that
- * has no saved output (F19). The language only matters while the resume isn't written.
- * `active` is the run that is already working on the application or waiting for it, if any:
- * its progress is shown instead (F39).
+ * has no saved output (F19). `active` is the run that is already working on the application
+ * or waiting for it, if any: its progress is shown instead (F39).
  */
 export function RetryRun({ id, needsResume, active }: { id: string; needsResume: boolean; active: ActiveRun | null }) {
   const router = useRouter();
@@ -22,33 +17,9 @@ export function RetryRun({ id, needsResume, active }: { id: string; needsResume:
   useActiveRun(run, active);
   // `active` covers the moment before the page starts following it.
   const working = run.running || active !== null;
-  // null until the user picks one. Until then the language of the application's latest run
-  // applies, while the server still knows one; after a restart, the one this browser remembers.
-  const [chosen, setChosen] = useState<string | null>(null);
-  const [queued, setQueued] = useState<string | null>(null);
-  const remembered = useSyncExternalStore(
-    () => () => {},
-    () => rememberedLanguage(id),
-    () => "",
-  );
-  const language = chosen ?? queued ?? remembered;
-
-  useEffect(() => {
-    let stale = false;
-    void fetch("/api/runs")
-      .then((response) => (response.ok ? (response.json() as Promise<{ runs: RunSummary[] }>) : null))
-      .then((reply) => {
-        const run = reply && latestGeneration(reply.runs, id);
-        if (run && !stale) setQueued(run.language ?? "");
-      })
-      .catch(() => {});
-    return () => {
-      stale = true;
-    };
-  }, [id]);
 
   async function retry() {
-    if (await run.start(`/api/applications/${id}`, { language }, "retry")) router.refresh();
+    if (await run.start(`/api/applications/${id}`, {}, "retry")) router.refresh();
   }
 
   return (
@@ -63,7 +34,6 @@ export function RetryRun({ id, needsResume, active }: { id: string; needsResume:
       contentClassName="space-y-3"
     >
       <div className="flex flex-wrap items-center gap-3">
-        {needsResume && <LanguageSelect value={language} disabled={working} onChange={setChosen} />}
         <Button disabled={working} onClick={retry}>
           {working ? "Working…" : "Try again"}
         </Button>

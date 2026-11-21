@@ -142,16 +142,14 @@ function ActiveRun({ run, onEnd }: { run: RunSummary; onEnd: () => void }) {
   const followed = useRun();
   const { follow } = followed;
   const { runId, kind } = run;
-  // Only a new application's language is news; "Try again" already remembered its own.
-  const language = run.kind === "new" ? (run.language ?? "") : undefined;
 
   useEffect(() => {
     const leaving = new AbortController();
-    void follow(runId, { kind, language, signal: leaving.signal }).then(() => {
+    void follow(runId, { kind, signal: leaving.signal }).then(() => {
       if (!leaving.signal.aborted) onEnd();
     });
     return () => leaving.abort();
-  }, [follow, runId, kind, language, onEnd]);
+  }, [follow, runId, kind, onEnd]);
 
   return <RunProgress run={followed} />;
 }
