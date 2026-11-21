@@ -36,3 +36,12 @@ export function isApplicationId(id: string): boolean {
 /** The files a run writes in its application folder (Art. IV.3). */
 export const APPLICATION_FILES = ["job.md", "analysis.md", "resume.md", "verification.md"] as const;
 export type ApplicationFile = (typeof APPLICATION_FILES)[number];
+
+/**
+ * Whether an application's generation finished: its resume was written and verified, so
+ * resume.md and verification.md exist (F19). One that didn't finish starts again when its link
+ * is added again (F50). `files` are the application's files that exist.
+ */
+export function generationFinished(files: readonly ApplicationFile[]): boolean {
+  return files.includes("resume.md") && files.includes("verification.md");
+}

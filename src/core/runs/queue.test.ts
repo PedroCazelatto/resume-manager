@@ -239,6 +239,23 @@ describe("run queue", () => {
     expect(canTryAgain({ ...failed[0], kind: "verify" })).toBe(false);
   });
 
+  it("offers no \"Try again\" on a row while another run of its application is going (F50)", () => {
+    const failed = failFetch(
+      startFetch(enqueueFetch([], { runId: "a", profile: "jane-doe", kind: "new", input: null, applicationId: APPLICATION }), "a"),
+      "a",
+      "The page answered 403.",
+    );
+    expect(offersTryAgain(failed, failed[0])).toBe(true);
+
+    // The link was added again, so its application started again in another run.
+    const again = enqueueFetch(failed, { runId: "b", profile: "jane-doe", kind: "retry", input: null, applicationId: APPLICATION });
+    expect(offersTryAgain(again, findRun(again, "jane-doe", "a")!)).toBe(false);
+
+    const ended = failFetch(startFetch(again, "b"), "b", "The page answered 403.");
+    expect(offersTryAgain(ended, findRun(ended, "jane-doe", "a")!)).toBe(true);
+    expect(offersTryAgain(ended, findRun(ended, "jane-doe", "b")!)).toBe(true);
+  });
+
   it("enqueues a link to fetch again into its application, and an Indeed link with its application (F50)", () => {
     const runs = enqueueFetch([], { runId: "a", profile: "jane-doe", kind: "retry", input: null, applicationId: APPLICATION });
     const indeed = addNotFetched(runs, { runId: "b", profile: "jane-doe", kind: "new", input: null, applicationId: APPLICATION }, "Indeed.");

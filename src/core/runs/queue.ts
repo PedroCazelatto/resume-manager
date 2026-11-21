@@ -302,10 +302,16 @@ export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "events" | 
 
 /**
  * Whether the Runs list offers "Try again" on a run now: once it was used, not again while the
- * run it queued is still listed. That run has its own "Try again" if it fails too (F19).
+ * run it queued is still listed. That run has its own "Try again" if it fails too (F19). Nor
+ * while another run of its application is fetching, waiting or running: its link added again,
+ * or "Try again" on its page, started it already (F50).
  */
 export function offersTryAgain(runs: readonly QueuedRun[], run: QueuedRun): boolean {
-  return canTryAgain(run) && !runs.some((other) => other.runId === run.triedAgainAs);
+  return (
+    canTryAgain(run) &&
+    !runs.some((other) => other.runId === run.triedAgainAs) &&
+    (run.applicationId === undefined || !targetBusy(runs, run.profile, { applicationId: run.applicationId }))
+  );
 }
 
 /** Notes that "Try again" on a run queued another one in its place. */

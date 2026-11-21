@@ -5,20 +5,33 @@ import type { ListedLink } from "./links";
 import { jobKey } from "./sites";
 import { parseLink } from "./url";
 
-// A link the profile already has is skipped (F47): there is no need to write a second resume
-// for the same link. Pure functions; the route reads the runs and the saved `job.md` files.
+// One application per link (F47, F50): there is no need to write a second resume for the same
+// link. A link the profile already has is skipped, unless its application failed or was
+// cancelled: that same application starts again. Pure functions; the route reads the runs and
+// the saved `job.md` files.
 
-/** A row of the profile's Runs list, as the rule reads it: its state and the link it shows. */
+/**
+ * A row of the profile's Runs list, as the rule reads it: its state, the link it shows, and the
+ * application it works on, once it has one.
+ */
 export interface KnownRun {
   status: RunStatus;
   url?: string;
+  applicationId?: string;
 }
 
-/** A saved application's link, from the `url` of its `job.md`. */
+/**
+ * A saved application's link, from the `url` of its `job.md`, and whether its generation
+ * finished (`generationFinished`).
+ */
 export interface SavedLink {
   id: string;
   url: string;
+  finished: boolean;
 }
+
+/** A link of the list to queue: a new application, or one that starts again, `applicationId` (F50). */
+export type KeptLink = ListedLink & { applicationId?: string };
 
 /** A link of the list that wasn't queued: its line in the text as given, the line's text, and why. */
 export interface SkippedLine {
@@ -35,46 +48,58 @@ function keyOf(link: string | undefined): string | null {
 
 /**
  * Splits the links of a list into the ones to queue and the ones skipped, in the order given.
- * A link is skipped when a row of the Runs list with the same job didn't fail and wasn't
- * cancelled, or when a saved application's `job.md` has the same link. A failed or cancelled
- * row doesn't count, so its link is queued again. Two LinkedIn links to one job are the same.
+ * A link is skipped when a row of the Runs list with the same job is fetching, waiting, running
+ * or finished, or a run of its application is fetching, waiting or running ("already in the Runs
+ * list", named first); or when a saved application with the same link finished ("already
+ * saved"). A failed or cancelled row doesn't count. An application with the same link that
+ * didn't finish, archived or not, starts again: the link is queued with its `applicationId`, so
+ * no second folder is made (F50). Two LinkedIn links to one job are the same (F47).
  */
 export function skipKnownLinks(
   links: readonly ListedLink[],
   runs: readonly KnownRun[],
   saved: readonly SavedLink[],
-): { links: ListedLink[]; skipped: SkippedLine[] } {
+): { links: KeptLink[]; skipped: SkippedLine[] } {
+  const going = (status: RunStatus) => status === "fetching" || status === "queued" || status === "running";
   const listed = new Set(
     runs.filter((run) => run.status !== "failed" && run.status !== "cancelled").map((run) => keyOf(run.url)),
   );
-  const applications = new Map<string | null, string>();
-  for (const { id, url } of saved) if (!applications.has(keyOf(url))) applications.set(keyOf(url), id);
+  const busy = new Set(runs.filter((run) => going(run.status)).map((run) => run.applicationId));
+  // A link's finished application wins over one that didn't finish; otherwise the first by ID.
+  const applications = new Map<string | null, SavedLink>();
+  for (const application of [...saved].sort((a, b) => Number(b.finished) - Number(a.finished))) {
+    if (!applications.has(keyOf(application.url))) applications.set(keyOf(application.url), application);
+  }
 
-  const kept: ListedLink[] = [];
+  const kept: KeptLink[] = [];
   const skipped: SkippedLine[] = [];
   for (const link of links) {
     const key = keyOf(link.url);
-    const application = applications.get(key);
-    if (key !== null && listed.has(key)) skipped.push({ line: link.line, text: link.text, reason: "Skipped: it is already in the Runs list." });
-    else if (key !== null && application !== undefined) {
-      skipped.push({ line: link.line, text: link.text, reason: `Skipped: it is already saved in application ${application}.` });
-    } else kept.push(link);
+    const application = key === null ? undefined : applications.get(key);
+    if ((key !== null && listed.has(key)) || (application !== undefined && busy.has(application.id))) {
+      skipped.push({ line: link.line, text: link.text, reason: "Skipped: it is already in the Runs list." });
+    } else if (application?.finished) {
+      skipped.push({ line: link.line, text: link.text, reason: `Skipped: it is already saved in application ${application.id}.` });
+    } else kept.push(application === undefined ? link : { ...link, applicationId: application.id });
   }
   return { links: kept, skipped };
 }
 
 /**
  * The links of the saved applications, read from their `job.md` files, which are validated
- * like every file the app reads (Art. IV.6). A file that isn't valid is returned with its
- * problems, to be shown, never skipped silently. An application without a link has none.
+ * like every file the app reads (Art. IV.6), with whether each one's generation finished. A file
+ * that isn't valid is returned with its problems, to be shown, never skipped silently. An
+ * application without a link has none.
  */
-export function savedLinks(jobFiles: readonly { id: string; source: string }[]): { saved: SavedLink[]; problems: FileError[] } {
+export function savedLinks(
+  jobFiles: readonly { id: string; source: string; finished: boolean }[],
+): { saved: SavedLink[]; problems: FileError[] } {
   const saved: SavedLink[] = [];
   const problems: FileError[] = [];
-  for (const { id, source } of jobFiles) {
+  for (const { id, source, finished } of jobFiles) {
     const job = validateMarkdownFile(jobSchema, `applications/${id}/job.md`, source);
     if (!job.ok) problems.push(job.error);
-    else if (job.data.url !== undefined) saved.push({ id, url: job.data.url });
+    else if (job.data.url !== undefined) saved.push({ id, url: job.data.url, finished });
   }
   return { saved, problems };
 }

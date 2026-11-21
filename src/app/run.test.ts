@@ -7,7 +7,8 @@ import type { FetchedPosting } from "@/core/posting/job-fetcher";
 import type { ListedLink } from "@/core/posting/links";
 import { isUuidApplicationId } from "@/core/application/folder";
 import { parseFrontmatter, patchFrontmatter } from "@/core/markdown/frontmatter";
-import { enqueueLinks, enqueueRun, pasteRun, runRegistry } from "./run";
+import { archiveRun } from "./archive";
+import { enqueueLinks, enqueueRun, pasteRun, retryApplication, runRegistry } from "./run";
 
 // enqueueLinks runs against a scratch copy of the fictional profile (Art. III.5). The fetcher
 // is answered by hand and the model is never reached, so no test touches the network (Art. IX.2).
@@ -102,7 +103,7 @@ describe("enqueueLinks (F47)", () => {
     expect(runRegistry().list("jane-doe").map((run) => [run.runId, run.url])).toEqual([[reply.runIds[0], B]]);
   });
 
-  it("skips a link already in the Runs list, and its saved application once its fetch failed", async () => {
+  it("skips a link already in the Runs list, and queues it again once its row failed", async () => {
     await send(listed(A));
 
     const again = await send(listed(A));
@@ -111,10 +112,8 @@ describe("enqueueLinks (F47)", () => {
     await vi.waitFor(() => expect(app.answers.has(A)).toBe(true));
     app.answers.get(A)!({ ok: false, reason: "The page answered 403." });
     await vi.waitFor(() => expect(runRegistry().list("jane-doe")[0].status).toBe("failed"));
-    // The failed fetch keeps the application made when its fetch started (F50).
-    const [id] = await made();
-    expect((await send(listed(A))).skipped).toEqual([{ line: 1, text: A, reason: `Skipped: it is already saved in application ${id}.` }]);
-    expect(app.asked).toEqual([A]);
+    expect((await send(listed(A))).runIds).toHaveLength(1);
+    await vi.waitFor(() => expect(app.asked).toEqual([A, A]));
   });
 
   it("lists an Indeed link as needing its text without fetching it", async () => {
@@ -316,5 +315,116 @@ describe("application folders (F50)", () => {
     await enqueueRun("new", { start: { posting: "Globex is hiring a Backend Engineer.", url: B } });
 
     expect(await made()).toHaveLength(2);
+  });
+});
+
+describe("one application per link (F50)", () => {
+  /** A link whose fetch failed, leaving its application without the posting's text. */
+  async function failedFetch(url = A): Promise<{ runId: string; id: string }> {
+    const before = await made();
+    const [runId] = (await send(listed(url))).runIds;
+    await vi.waitFor(() => expect(app.answers.has(url)).toBe(true));
+    app.answers.get(url)!({ ok: false, reason: "The page answered 403." });
+    await vi.waitFor(() => expect(runRegistry().list("jane-doe").find((run) => run.runId === runId)?.status).toBe("failed"));
+    app.answers.delete(url);
+    return { runId, id: (await made()).find((id) => !before.includes(id))! };
+  }
+
+  it("starts the same application again when its link is added after its fetch failed, making no second folder", async () => {
+    const { runId, id } = await failedFetch();
+
+    const reply = await send(listed(A));
+
+    expect(reply).toEqual({ status: 202, runIds: [expect.any(String)], skipped: [], problems: [] });
+    await vi.waitFor(() => expect(app.asked).toEqual([A, A]));
+    expect(await made()).toEqual([id]);
+    expect(runRegistry().list("jane-doe")).toMatchObject([
+      { runId: reply.runIds[0], kind: "retry", status: "fetching", applicationId: id },
+      // Started again already, so the failed row offers no second "Try again".
+      { runId, status: "failed", applicationId: id, retryable: false },
+    ]);
+    app.answers.get(A)!({ ok: true, text: "Globex is hiring.", url: A, details: {} });
+    await vi.waitFor(async () => expect((await job(id)).body).toBe("Globex is hiring.\n"));
+  });
+
+  it("takes an archived application out of the archived list as it starts it again", async () => {
+    const { runId, id } = await failedFetch();
+    expect(await (await archiveRun(runId)).status).toBe(204);
+    expect((await job(id)).data).toHaveProperty("archived_at");
+
+    const reply = await send(listed(A));
+
+    expect(reply.runIds).toHaveLength(1);
+    expect((await job(id)).data).toEqual({ url: A, source: "jobs.example.com" });
+    // Its earlier run comes back too, as cancelled (F48).
+    expect(runRegistry().list("jane-doe").map((run) => [run.runId === runId ? "earlier" : "again", run.status, run.applicationId])).toEqual([
+      ["again", "fetching", id],
+      ["earlier", "cancelled", id],
+    ]);
+  });
+
+  it("continues a cancelled application that has its text from its first missing step, after a restart too", async () => {
+    app.modelHangs = true;
+    await enqueueRun("new", { start: { posting: "Umbrella is hiring.", url: "https://jobs.example.com/3" } });
+    const before = await made();
+    const { runId } = (await (await enqueueRun("new", { start: { posting: "Initech is hiring.", url: B } })).json()) as { runId: string };
+    runRegistry().remove("jane-doe", runId);
+    const id = (await made()).find((made) => !before.includes(made))!;
+    // A restart: nothing is running and nothing starts by itself (Art. IV.1).
+    delete (globalThis as { resumeRuns?: unknown }).resumeRuns;
+
+    const reply = await send(listed(B));
+
+    expect(reply.runIds).toHaveLength(1);
+    expect(runRegistry().list("jane-doe")).toMatchObject([{ runId: reply.runIds[0], kind: "retry", status: "running", applicationId: id }]);
+    expect(app.asked).toEqual([]);
+    expect(await made()).toEqual(expect.arrayContaining([id]));
+    expect(await made()).toHaveLength(before.length + 1);
+  });
+
+  it("lists an Indeed application waiting for its text again after a restart, without requesting Indeed", async () => {
+    await send(listed(INDEED));
+    const [id] = await made();
+    delete (globalThis as { resumeRuns?: unknown }).resumeRuns;
+
+    const reply = await send(listed(INDEED));
+
+    expect(runRegistry().list("jane-doe")).toMatchObject([{ runId: reply.runIds[0], status: "failed", fetchFailed: true, applicationId: id, url: INDEED }]);
+    expect(await made()).toEqual([id]);
+    expect(app.asked).toEqual([]);
+  });
+
+  it("skips a link whose application finished, and one whose application has a run going", async () => {
+    const finished = "9c0d4e2a-7b1f-4a3c-8e5d-6f2a1b0c9d8e";
+    await createFsProfileStore(app.profilesDir).createApplication("jane-doe", finished, {
+      "job.md": `---\nurl: ${B}\nsource: jobs.example.com\n---\nInitech is hiring.\n`,
+      "resume.md": "---\n---\n",
+      "verification.md": "---\n---\n",
+    });
+    const { id } = await failedFetch();
+    await send(listed(A));
+
+    expect(await send(listed(A, B))).toEqual({
+      status: 202,
+      runIds: [],
+      skipped: [
+        { line: 1, text: A, reason: "Skipped: it is already in the Runs list." },
+        { line: 2, text: B, reason: `Skipped: it is already saved in application ${finished}.` },
+      ],
+      problems: [],
+    });
+    expect(await made()).toEqual([id, finished].sort());
+  });
+
+  it("fetches the link again when \"Try again\" is pressed on the page of an application whose text never arrived", async () => {
+    const { id } = await failedFetch();
+    delete (globalThis as { resumeRuns?: unknown }).resumeRuns;
+
+    const reply = await retryApplication(id);
+
+    expect(reply.status).toBe(202);
+    const { runId } = (await reply.json()) as { runId: string };
+    await vi.waitFor(() => expect(app.asked).toEqual([A, A]));
+    expect(runRegistry().list("jane-doe")).toMatchObject([{ runId, kind: "retry", status: "fetching", applicationId: id }]);
   });
 });

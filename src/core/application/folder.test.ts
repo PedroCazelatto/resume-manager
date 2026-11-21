@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicationFolderName, isApplicationId, isDatedApplicationId, isUuidApplicationId } from "./folder";
+import { applicationFolderName, generationFinished, isApplicationId, isDatedApplicationId, isUuidApplicationId } from "./folder";
 
 const UUID = "3f2b8c1e-5a7d-4c9e-9b1a-2d6e8f0c4a73";
 
@@ -38,5 +38,15 @@ describe("isApplicationId", () => {
   it("tells a new UUID name from an older dated one", () => {
     expect([isUuidApplicationId(UUID), isDatedApplicationId(UUID)]).toEqual([true, false]);
     expect([isUuidApplicationId("2026-11-09-globex-dev"), isDatedApplicationId("2026-11-09-globex-dev")]).toEqual([false, true]);
+  });
+});
+
+describe("generationFinished (F50)", () => {
+  it("is true once the resume was written and verified", () => {
+    expect(generationFinished(["job.md", "analysis.md", "resume.md", "verification.md"])).toBe(true);
+  });
+
+  it.each([[["job.md"]], [["job.md", "analysis.md"]], [["job.md", "analysis.md", "resume.md"]]] as const)("is false for %j", (files) => {
+    expect(generationFinished(files)).toBe(false);
   });
 });

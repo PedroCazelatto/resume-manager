@@ -1,4 +1,9 @@
+import { restoredJob } from "@/core/application/archive";
+import { APPLICATION_FILES, generationFinished } from "@/core/application/folder";
+import { hasPostingText } from "@/core/application/job-file";
+import { jobSchema } from "@/core/application/schemas";
 import { LlmError } from "@/core/llm";
+import { validateMarkdownFile, type FileError } from "@/core/markdown/validate";
 import { runApplication } from "@/core/pipeline/run";
 import { verifyApplication } from "@/core/pipeline/verify";
 import { savedLinks, skipKnownLinks } from "@/core/posting/known-links";
@@ -133,10 +138,11 @@ export async function pasteRun(runId: string, body: { posting?: unknown; url?: u
 }
 
 /**
- * Queues one new run per link of a list for the selected profile, in the order given (F33),
- * except the links the profile already has, which are skipped (F47). Answers 202 with the
- * `runIds` queued, the `skipped` lines with why, and the `problems` of the saved `job.md`
- * files that couldn't be checked. Every link being skipped is not an error.
+ * Queues one run per link of a list for the selected profile, in the order given (F33), except
+ * the links the profile already has, which are skipped (F47). A link whose application failed or
+ * was cancelled starts that same application again instead, archived or not (F50). Answers 202
+ * with the `runIds` queued, the `skipped` lines with why, and the `problems` of the saved
+ * `job.md` files that couldn't be checked. Every link being skipped is not an error.
  */
 export async function enqueueLinks(links: readonly ListedLink[]): Promise<Response> {
   const profile = await readyProfile();
@@ -146,20 +152,77 @@ export async function enqueueLinks(links: readonly ListedLink[]): Promise<Respon
   const { saved, problems } = await readSavedLinks(profile.slug);
   const kept = skipKnownLinks(links, registry.list(profile.slug), saved);
   const runIds: string[] = [];
-  for (const { url } of kept.links) {
+  for (const { url, applicationId } of kept.links) {
+    if (applicationId !== undefined) {
+      const started = await startAgain(profile.slug, applicationId, true);
+      if ("error" in started) problems.push(started.error);
+      else runIds.push(started.runId);
+      continue;
+    }
     // An Indeed link is never fetched, so its application is made now, as it is added (F50).
-    const applicationId = isIndeedLink(url) ? await folders.create(profile.slug, url) : undefined;
-    runIds.push(registry.enqueue(profile.slug, "new", { start: { url }, ...(applicationId === undefined ? {} : { applicationId }) }));
+    const indeed = isIndeedLink(url) ? await folders.create(profile.slug, url) : undefined;
+    runIds.push(registry.enqueue(profile.slug, "new", { start: { url }, ...(indeed === undefined ? {} : { applicationId: indeed }) }));
   }
   return Response.json({ runIds, skipped: kept.skipped, problems }, { status: 202 });
 }
 
-/** The links of the profile's saved applications, from their `job.md` files (Art. III.7). */
+/**
+ * The links of the profile's saved applications, from their `job.md` files, and whether each
+ * one's generation finished (Art. III.7, F50).
+ */
 async function readSavedLinks(slug: string): Promise<ReturnType<typeof savedLinks>> {
   const store = profileStore();
   const ids = await store.listApplications(slug);
-  const files = await Promise.all(ids.map(async (id) => ({ id, source: await store.readApplicationFile(slug, id, "job.md") })));
-  return savedLinks(files.flatMap(({ id, source }) => (source === null ? [] : [{ id, source }])));
+  const files = await Promise.all(
+    ids.map(async (id) => {
+      const read = await Promise.all(APPLICATION_FILES.map(async (file) => ({ file, source: await store.readApplicationFile(slug, id, file) })));
+      const present = read.filter(({ source }) => source !== null).map(({ file }) => file);
+      return { id, source: read.find(({ file }) => file === "job.md")?.source ?? null, finished: generationFinished(present) };
+    }),
+  );
+  return savedLinks(files.flatMap(({ id, source, finished }) => (source === null ? [] : [{ id, source, finished }])));
+}
+
+/**
+ * Starts an application of the profile again, as "Try again" does (F19, F50). While its job.md
+ * has no posting text, its link is fetched again into it; an Indeed link is listed as needing
+ * its text instead, never requested (F47). Otherwise the run continues it from its first step
+ * without saved output. `unarchive` takes it out of the archived list first: `archived_at`
+ * leaves its job.md and its runs come back to the Runs list (F48). Answers the new run's ID, or
+ * a job.md that is missing or not valid, which is left as it is (Art. IV.6).
+ */
+async function startAgain(slug: string, id: string, unarchive: boolean): Promise<{ runId: string } | { error: FileError }> {
+  const store = profileStore();
+  const file = `applications/${id}/job.md`;
+  const source = await store.readApplicationFile(slug, id, "job.md");
+  if (source === null) return { error: { file, problems: ["the file doesn't exist"] } };
+  const job = validateMarkdownFile(jobSchema, file, source);
+  if (!job.ok) return { error: job.error };
+
+  const registry = runRegistry();
+  if (unarchive && job.data.archived_at !== undefined) {
+    const restored = restoredJob(source, file);
+    if (restored.ok) await store.replaceApplicationFile(slug, id, "job.md", restored.source);
+    registry.restore(slug, { applicationId: id });
+  }
+  const { url } = job.data;
+  const start = hasPostingText(job.body) || url === undefined ? { id } : { url };
+  return { runId: registry.enqueue(slug, "retry", { start, applicationId: id }) };
+}
+
+/**
+ * "Try again" on an application's page (F19): starts it again as `startAgain` does, so an
+ * application whose posting's text never arrived has its link fetched again (F50). It stays
+ * archived if it was (F48). A job.md that is missing or not valid is left for the run to
+ * report, as before. Answers `{ runId }` with 202.
+ */
+export async function retryApplication(id: string): Promise<Response> {
+  const profile = await readyProfile();
+  if ("error" in profile) return profile.error;
+
+  const started = await startAgain(profile.slug, id, false);
+  const runId = "error" in started ? runRegistry().enqueue(profile.slug, "retry", { start: { id } }) : started.runId;
+  return Response.json({ runId }, { status: 202 });
 }
 
 /**
