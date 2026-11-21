@@ -16,6 +16,8 @@ export const jobSchema = z.looseObject({
   role: text,
   language: languageCode,
   location: text.optional(),
+  /** When the application was archived; restoring it removes the field (F48). */
+  archived_at: timestamp.optional(),
 });
 
 export const IMPORTANCE = ["must-have", "nice-to-have"] as const;

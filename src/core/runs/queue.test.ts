@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   addNotFetched,
+  archiveRuns,
+  archiveTarget,
+  canArchive,
   cancelRun,
   canTryAgain,
   enqueue,
@@ -16,6 +19,7 @@ import {
   pasteText,
   recordEvent,
   removeLink,
+  restoreRuns,
   runsOf,
   runSteps,
   startFetch,
@@ -309,7 +313,9 @@ describe("run queue", () => {
       expect(fetchFailed({ status: "failed", events: [...fetching, { type: "error", message: "The page answered 403." }] })).toBe(true);
       expect(fetchFailed({ status: "failed", events: [...fetchedThen] })).toBe(false);
       expect(fetchFailed({ status: "failed", events: [{ type: "started", at: 0 }, { type: "step", step: "analyse", status: "running" }] })).toBe(false);
-      expect(fetchFailed({ status: "cancelled", events: [...fetching] })).toBe(false);
+      // Only a failed fetch that was archived and restored is cancelled with its fetch unfinished (F48).
+      expect(fetchFailed({ status: "cancelled", events: [...fetching] })).toBe(true);
+      expect(fetchFailed({ status: "cancelled", events: [...fetchedThen, { type: "cancelled" }] })).toBe(false);
       expect(fetchFailed({ status: "fetching", events: [...fetching] })).toBe(false);
     });
 
@@ -388,6 +394,101 @@ describe("run queue", () => {
 
       expect(runsOf(runs, "jane-doe").map((run) => run.runId)).toEqual(["b", "c", "a"]);
       expect(statuses(indeed(runs, "d", "jane-doe", 1))).toEqual(["b:queued", "d:failed"]);
+    });
+  });
+
+  describe("archiving and restoring (F48)", () => {
+    const AT = "2026-11-21T20:45:00.000Z";
+    const APP = "2026-11-10-globex-backend-engineer";
+    const listed = (runs: QueuedRun[], profile = "jane-doe") => runsOf(runs, profile).map((run) => run.runId);
+    const archivable = (runs: QueuedRun[]) => runs.map((run) => `${run.runId}:${canArchive(runs, run)}`);
+
+    /** a finished, b failed, c cancelled, d running, e waiting, f fetching. */
+    function everyKind(): QueuedRun[] {
+      let runs = queued("a", "b", "c", "d", "e");
+      runs = runNext(runs);
+      runs = runNext(runs, "Can't reach Ollama.");
+      runs = cancelRun(startRun(runs, "c", STARTED), "c");
+      runs = startRun(runs, "d", STARTED);
+      return enqueueFetch(runs, { runId: "f", profile: "jane-doe", kind: "new", input: { url: "https://jobs.example.com/f" } });
+    }
+
+    it("offers the archive button on cancelled, failed and finished runs only", () => {
+      expect(archivable(everyKind())).toEqual(["a:true", "b:true", "c:true", "d:false", "e:false", "f:false"]);
+    });
+
+    it("offers it on a failed fetch and an Indeed link's run too", () => {
+      let runs = failFetch(startFetch(enqueueFetch(queued(), { runId: "a", profile: "jane-doe", kind: "new", input: null }), "a"), "a", "The page answered 403.");
+      runs = addNotFetched(runs, { runId: "b", profile: "jane-doe", kind: "new", input: null }, "Indeed blocks automated requests.");
+
+      expect(archivable(runs)).toEqual(["a:true", "b:true"]);
+    });
+
+    it("takes the row out of the list at once, deletes nothing, and keeps the time", () => {
+      const runs = everyKind();
+      const archived = archiveRuns(runs, "jane-doe", { runId: "b" }, AT);
+
+      expect(listed(archived)).toEqual(["d", "e", "f", "c", "a"]);
+      expect(archived).toHaveLength(runs.length);
+      expect(findRun(archived, "jane-doe", "b")).toMatchObject({ status: "failed", archivedAt: AT, error: "Can't reach Ollama." });
+      expect(canArchive(archived, findRun(archived, "jane-doe", "b")!)).toBe(false);
+      // An archived run has no "Try again" until it is restored.
+      expect(offersTryAgain(archived, findRun(archived, "jane-doe", "b")!)).toBe(false);
+    });
+
+    it("archives only ended runs, and only the profile's own (Art. III.7)", () => {
+      const runs = everyKind();
+
+      expect(archiveRuns(runs, "jane-doe", { runId: "d" }, AT)).toEqual(runs);
+      expect(archiveRuns(runs, "jane-doe", { runId: "e" }, AT)).toEqual(runs);
+      expect(archiveRuns(runs, "john-roe", { runId: "a" }, AT)).toEqual(runs);
+    });
+
+    it("archives an application with every run of it that ended, and not while one of them waits or runs", () => {
+      let runs = queued("a", "b", "c");
+      runs = startRun(runs, "a", STARTED);
+      runs = recordEvent(runs, "a", { type: "saved", id: APP });
+      runs = finishRun(runs, "a", "The model took too long.");
+      runs = enqueue(runs, { runId: "d", profile: "jane-doe", kind: "retry", input: null, applicationId: APP });
+
+      // "Try again" on the application is waiting: its failed run can't be archived yet.
+      expect(archiveTarget(findRun(runs, "jane-doe", "a")!)).toEqual({ applicationId: APP });
+      expect(canArchive(runs, findRun(runs, "jane-doe", "a")!)).toBe(false);
+
+      runs = runNext(runNext(runs));
+      runs = finishRun(startRun(runs, "d", STARTED), "d", null);
+      expect(canArchive(runs, findRun(runs, "jane-doe", "a")!)).toBe(true);
+
+      const archived = archiveRuns(runs, "jane-doe", { applicationId: APP }, AT);
+      expect(listed(archived)).toEqual(["c", "b"]);
+    });
+
+    it("restores a failed or cancelled run as cancelled with Try again, and a finished one as it was", () => {
+      let runs = everyKind();
+      for (const runId of ["a", "b", "c"]) runs = archiveRuns(runs, "jane-doe", { runId }, AT);
+      expect(listed(runs)).toEqual(["d", "e", "f"]);
+
+      expect(restoreRuns(runs, "john-roe", { runId: "b" })).toEqual(runs);
+      for (const runId of ["a", "b", "c"]) runs = restoreRuns(runs, "jane-doe", { runId });
+
+      expect(statuses(runsOf(runs, "jane-doe"))).toEqual(["d:running", "e:queued", "f:fetching", "c:cancelled", "b:cancelled", "a:done"]);
+      expect(runs.every((run) => run.archivedAt === undefined)).toBe(true);
+      expect(offersTryAgain(runs, findRun(runs, "jane-doe", "b")!)).toBe(true);
+      expect(offersTryAgain(runs, findRun(runs, "jane-doe", "a")!)).toBe(false);
+    });
+
+    it("restores a failed fetch as cancelled that still asks for the posting's text, an Indeed link's without Try again", () => {
+      let runs = failFetch(startFetch(enqueueFetch(queued(), { runId: "a", profile: "jane-doe", kind: "new", input: null }), "a"), "a", "The page answered 403.");
+      runs = addNotFetched(runs, { runId: "b", profile: "jane-doe", kind: "new", input: null }, "Indeed blocks automated requests.");
+      // While archived, it takes no pasted text.
+      expect(pasteText(archiveRuns(runs, "jane-doe", { runId: "b" }, AT), "jane-doe", "b", "pasted").pasted).toBe(false);
+      for (const runId of ["a", "b"]) runs = restoreRuns(archiveRuns(runs, "jane-doe", { runId }, AT), "jane-doe", { runId });
+
+      const [fetched, indeed] = ["a", "b"].map((runId) => findRun(runs, "jane-doe", runId)!);
+      expect([fetched.status, indeed.status]).toEqual(["cancelled", "cancelled"]);
+      expect([fetchFailed(fetched), fetchFailed(indeed)]).toEqual([true, true]);
+      expect([offersTryAgain(runs, fetched), offersTryAgain(runs, indeed)]).toEqual([true, false]);
+      expect(pasteText(runs, "jane-doe", "b", "pasted").pasted).toBe(true);
     });
   });
 

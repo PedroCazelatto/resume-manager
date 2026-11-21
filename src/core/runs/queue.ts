@@ -47,6 +47,11 @@ export interface QueuedRun<Input = unknown> {
    * fetch the link (F47).
    */
   notFetched?: boolean;
+  /**
+   * When the run's row was archived, as an ISO timestamp like `job.md`'s `archived_at`. An
+   * archived run leaves the Runs list; one with an application has the time in its `job.md` too (F48).
+   */
+  archivedAt?: string;
 }
 
 /** A step of a run and how far it got. */
@@ -243,10 +248,11 @@ export function removeLink<I>(
 
 /**
  * A profile's runs as the Runs list shows them: the active one, the waiting ones in order,
- * the ones whose posting is being fetched, then the latest finished first.
+ * the ones whose posting is being fetched, then the latest finished first. Archived runs have
+ * left the list (F48).
  */
 export function runsOf<I>(runs: readonly QueuedRun<I>[], profile: string): QueuedRun<I>[] {
-  const own = runs.filter((run) => run.profile === profile);
+  const own = runs.filter((run) => run.profile === profile && run.archivedAt === undefined);
   return [
     ...own.filter((run) => run.status === "running"),
     ...own.filter((run) => run.status === "queued"),
@@ -258,14 +264,16 @@ export function runsOf<I>(runs: readonly QueuedRun<I>[], profile: string): Queue
 /**
  * Whether the Runs list offers "Try again" on a run itself: a new application that failed or
  * was cancelled before its folder existed. One with a folder is tried again from its page (F19).
- * A run whose link the server never requests has none: trying again would fetch it (F47).
+ * A run whose link the server never requests has none: trying again would fetch it (F47). An
+ * archived run has none until it is restored (F48).
  */
-export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "applicationId" | "notFetched">): boolean {
+export function canTryAgain(run: Pick<QueuedRun, "kind" | "status" | "applicationId" | "notFetched" | "archivedAt">): boolean {
   return (
     run.kind === "new" &&
     (run.status === "failed" || run.status === "cancelled") &&
     run.applicationId === undefined &&
-    run.notFetched !== true
+    run.notFetched !== true &&
+    run.archivedAt === undefined
   );
 }
 
@@ -292,10 +300,11 @@ export function waitingToFetch(run: { status: RunStatus; steps: readonly RunStep
 
 /**
  * Whether a run's fetch failed, or its link is one the server never requests, so it never
- * joined the run queue and the Runs list asks for the posting's text (F10, F47).
+ * joined the run queue and the Runs list asks for the posting's text (F10, F47). Such a run is
+ * failed, or cancelled once it was archived and restored (F48).
  */
 export function fetchFailed(run: Pick<QueuedRun, "status" | "events" | "notFetched">): boolean {
-  if (run.status !== "failed") return false;
+  if (run.status !== "failed" && run.status !== "cancelled") return false;
   return run.notFetched === true || runSteps(run.events).steps.some((s) => s.step === "fetch" && s.status === "running");
 }
 
@@ -312,7 +321,7 @@ export function pasteText<I>(
   input: I,
 ): { runs: QueuedRun<I>[]; pasted: boolean } {
   const run = findRun(runs, profile, runId);
-  if (!run || !fetchFailed(run)) return { runs: [...runs], pasted: false };
+  if (!run || !fetchFailed(run) || run.archivedAt !== undefined) return { runs: [...runs], pasted: false };
   const moved = moveToEnd(runs, runId, (failed) => {
     const next: QueuedRun<I> = { ...failed, input, status: "queued", events: [] };
     // Its failed fetch is behind it: no error, no step, and nothing that keeps it from "Try again".
@@ -342,4 +351,55 @@ export function runSteps(events: readonly QueueEvent[]): {
     else steps.push({ step: event.step, status: event.status });
   }
   return { steps, warnings };
+}
+
+/**
+ * What one row of the archived list stands for: an application, with every run of it, or a run
+ * alone while it has no application yet (F48).
+ */
+export type ArchiveTarget = { applicationId: string } | { runId: string };
+
+/** The row a run's archive button archives: its application once it has one, otherwise the run (F48). */
+export function archiveTarget(run: Pick<QueuedRun, "runId" | "applicationId">): ArchiveTarget {
+  return run.applicationId === undefined ? { runId: run.runId } : { applicationId: run.applicationId };
+}
+
+function inTarget(run: QueuedRun<unknown>, profile: string, target: ArchiveTarget): boolean {
+  if (run.profile !== profile) return false;
+  return "applicationId" in target ? run.applicationId === target.applicationId : run.runId === target.runId;
+}
+
+/** Whether a run of this profile for the row is still fetching, waiting or running, so it can't be archived (F48). */
+export function targetBusy(runs: readonly QueuedRun<unknown>[], profile: string, target: ArchiveTarget): boolean {
+  return runs.some((run) => inTarget(run, profile, target) && !isFinished(run));
+}
+
+/**
+ * Whether a run's row has the archive button (F48): the run was cancelled, failed (its fetch or
+ * its generation) or finished, it isn't archived yet, and no run of its application is still
+ * waiting or running.
+ */
+export function canArchive(runs: readonly QueuedRun<unknown>[], run: QueuedRun<unknown>): boolean {
+  return isFinished(run) && run.archivedAt === undefined && !targetBusy(runs, run.profile, archiveTarget(run));
+}
+
+/**
+ * Archives a row of this profile at `at`: its runs that ended leave the Runs list, and keep the
+ * time in memory (F48). Nothing is deleted.
+ */
+export function archiveRuns<I>(runs: readonly QueuedRun<I>[], profile: string, target: ArchiveTarget, at: string): QueuedRun<I>[] {
+  return runs.map((run) => (inTarget(run, profile, target) && isFinished(run) ? { ...run, archivedAt: at } : run));
+}
+
+/**
+ * Restores a row of this profile: its runs come back to the Runs list. An unfinished one, failed
+ * or cancelled, comes back as cancelled, so it has "Try again"; a finished one as it was (F48).
+ */
+export function restoreRuns<I>(runs: readonly QueuedRun<I>[], profile: string, target: ArchiveTarget): QueuedRun<I>[] {
+  return runs.map((run) => {
+    if (!inTarget(run, profile, target) || run.archivedAt === undefined) return run;
+    const restored: QueuedRun<I> = { ...run, status: run.status === "failed" ? "cancelled" : run.status };
+    delete restored.archivedAt;
+    return restored;
+  });
 }

@@ -4,6 +4,9 @@ import { INDEED_BLOCKED, isIndeedLink } from "@/core/posting/sites";
 import { fetchedStart, type PastedStart } from "@/core/posting/start";
 import {
   addNotFetched,
+  archiveRuns,
+  archiveTarget,
+  canArchive,
   cancelRun,
   offersTryAgain,
   triedAgain,
@@ -19,10 +22,13 @@ import {
   pasteText,
   recordEvent,
   removeLink,
+  restoreRuns,
   runsOf,
   runSteps,
   startFetch,
   startRun,
+  targetBusy,
+  type ArchiveTarget,
   type QueueEvent,
   type QueuedRun,
   type RunKind,
@@ -80,6 +86,8 @@ export interface RunSummary {
    * text, and the list offers "Paste the text" (F10, F47, F48).
    */
   fetchFailed: boolean;
+  /** The row has the archive button: the run was cancelled, failed or finished (F48). */
+  archivable: boolean;
 }
 
 /** Receives a run's events; `close` is called once, after the last one. */
@@ -245,7 +253,41 @@ export function createRunRegistry(
         retryable: offersTryAgain(runs, run),
         url: "url" in run.input.start ? run.input.start.url : undefined,
         fetchFailed: fetchFailed(run),
+        archivable: canArchive(runs, run),
       }));
+    },
+
+    /**
+     * What a run of this profile's archive button archives: its application, with every run of
+     * it, or the run alone while it has none (F48). "refused" for a run that hasn't ended, is
+     * archived already, or whose application still has a run waiting or running.
+     */
+    archiveTarget(profile: string, runId: string): ArchiveTarget | "refused" | "unknown" {
+      const run = findRun(runs, profile, runId);
+      if (!run) return "unknown";
+      return canArchive(runs, run) ? archiveTarget(run) : "refused";
+    },
+
+    /** What restoring an archived run of this profile restores; "refused" for a run that isn't archived (F48). */
+    restoreTarget(profile: string, runId: string): ArchiveTarget | "refused" | "unknown" {
+      const run = findRun(runs, profile, runId);
+      if (!run) return "unknown";
+      return run.archivedAt === undefined ? "refused" : archiveTarget(run);
+    },
+
+    /** Whether the profile has a run of this application still being fetched, waiting or running (F48). */
+    busy(profile: string, target: ArchiveTarget): boolean {
+      return targetBusy(runs, profile, target);
+    },
+
+    /** Archives a row of this profile at `at`, an ISO timestamp: its runs that ended leave the list (F48). */
+    archive(profile: string, target: ArchiveTarget, at: string): void {
+      runs = archiveRuns(runs, profile, target, at);
+    },
+
+    /** Restores a row of this profile: an unfinished run comes back as cancelled, a finished one as it was (F48). */
+    restore(profile: string, target: ArchiveTarget): void {
+      runs = restoreRuns(runs, profile, target);
     },
 
     /**

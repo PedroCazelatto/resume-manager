@@ -57,7 +57,7 @@ describe("run registry", () => {
     const second = registry.enqueue("jane-doe", "retry", { start: { id: ID } });
 
     expect(registry.list("jane-doe")).toEqual([
-      { runId: first, kind: "new", status: "running", startedAt: STARTED, steps: [], warnings: {}, retryable: false, fetchFailed: false },
+      { runId: first, kind: "new", status: "running", startedAt: STARTED, steps: [], warnings: {}, retryable: false, fetchFailed: false, archivable: false },
       {
         runId: second,
         kind: "retry",
@@ -67,6 +67,7 @@ describe("run registry", () => {
         warnings: {},
         retryable: false,
         fetchFailed: false,
+        archivable: false,
       },
     ]);
     expect(started.map((run) => run.runId)).toEqual([first]);
@@ -529,7 +530,7 @@ describe("run registry", () => {
 
       expect(asked).toEqual([LINK]);
       expect(registry.list("jane-doe")).toEqual([
-        { runId: busy, kind: "new", status: "running", startedAt: STARTED, steps: [], warnings: {}, retryable: false, fetchFailed: false },
+        { runId: busy, kind: "new", status: "running", startedAt: STARTED, steps: [], warnings: {}, retryable: false, fetchFailed: false, archivable: false },
         {
           runId,
           kind: "new",
@@ -539,6 +540,7 @@ describe("run registry", () => {
           retryable: false,
           url: LINK,
           fetchFailed: false,
+          archivable: false,
         },
       ]);
 
@@ -655,6 +657,7 @@ describe("run registry", () => {
           retryable: true,
           url: LINK,
           fetchFailed: true,
+          archivable: true,
         },
       ]);
     });
@@ -704,6 +707,7 @@ describe("run registry", () => {
         retryable: false,
         url: LINK,
         fetchFailed: false,
+        archivable: false,
       });
 
       for (const id of [busy, waiting]) {
@@ -855,7 +859,7 @@ describe("run registry", () => {
 
         expect(asked).toEqual([]);
         expect(registry.list("jane-doe")).toEqual([
-          { runId, kind: "new", status: "failed", error: BLOCKED, steps: [], warnings: {}, retryable: false, url: INDEED, fetchFailed: true },
+          { runId, kind: "new", status: "failed", error: BLOCKED, steps: [], warnings: {}, retryable: false, url: INDEED, fetchFailed: true, archivable: true },
         ]);
         expect(registry.retry("jane-doe", runId)).toBe("refused");
         expect(await followed(registry, "jane-doe", runId)).toEqual([{ type: "error", message: BLOCKED }]);
@@ -974,6 +978,109 @@ describe("run registry", () => {
         expect(registry.retry("jane-doe", second)).not.toBe("refused");
         expect(asked).toEqual([...LINKS, LINKS[1]]);
       });
+    });
+  });
+
+  describe("archiving and restoring (F48)", () => {
+    const AT = "2026-11-21T20:45:00.000Z";
+
+    /** One run of each kind: finished, failed, cancelled, running and waiting. */
+    async function everyKind() {
+      const runs = manualRuns();
+      const registry = createRunRegistry(runs.execute, undefined, () => STARTED);
+      const ids = ["finished", "failed", "cancelled", "running", "waiting"].map(() => registry.enqueue("jane-doe", "new", posting()));
+      const [finished, failed, cancelled] = ids;
+      for (const [runId, end] of [[finished, "resolve"], [failed, "reject"]] as const) {
+        const ended = followed(registry, "jane-doe", runId);
+        runs.ends.get(runId)![end](new Error("Can't reach Ollama."));
+        await ended;
+      }
+      const ended = followed(registry, "jane-doe", cancelled);
+      registry.remove("jane-doe", cancelled);
+      runs.ends.get(cancelled)!.reject(new LlmError("cancelled", "The run was cancelled."));
+      await ended;
+      return { registry, ids, ...runs };
+    }
+
+    it("lists the archive button on cancelled, failed and finished runs only", async () => {
+      const { registry, ids } = await everyKind();
+      const [finished, failed, cancelled, running, waiting] = ids;
+
+      expect(registry.list("jane-doe").map((run) => [run.runId, run.status, run.archivable])).toEqual([
+        [running, "running", false],
+        [waiting, "queued", false],
+        [cancelled, "cancelled", true],
+        [failed, "failed", true],
+        [finished, "done", true],
+      ]);
+      expect(registry.archiveTarget("jane-doe", running)).toBe("refused");
+      expect(registry.archiveTarget("jane-doe", waiting)).toBe("refused");
+      expect(registry.archiveTarget("jane-doe", "no-such-run")).toBe("unknown");
+      expect(registry.archiveTarget("jane-doe", failed)).toEqual({ runId: failed });
+    });
+
+    it("takes an archived row out of the list, keeps it in memory, and restores it as cancelled with Try again", async () => {
+      const { registry, ids } = await everyKind();
+      const [finished, failed] = ids;
+
+      registry.archive("jane-doe", { runId: failed }, AT);
+      registry.archive("jane-doe", { runId: finished }, AT);
+      expect(registry.list("jane-doe").map((run) => run.runId)).not.toContain(failed);
+      expect(registry.list("jane-doe").map((run) => run.runId)).not.toContain(finished);
+      expect(registry.archiveTarget("jane-doe", failed)).toBe("refused");
+      expect(registry.retry("jane-doe", failed)).toBe("refused");
+
+      expect(registry.restoreTarget("jane-doe", failed)).toEqual({ runId: failed });
+      registry.restore("jane-doe", { runId: failed });
+      registry.restore("jane-doe", { runId: finished });
+      expect(registry.list("jane-doe").filter((run) => run.runId === failed || run.runId === finished)).toMatchObject([
+        { runId: failed, status: "cancelled", retryable: true, archivable: true },
+        { runId: finished, status: "done", retryable: false, archivable: true },
+      ]);
+      expect(registry.restoreTarget("jane-doe", failed)).toBe("refused");
+      expect(registry.retry("jane-doe", failed)).toEqual({ runId: expect.any(String) });
+    });
+
+    it("archives an application's runs together, and says when one of them still waits", async () => {
+      const { execute, ends } = manualRuns();
+      const registry = createRunRegistry(execute, undefined, () => STARTED);
+      const first = registry.enqueue("jane-doe", "retry", { start: { id: ID } });
+      const verify = registry.enqueue("jane-doe", "verify", { start: { id: ID } });
+
+      expect(registry.busy("jane-doe", { applicationId: ID })).toBe(true);
+      let ended = followed(registry, "jane-doe", first);
+      ends.get(first)!.reject(new Error("The model took too long."));
+      await ended;
+      // "Verify again" on the same application is still running.
+      expect(registry.archiveTarget("jane-doe", first)).toBe("refused");
+
+      ended = followed(registry, "jane-doe", verify);
+      ends.get(verify)!.resolve();
+      await ended;
+      expect(registry.busy("jane-doe", { applicationId: ID })).toBe(false);
+      expect(registry.archiveTarget("jane-doe", first)).toEqual({ applicationId: ID });
+
+      registry.archive("jane-doe", { applicationId: ID }, AT);
+      expect(registry.list("jane-doe")).toEqual([]);
+      registry.restore("jane-doe", { applicationId: ID });
+      expect(registry.list("jane-doe").map((run) => [run.runId, run.status])).toEqual([
+        [verify, "done"],
+        [first, "cancelled"],
+      ]);
+    });
+
+    it("never archives or restores another profile's run (Art. III.7)", async () => {
+      const { registry, ids } = await everyKind();
+      const failed = ids[1];
+
+      expect(registry.archiveTarget("john-roe", failed)).toBe("unknown");
+      registry.archive("john-roe", { runId: failed }, AT);
+      expect(registry.list("jane-doe").map((run) => run.runId)).toContain(failed);
+
+      registry.archive("jane-doe", { runId: failed }, AT);
+      expect(registry.restoreTarget("john-roe", failed)).toBe("unknown");
+      registry.restore("john-roe", { runId: failed });
+      expect(registry.list("jane-doe").map((run) => run.runId)).not.toContain(failed);
     });
   });
 
