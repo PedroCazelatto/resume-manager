@@ -1,7 +1,7 @@
 "use client";
 
-import { MenuIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
@@ -11,7 +11,7 @@ export function MobileMenu({ children }: { children: ReactNode }) {
   return (
     <>
       <Button variant="ghost" size="icon" aria-label="Open the menu" onClick={() => setOpen(true)}>
-        <MenuIcon />
+        <Icon name="list" />
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent

@@ -24,6 +24,25 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    // Icons come from Phosphor through one file, the only one that imports it (F48). The core
+    // and adapter rules below replace this one for their files, which import no UI at all.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/components/icon.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@phosphor-icons/react", "@phosphor-icons/react/*", "lucide-react"],
+              message: "Use <Icon name=\"…\" /> from @/components/icon, and add the icon to its list there (F48).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Core is pure domain logic: no I/O, no Next.js, no adapters or UI.
     files: ["src/core/**/*.ts"],
     rules: {

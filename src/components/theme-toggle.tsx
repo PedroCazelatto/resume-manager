@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect } from "react";
-import { Moon, Sun } from "lucide-react";
+import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
 import { resolveTheme, THEME_KEY, type Theme } from "@/lib/theme";
 
@@ -41,8 +41,8 @@ export function ThemeToggle() {
 
   return (
     <Button variant="ghost" size="icon" aria-label="Switch between light and dark mode" onClick={toggle}>
-      <Moon className="dark:hidden" />
-      <Sun className="hidden dark:block" />
+      <Icon name="moon" className="dark:hidden" />
+      <Icon name="sun" className="hidden dark:block" />
     </Button>
   );
 }
