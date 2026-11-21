@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { MAX_POSTING_CHARS } from "./job-fetcher";
 import { fetchedStart, readLinkStarts, readNewRunStart } from "./start";
 
 describe("fetchedStart", () => {
@@ -15,11 +14,10 @@ describe("fetchedStart", () => {
     expect(fetchedStart({ ok: false, reason: "The page answered 403." })).toEqual({ error: "The page answered 403." });
   });
 
-  it("refuses text over the pasted posting's limit instead of cutting it", () => {
-    expect(fetchedStart({ ok: true, text: "x".repeat(MAX_POSTING_CHARS), url: page })).toHaveProperty("start");
-    expect(fetchedStart({ ok: true, text: "x".repeat(MAX_POSTING_CHARS + 1), url: page })).toEqual({
-      error: "The page's text is longer than 50000 characters. Paste the posting's own text instead.",
-    });
+  it("takes text of any length whole: there is no character limit (F47)", () => {
+    const long = "Globex is hiring. ".repeat(10_000);
+    expect(long.length).toBeGreaterThan(50_000);
+    expect(fetchedStart({ ok: true, text: long, url: page })).toEqual({ start: { posting: long, url: page, fetched: true } });
   });
 });
 
@@ -41,13 +39,17 @@ describe("readNewRunStart", () => {
     });
   });
 
-  it("refuses an empty request and a posting over the limit", () => {
+  it("refuses an empty request", () => {
     for (const body of [null, {}, { posting: 7, url: null }, { posting: " ", url: "" }]) {
       expect(readNewRunStart(body)).toEqual({ error: "Give the posting's link or paste its text first." });
     }
-    expect(readNewRunStart({ posting: "x".repeat(MAX_POSTING_CHARS) })).toHaveProperty("start");
-    expect(readNewRunStart({ posting: "x".repeat(MAX_POSTING_CHARS + 1) })).toEqual({
-      error: "The posting is longer than 50000 characters.",
+  });
+
+  it("takes pasted text of any length whole: there is no character limit (F47)", () => {
+    const long = "Globex is hiring. ".repeat(10_000).trim();
+    expect(long.length).toBeGreaterThan(50_000);
+    expect(readNewRunStart({ posting: long, url: "https://jobs.example.com/7" })).toEqual({
+      start: { posting: long, url: "https://jobs.example.com/7" },
     });
   });
 

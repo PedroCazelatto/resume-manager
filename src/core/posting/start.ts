@@ -1,4 +1,4 @@
-import { MAX_POSTING_CHARS, type FetchedPosting } from "./job-fetcher";
+import type { FetchedPosting } from "./job-fetcher";
 import { readLinks, refusedMessage } from "./links";
 import { INDEED_BLOCKED, isIndeedUrl } from "./sites";
 import { checkPostingUrl, parseLink } from "./url";
@@ -10,14 +10,11 @@ export type PostingStart = { posting: string; url?: string; fetched?: boolean };
 export type NewRunStart = PostingStart | { url: string };
 
 /**
- * What a run starts from once its link was fetched, or why it can't. Fetched text is held
- * to the limit of pasted text, and never cut silently.
+ * What a run starts from once its link was fetched, or why it can't. The text goes on whole,
+ * however long: a posting has no character limit (F47).
  */
 export function fetchedStart(fetched: FetchedPosting): { start: PostingStart } | { error: string } {
   if (!fetched.ok) return { error: fetched.reason };
-  if (fetched.text.length > MAX_POSTING_CHARS) {
-    return { error: `The page's text is longer than ${MAX_POSTING_CHARS} characters. Paste the posting's own text instead.` };
-  }
   return { start: { posting: fetched.text, url: fetched.url, fetched: true } };
 }
 
@@ -31,7 +28,6 @@ export function readNewRunStart(body: { posting?: unknown; url?: unknown } | nul
   if (posting === "" && link === "") return { error: "Give the posting's link or paste its text first." };
 
   if (posting !== "") {
-    if (posting.length > MAX_POSTING_CHARS) return { error: `The posting is longer than ${MAX_POSTING_CHARS} characters.` };
     if (link === "") return { start: { posting } };
     // The link isn't fetched here, so any http or https link can be kept.
     const kept = parseLink(link);

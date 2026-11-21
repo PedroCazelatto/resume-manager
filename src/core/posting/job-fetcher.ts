@@ -1,6 +1,3 @@
-/** The longest posting a run accepts, pasted or fetched from a link (F09, F10). */
-export const MAX_POSTING_CHARS = 50_000;
-
 /** `url` is the page the text was read from, after any rewrite and redirects. */
 export type FetchedPosting = { ok: true; text: string; url: string } | { ok: false; reason: string };
 

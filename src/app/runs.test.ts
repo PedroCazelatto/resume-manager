@@ -607,19 +607,27 @@ describe("run registry", () => {
       ]);
     });
 
-    it("fails a fetch that throws or returns more text than a posting may have", async () => {
+    it("fails a fetch that throws", async () => {
       const { execute, started } = manualRuns();
       const throwing = createRunRegistry(execute, async () => {
         throw new Error("boom");
       });
       throwing.enqueue("jane-doe", "new", link());
-      const tooLong = createRunRegistry(execute, async () => ({ ok: true, text: "x".repeat(50_001), url: PAGE }));
-      tooLong.enqueue("jane-doe", "new", link());
       await settled();
 
       expect(throwing.list("jane-doe")[0]).toMatchObject({ status: "failed", fetchFailed: true, error: "Something went wrong while fetching the posting." });
-      expect(tooLong.list("jane-doe")[0]).toMatchObject({ status: "failed", fetchFailed: true, error: expect.stringContaining("longer than 50000") });
       expect(started).toEqual([]);
+    });
+
+    it("takes a fetched posting of more than 50,000 characters whole to the model (F47)", async () => {
+      const { execute, started } = manualRuns();
+      const long = `${POSTING} `.repeat(2_000);
+      expect(long.length).toBeGreaterThan(50_000);
+      const registry = createRunRegistry(execute, async () => ({ ok: true, text: long, url: PAGE }));
+      registry.enqueue("jane-doe", "new", link());
+      await settled();
+
+      expect(started[0].input).toEqual({ start: { posting: long, url: PAGE, fetched: true } });
     });
 
     it("puts the pasted text in the run queue in place of the run whose fetch failed", async () => {
