@@ -1,4 +1,7 @@
 import { lookup } from "node:dns/promises";
+import { request as httpRequest, type IncomingMessage } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { isIP, type LookupFunction } from "node:net";
 import { htmlToText } from "@/core/posting/html-to-text";
 import type { FetchedPosting, JobFetcher } from "@/core/posting/job-fetcher";
 import { INDEED_BLOCKED, isIndeedUrl, isLinkedInUrl, rewriteLinkedInUrl } from "@/core/posting/sites";
@@ -20,53 +23,135 @@ export type ResolveHost = (hostname: string) => Promise<string[]>;
 
 const resolveWithDns: ResolveHost = async (hostname) => (await lookup(hostname, { all: true })).map((entry) => entry.address);
 
+/** One GET request, made to addresses the fetcher has already checked. */
+export interface PageRequest {
+  url: URL;
+  /** The checked addresses of the URL's host: the connection goes to one of them, and the name is never resolved again. */
+  addresses: string[];
+  headers: Record<string, string>;
+  /** Aborted by the timeout or by the user cancelling; it also stops reading the body. */
+  signal: AbortSignal;
+}
+
+/** What the fetcher reads of an answer. */
+export interface PageResponse {
+  status: number;
+  /** A header's value by its lowercase name, or null. */
+  header(name: string): string | null;
+  /** The body, chunk by chunk. */
+  body: AsyncIterable<Uint8Array>;
+  /** Drops the answer without reading the rest of its body. */
+  discard(): void;
+}
+
+/** Sends one request; rejects when the page can't be reached. Tests pass a fake, so no test opens a socket (Art. IX.2). */
+export type SendRequest = (request: PageRequest) => Promise<PageResponse>;
+
+/**
+ * A `lookup` for one connection that answers with addresses already checked, so the request
+ * connects to one of them and never resolves the name a second time.
+ */
+export function checkedLookup(addresses: readonly string[]): LookupFunction {
+  const entries = addresses.map((address) => ({ address, family: isIP(address) }));
+  return (hostname, options, callback) => {
+    const family = options.family === "IPv4" ? 4 : options.family === "IPv6" ? 6 : (options.family ?? 0);
+    const usable = family === 0 ? entries : entries.filter((entry) => entry.family === family);
+    if (usable.length === 0) {
+      const error: NodeJS.ErrnoException = new Error(`No checked IPv${family} address for ${hostname}`);
+      error.code = "ENOTFOUND";
+      callback(error, "", undefined);
+    } else if (options.all) callback(null, usable);
+    else callback(null, usable[0].address, usable[0].family);
+  };
+}
+
+/**
+ * Sends the request with `node:http` or `node:https`, on a connection of its own to one of
+ * the checked addresses. HTTPS still checks the certificate against the link's host name.
+ */
+const sendWithNode: SendRequest = ({ url, addresses, headers, signal }) =>
+  new Promise((resolve, reject) => {
+    const send = url.protocol === "https:" ? httpsRequest : httpRequest;
+    const request = send(
+      url,
+      // No pooled socket, which could have been opened for another address.
+      { headers, signal, agent: false, lookup: checkedLookup(addresses) },
+      (response) => resolve(fromNode(response, signal)),
+    );
+    request.on("error", reject);
+    request.end();
+  });
+
+function fromNode(response: IncomingMessage, signal: AbortSignal): PageResponse {
+  // A timeout or a cancel after the answer has begun stops reading its body too.
+  const stop = () => response.destroy(new Error("aborted"));
+  signal.addEventListener("abort", stop, { once: true });
+  response.once("close", () => signal.removeEventListener("abort", stop));
+  // Errors reach the fetcher through the body it reads; one on a body it dropped is of no use.
+  response.on("error", () => {});
+  return {
+    status: response.statusCode ?? 0,
+    header(name) {
+      const value = response.headers[name];
+      if (value === undefined) return null;
+      return Array.isArray(value) ? value.join(", ") : value;
+    },
+    body: response,
+    discard: () => response.destroy(),
+  };
+}
+
 /** A failed fetch whose message is the reason shown to the user. */
 class Refused extends Error {}
 
 /**
  * JobFetcher over plain HTTP (Art. V.10): http and https only, no loopback, private or
- * link-local address at any hop, at most 5 redirects, 30 seconds and 5 MB. Indeed is never
+ * link-local address at any hop, at most 5 redirects, 30 seconds and 5 MB. Each hop's name
+ * is resolved once, and the request connects to an address that was checked. Indeed is never
  * requested. Nothing of the page is logged (Art. III.4).
  */
-export function createJobFetcher(fetchImpl: typeof fetch = fetch, resolve: ResolveHost = resolveWithDns): JobFetcher {
-  /** Refuses a link the app must not request, by its text and by the addresses its name resolves to. */
-  async function check(link: string, signal: AbortSignal): Promise<URL> {
+export function createJobFetcher(send: SendRequest = sendWithNode, resolve: ResolveHost = resolveWithDns): JobFetcher {
+  /**
+   * Refuses a link the app must not request, by its text and by the addresses its name
+   * resolves to, and returns the addresses to connect to.
+   */
+  async function check(link: string, signal: AbortSignal): Promise<{ url: URL; addresses: string[] }> {
     const checked = checkPostingUrl(link);
     if (!checked.ok) throw new Refused(checked.reason);
     // A LinkedIn link copied while logged in becomes the job's public page.
     const url = rewriteLinkedInUrl(checked.url);
     if (isIndeedUrl(url)) throw new Refused(INDEED_BLOCKED);
     const host = hostOf(url);
-    if (isIpAddress(host)) return url;
+    if (isIpAddress(host)) return { url, addresses: [host] };
     const addresses = await untilAborted(
       resolve(host).catch(() => []),
       signal,
     );
     if (addresses.length === 0) throw new Refused(`Can't find ${host}. Check the link.`);
     if (!addresses.every(isPublicAddress)) throw new Refused(PRIVATE_ADDRESS);
-    return url;
+    return { url, addresses };
   }
 
   async function download(link: string, signal: AbortSignal): Promise<FetchedPosting> {
-    let url = await check(link, signal);
+    let { url, addresses } = await check(link, signal);
     for (let redirects = 0; ; redirects++) {
-      const response = await fetchImpl(url, { redirect: "manual", signal, headers: { "User-Agent": USER_AGENT } });
+      const response = await send({ url, addresses, signal, headers: { "User-Agent": USER_AGENT } });
       if (REDIRECTS.has(response.status)) {
-        const location = response.headers.get("location");
-        await response.body?.cancel().catch(() => {});
+        const location = response.header("location");
+        response.discard();
         if (location === null) throw new Refused("The page redirects without saying where to.");
         if (redirects === MAX_REDIRECTS) throw new Refused(`The link redirects more than ${MAX_REDIRECTS} times.`);
-        // Each redirect is checked like the first link.
-        url = await check(new URL(location, url).href, signal);
+        // Each redirect is checked like the first link, with a lookup of its own.
+        ({ url, addresses } = await check(new URL(location, url).href, signal));
         continue;
       }
-      if (!response.ok) {
-        await response.body?.cancel().catch(() => {});
+      if (response.status < 200 || response.status > 299) {
+        response.discard();
         throw new Refused(`The page answered ${response.status}.`);
       }
-      const type = response.headers.get("content-type") ?? "";
+      const type = response.header("content-type") ?? "";
       if (type !== "" && !/html|text\/plain/i.test(type)) {
-        await response.body?.cancel().catch(() => {});
+        response.discard();
         throw new Refused("The link doesn't lead to a web page.");
       }
       const html = decode(await readLimited(response), type);
@@ -88,7 +173,7 @@ export function createJobFetcher(fetchImpl: typeof fetch = fetch, resolve: Resol
           return { ok: false, reason: `The page didn't answer within ${FETCH_TIMEOUT_MS / 1000} seconds.` };
         }
         if (error instanceof Refused) return { ok: false, reason: error.message };
-        // fetch reports network failures (nothing listening, a closed connection) as a TypeError.
+        // A failed connection: nothing listening, a closed connection, a certificate that doesn't match the name.
         return { ok: false, reason: "Can't reach the page. Check the link and your connection." };
       } finally {
         clearTimeout(timer);
@@ -109,24 +194,21 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 const TOO_LARGE = `The page is larger than ${MAX_PAGE_BYTES / 1024 / 1024} MB.`;
 
 /** The response body, refused as soon as it passes the size limit. */
-async function readLimited(response: Response): Promise<Uint8Array> {
-  if (Number(response.headers.get("content-length")) > MAX_PAGE_BYTES) {
-    await response.body?.cancel().catch(() => {});
+async function readLimited(response: PageResponse): Promise<Uint8Array> {
+  if (Number(response.header("content-length")) > MAX_PAGE_BYTES) {
+    response.discard();
     throw new Refused(TOO_LARGE);
   }
-  if (!response.body) return new Uint8Array();
-  const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
+  for await (const chunk of response.body) {
+    size += chunk.byteLength;
     if (size > MAX_PAGE_BYTES) {
-      await reader.cancel().catch(() => {});
+      // Leaving the loop stops the body; discarding drops the connection.
+      response.discard();
       throw new Refused(TOO_LARGE);
     }
-    chunks.push(value);
+    chunks.push(chunk);
   }
   const bytes = new Uint8Array(size);
   let offset = 0;
