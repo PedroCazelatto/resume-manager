@@ -38,9 +38,15 @@ const STATUS_TONES: Record<RunSummary["status"], Tone> = {
   cancelled: "neutral",
 };
 
-/** What a row says about its run: only the link being fetched is "fetching the posting" (F48). */
+/** A failed fetch, or an Indeed link's run, waits for the posting's text (F10, F47). */
+const needsText = (run: RunSummary) => run.status === "failed" && run.fetchFailed;
+
+/**
+ * What a row says about its run: only the link being fetched is "fetching the posting" (F48). A
+ * failed fetch that was archived and restored says "cancelled", and still offers to paste the text.
+ */
 function stateLabel(run: RunSummary): string {
-  if (run.fetchFailed) return "needs the posting's text";
+  if (needsText(run)) return "needs the posting's text";
   return waitingToFetch(run) ? "waiting to fetch" : STATUS_LABELS[run.status];
 }
 
@@ -50,8 +56,8 @@ function stateLabel(run: RunSummary): string {
  */
 export function RunsList() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
-  /** Why the last "Try again" of a run wasn't queued. */
-  const [refused, setRefused] = useState<{ runId: string; error: string } | null>(null);
+  /** Why the last "Try again" or archive button of a run didn't work. */
+  const [problem, setProblem] = useState<{ runId: string; error: string } | null>(null);
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/runs").catch(() => null);
@@ -82,7 +88,19 @@ export function RunsList() {
   /** Queues the run's posting or link again; the server kept it with the run (F19). */
   async function tryAgain(runId: string) {
     const reply = await enqueueRun(`/api/runs/${runId}`, {});
-    setRefused("error" in reply ? { runId, error: reply.error } : null);
+    setProblem("error" in reply ? { runId, error: reply.error } : null);
+  }
+
+  /** Moves the row to the archived list at once; nothing is deleted, so nothing is asked (F48). */
+  async function archive(runId: string) {
+    const response = await fetch(`/api/runs/${runId}/archive`, { method: "POST" }).catch(() => null);
+    if (response?.ok) {
+      setProblem(null);
+    } else {
+      const reply = (await response?.json().catch(() => null)) as { error?: string } | null | undefined;
+      setProblem({ runId, error: reply?.error ?? (response ? `The server answered ${response.status}.` : "Can't reach the app.") });
+    }
+    await refresh();
   }
 
   if (runs.length === 0) return null;
@@ -108,7 +126,7 @@ export function RunsList() {
                 {/* Until its application exists, a run from a link is told apart by the link (F33). */}
                 {!run.applicationId && run.url && <span className="break-all">{` · ${run.url}`}</span>}
               </span>
-              <StatusBadge tone={run.fetchFailed ? "amber" : STATUS_TONES[run.status]}>{stateLabel(run)}</StatusBadge>
+              <StatusBadge tone={needsText(run) ? "amber" : STATUS_TONES[run.status]}>{stateLabel(run)}</StatusBadge>
               {/* A link of the fetch queue is removed: not fetched, nothing kept. A waiting run is
                   cancelled and stays listed; the running one has its X next to its step (F48). */}
               {run.status !== "running" && stopAction(run) && (
@@ -134,6 +152,12 @@ export function RunsList() {
                   Paste the text
                 </Button>
               )}
+              {/* A cancelled, failed or finished row leaves the list; nothing is deleted (F48). */}
+              {run.archivable && (
+                <Button variant="outline" size="icon-sm" aria-label="Archive" onClick={() => archive(run.runId)}>
+                  <Icon name="archive" />
+                </Button>
+              )}
             </div>
             {run.status === "running" && <ActiveRun run={run} onEnd={refresh} />}
             {run.status !== "running" && run.steps.length > 0 && (
@@ -144,7 +168,7 @@ export function RunsList() {
               />
             )}
             {run.error && <p className="text-destructive">{run.error}</p>}
-            {refused?.runId === run.runId && <p className="text-destructive">{refused.error}</p>}
+            {problem?.runId === run.runId && <p className="text-destructive">{problem.error}</p>}
           </li>
         ))}
       </ul>

@@ -1,4 +1,5 @@
 import type { ComponentProps } from "react";
+import { ArchiveIcon } from "@phosphor-icons/react/dist/ssr/Archive";
 import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/dist/ssr/CaretUp";
 import { CheckIcon } from "@phosphor-icons/react/dist/ssr/Check";
@@ -13,6 +14,7 @@ import { XIcon } from "@phosphor-icons/react/dist/ssr/X";
 // app loads only these, and the server-rendering variant works in server and client
 // components alike.
 const ICONS = {
+  archive: ArchiveIcon,
   "caret-down": CaretDownIcon,
   "caret-up": CaretUpIcon,
   check: CheckIcon,
