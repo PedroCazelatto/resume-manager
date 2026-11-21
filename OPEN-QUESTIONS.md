@@ -58,6 +58,28 @@ Options:
 1. **(Recommended)** Keep all four as built.
 2. Change some of them (say which, and how).
 
+### 6. A link that redirected (F47 link-handling-changes, F50 application-uuids)
+Asked 2026-11-21, after building F47.
+
+Once a link's fetch works, its row and its `job.md` keep only the final address, after the LinkedIn rewrite and any redirects, and the link as it was typed is dropped. So when a link that redirects (and isn't LinkedIn) is added again, it isn't recognised as the same link: it is fetched again and becomes a second row or application. It is undecided whether the link as typed should also be kept and compared, on the run while it is listed and in `job.md` once the application exists, or whether only the final address counts.
+
+### 7. A saved `job.md` that can't be read during the skip check (F47 link-handling-changes)
+Asked 2026-11-21, after building F47.
+
+To skip a link the profile already has, the app reads the `url` of every saved application's `job.md`. When one of those files is invalid (Art. IV.6), its link can't be compared. As built, the links are queued anyway, and the form names the file and its problem in red under "These applications couldn't be checked for the same link:". It is undecided whether that is the behaviour you want, or whether nothing should be queued until the file is fixed.
+
+### 8. Small choices made while building F47 link-handling-changes
+Asked 2026-11-21. F47 is built and committed. These are the choices it made that the docs didn't cover; they are in the code now. Do they stand?
+
+1. The error answers to a request without the posting's text and to pasted text without its link: "Paste the posting's text first." and "Give the posting's link with its text: every posting keeps its link."
+2. The "Paste text" tab's Link field is now required, with the placeholder "The posting's page, saved with the application". "Generate resume" stays disabled until both the text and the link are filled in, and after a list is sent, until the input changes.
+3. The button on a row whose fetch failed was renamed from "Paste the text instead" to "Paste the text", the words the task uses for Indeed rows.
+4. A skipped line reads "Line N (link): Skipped: it is already in the Runs list." or "Line N (link): Skipped: it is already saved in application <id>." When both are true, the Runs list is named. When every link is skipped: "Nothing was added: every link is already there."
+5. Pasted text isn't checked for the same link; only the links of a list are.
+6. LinkedIn links: a trailing slash or a query on `/jobs/view/…` still names the same job, `currentJobId` wins on any `/jobs/…` page, and LinkedIn subdomains count. Links of other sites are the same only when the whole address is.
+7. An Indeed row has no steps, is listed with the ended runs (it counts toward the 50 ended runs kept), and the form counts it among the runs added.
+8. A failed certificate check shows the existing message "Can't reach the page".
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 
