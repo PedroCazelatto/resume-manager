@@ -243,6 +243,11 @@ Asked 2026-11-21. F50 is built and committed. These are the choices it made that
    Pasting on a row whose `job.md` is missing or invalid now answers 409.
 9. An application ID is any lowercase UUID, or an old dated folder name until the update. A "Try again" or "Verify again" row shows the application's UUID until its job details arrive. No page shows `fetched_at` yet.
 
+### 31. A second request for the LinkedIn page (F46 job-posting-details)
+Asked 2026-11-21, after F46's one request to the link from question 16.
+
+F46 says to check LinkedIn's page structure "on one real public job page (at most one request)". The one request to `https://www.linkedin.com/jobs/view/4488373441/` answered with a redirect (301, empty body) to `https://ie.linkedin.com/jobs/view/partner-solutions-engineer-at-google-4488373441`. LinkedIn sends its `www` job pages to a country subdomain, and the app itself follows that redirect when it fetches such a link. Without the page's content, the top-card classes, the job-criteria list and whether the page holds `JobPosting` data can't be seen, so the LinkedIn part of F46 isn't built. It is undecided whether F46 may make one more request, to the address LinkedIn redirected to.
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 
