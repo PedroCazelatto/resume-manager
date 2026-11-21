@@ -55,7 +55,7 @@ The user's answers of 2026-11-17 change how runs are removed, cancelled and arch
 
 - [run-queue](run-queue.md), [posting-by-url](posting-by-url.md), [cancel-a-run](cancel-a-run.md), [notify-when-run-ends](notify-when-run-ends.md), [reconnect-to-a-run](reconnect-to-a-run.md), [try-again-failed-run](try-again-failed-run.md) (all implemented).
 - [link-handling-changes](link-handling-changes.md) touches the same files; build the two one after the other.
-- A constitution amendment adding `archived_at?` to the `job.md` row of Art. IV.5. Not made yet; the user reviews it before this task is built.
+- Constitution version 12.0.0 (Art. IV.5: `archived_at?` in `job.md`).
 
 ## Decisions
 

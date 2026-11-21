@@ -44,7 +44,7 @@ The user cancels a generation so it "can be restarted with something edited" ([r
 
 - [runs-list-changes](runs-list-changes.md): the X that cancels a waiting or running generation.
 - [english-only-resumes](english-only-resumes.md): the dialog has no language field.
-- A constitution amendment of Art. IV.5: an optional `note` in `analysis.md`, and `change_request` in `resume.md` also holding the resume note of a run started again. Not made yet; the user reviews it before this task is built.
+- Constitution version 12.0.0 (Art. IV.5: `note?` in `analysis.md`, and `change_request?` in `resume.md` also holding the resume note of a run started again).
 
 ## Decisions
 
