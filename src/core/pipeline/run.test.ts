@@ -450,6 +450,89 @@ describe("where the posting came from (F10, F46)", () => {
   });
 });
 
+describe("an application whose job.md was written before the model ran (F50)", () => {
+  /** job.md as a link's fetch leaves it: link, platform, the page's details, when the text arrived, the text. */
+  const FETCHED = [
+    "---",
+    "url: https://www.linkedin.com/jobs/view/4321987650",
+    "source: LinkedIn",
+    "title: Senior Backend Engineer",
+    "company_url: https://globex.example/",
+    "fetched_at: 2026-11-10T09:58:00.000Z",
+    "my_note: keep me",
+    "---",
+    "We build payment systems.",
+    "",
+  ].join("\n");
+
+  it("analyses the posting from job.md, adds what the model found, and goes on to the resume", async () => {
+    const { files, saved, data } = memoryFiles();
+    saved.set(`${ID}/job.md`, FETCHED);
+    const { llm, requests } = fakeLlm([{ ...analysisReply, title: "Backend Engineer", hours: "40 hours a week" }, tailorReply(), { unsupported: [] }]);
+    const { run, events } = input({ llm, files, start: { id: ID } });
+
+    expect(await runApplication(run)).toBe(ID);
+
+    // The page's title is kept; the model fills only what the page didn't give (Art. VI.2). The link,
+    // its platform, when the text arrived and the unknown field stay (Art. IV.7).
+    expect(data("job.md").data).toEqual({
+      url: "https://www.linkedin.com/jobs/view/4321987650",
+      source: "LinkedIn",
+      title: "Senior Backend Engineer",
+      company_url: "https://globex.example/",
+      fetched_at: "2026-11-10T09:58:00.000Z",
+      my_note: "keep me",
+      company: "Globex",
+      language: "en",
+      location: "Dublin, Ireland",
+      hours: "40 hours a week",
+    });
+    expect(data("job.md").body).toBe("We build payment systems.\n");
+    expect(data("analysis.md").data).toMatchObject({ model: "fake-model", keywords: ["TypeScript"] });
+    expect(requests[0].prompt).toContain("<posting>\nTitle: Senior Backend Engineer\n\nWe build payment systems.\n</posting>");
+    expect(steps(events)).toEqual([
+      "analyse:running",
+      "analyse:done",
+      "save:running",
+      "save:done",
+      "saved",
+      "tailor:running",
+      "tailor:done",
+      "check:running",
+      "check:done",
+      "review:running",
+      "review:done",
+      "done",
+    ]);
+    expect(events).toContainEqual({
+      type: "saved",
+      id: ID,
+      job: { title: "Senior Backend Engineer", company: "Globex", companyUrl: "https://globex.example/", source: "LinkedIn" },
+    });
+  });
+
+  it("refuses an application whose posting's text hasn't arrived, without calling the model", async () => {
+    const { files, saved } = memoryFiles();
+    saved.set(`${ID}/job.md`, "---\nurl: https://jobs.example.com/1\nsource: jobs.example.com\n---\n");
+    const { llm, requests } = fakeLlm([analysisReply]);
+
+    await expect(runApplication(input({ llm, files, start: { id: ID } }).run)).rejects.toThrow("no posting text yet");
+    expect(requests).toHaveLength(0);
+    expect([...saved.keys()]).toEqual([`${ID}/job.md`]);
+  });
+
+  it("leaves job.md as it was when the analysis fails, so trying again analyses again", async () => {
+    const { files, saved } = memoryFiles();
+    saved.set(`${ID}/job.md`, FETCHED);
+
+    await expect(
+      runApplication(input({ llm: fakeLlm([new LlmError("timeout", "The model took too long.")]).llm, files, start: { id: ID } }).run),
+    ).rejects.toThrow("took too long");
+
+    expect([...saved.entries()]).toEqual([[`${ID}/job.md`, FETCHED]]);
+  });
+});
+
 describe("cancelling a run (F32)", () => {
   /** A model that cancels the run while it answers its `at`-th call, which still returns. */
   function cancellingLlm(replies: unknown[], at: number) {

@@ -1,6 +1,7 @@
 import { applicationFolderName, type ApplicationFile } from "../application/folder";
 import { jobDetails, jobSummary, type JobSummary } from "../application/job";
-import { analysisSchema, jobSchema, type JobDetails } from "../application/schemas";
+import { hasPostingText } from "../application/job-file";
+import { analysisSchema, jobSchema, type Job, type JobDetails } from "../application/schemas";
 import { stopIfCancelled, type LlmClient, type LlmProgress } from "../llm";
 import { patchFrontmatter, stringifyFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile } from "../markdown/validate";
@@ -76,29 +77,34 @@ export async function runApplication(input: RunInput): Promise<string> {
   const progress = (name: RunStep) => (p: LlmProgress) => send({ type: "progress", step: name, ...p });
   const warning = (name: RunStep) => (message: string) => send({ type: "warning", step: name, message });
 
-  let id: string;
-  let posting: string;
-  let job;
-  let analysis;
-  if ("posting" in input.start) {
-    posting = input.start.posting;
-
+  /** Pipeline steps 2–3 (F12): the details read from the posting's page are kept as they are (Art. VI.2). */
+  async function analyse(posting: string, url: string, details: JobDetails | undefined) {
     stopIfCancelled(signal);
     step("analyse", "running");
-    ({ job, analysis } = await analysePosting({
+    const analysed = await analysePosting({
       llm,
       profile,
       posting,
-      url: input.start.url,
-      details: input.start.details,
+      url,
+      details,
       now,
       onProgress: progress("analyse"),
       onWarning: warning("analyse"),
       signal,
-    }));
+    });
     step("analyse", "done");
-
     stopIfCancelled(signal);
+    return analysed;
+  }
+
+  let id: string;
+  let posting: string;
+  let job: Job;
+  let analysis;
+  if ("posting" in input.start) {
+    posting = input.start.posting;
+    ({ job, analysis } = await analyse(posting, input.start.url, input.start.details));
+
     step("save", "running");
     id = applicationFolderName(input.newId());
     await files.create(id, {
@@ -109,18 +115,36 @@ export async function runApplication(input: RunInput): Promise<string> {
   } else {
     id = input.start.id;
     const [jobSource, analysisSource] = await Promise.all([files.read(id, "job.md"), files.read(id, "analysis.md")]);
-    if (jobSource === null || analysisSource === null) {
-      throw new Error("This application has no saved posting and analysis. Start a new one.");
-    }
+    if (jobSource === null) throw new Error("This application has no saved posting and analysis. Start a new one.");
     const savedJob = validateMarkdownFile(jobSchema, "job.md", jobSource);
     if (!savedJob.ok) throw invalid("job.md", savedJob.error.problems);
-    const savedAnalysis = validateMarkdownFile(analysisSchema, "analysis.md", analysisSource);
-    if (!savedAnalysis.ok) throw invalid("analysis.md", savedAnalysis.error.problems);
-    job = savedJob.data;
-    analysis = savedAnalysis.data;
     posting = savedJob.body;
-    step("analyse", "done");
-    step("save", "done");
+
+    if (analysisSource === null) {
+      // job.md was written before the model ran, with the posting's link and text (F50).
+      if (!hasPostingText(posting)) throw new Error("This application has no posting text yet. Paste the posting's text first.");
+      if (savedJob.data.url === undefined) throw invalid("job.md", ["url: is required"]);
+      const analysed = await analyse(posting, savedJob.data.url, jobDetails(savedJob.data));
+
+      step("save", "running");
+      // The link, its platform and when the text arrived were written with the text; the
+      // analysis adds the details the model copied and the posting's language (Art. IV.7).
+      const found = Object.fromEntries(
+        Object.entries(analysed.job).filter(([field]) => field !== "url" && field !== "source" && field !== "fetched_at"),
+      );
+      await files.replace(id, "job.md", patchFrontmatter(jobSource, found));
+      await files.add(id, "analysis.md", stringifyFrontmatter(analysed.analysis));
+      step("save", "done");
+      job = { ...savedJob.data, ...found };
+      analysis = analysed.analysis;
+    } else {
+      const savedAnalysis = validateMarkdownFile(analysisSchema, "analysis.md", analysisSource);
+      if (!savedAnalysis.ok) throw invalid("analysis.md", savedAnalysis.error.problems);
+      job = savedJob.data;
+      analysis = savedAnalysis.data;
+      step("analyse", "done");
+      step("save", "done");
+    }
   }
   send({ type: "saved", id, job: jobSummary(job) });
 
