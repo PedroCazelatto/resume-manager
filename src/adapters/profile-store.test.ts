@@ -292,5 +292,107 @@ describe("createFsProfileStore in a scratch folder", () => {
       );
       expect(await readdir(path.join(profileDir, "applications"))).not.toContain("2026-11-09-globex-dev");
     });
+
+    describe("deleting and renaming (F50)", () => {
+      /** An application with a file in its archive/, like one whose resume was regenerated. */
+      async function withArchive(store: ReturnType<typeof createFsProfileStore>, id: string) {
+        await store.createApplication("jane-doe", id, files);
+        await mkdir(path.join(profileDir, "applications", id, "archive", "01"), { recursive: true });
+        await writeFile(path.join(profileDir, "applications", id, "archive", "01", "resume.md"), "earlier");
+      }
+
+      /** Another profile's application, reached from this profile only through a symlink. */
+      async function theirs() {
+        const target = path.join(profilesDir, "john-roe", "applications", OTHER);
+        await mkdir(target, { recursive: true });
+        await writeFile(path.join(target, "job.md"), "theirs");
+        return target;
+      }
+
+      it("deletes an application's folder with everything in it, and nothing else", async () => {
+        const store = createFsProfileStore(profilesDir);
+        await withArchive(store, ID);
+        await store.createApplication("jane-doe", OTHER, files);
+        const before = await store.listApplications("jane-doe");
+
+        await store.deleteApplication("jane-doe", ID);
+
+        expect(await store.listApplications("jane-doe")).toEqual(before.filter((id) => id !== ID));
+        expect(await readdir(path.join(profileDir, "applications"))).not.toContain(ID);
+        expect(await store.readApplicationFile("jane-doe", OTHER, "job.md")).toBe(files["job.md"]);
+      });
+
+      it("deletes an old dated folder too", async () => {
+        const store = createFsProfileStore(profilesDir);
+        await mkdir(path.join(profileDir, "applications", "2026-11-08-globex-dev"));
+        await writeFile(path.join(profileDir, "applications", "2026-11-08-globex-dev", "job.md"), "old");
+
+        await store.deleteApplication("jane-doe", "2026-11-08-globex-dev");
+
+        expect(await readdir(path.join(profileDir, "applications"))).not.toContain("2026-11-08-globex-dev");
+      });
+
+      it("renames a folder to a new UUID with everything in it, its archive/ included", async () => {
+        const store = createFsProfileStore(profilesDir);
+        const old = "2026-11-08-globex-dev";
+        await mkdir(path.join(profileDir, "applications", old, "archive", "01"), { recursive: true });
+        await writeFile(path.join(profileDir, "applications", old, "job.md"), "job");
+        await writeFile(path.join(profileDir, "applications", old, "archive", "01", "resume.md"), "earlier");
+
+        await store.renameApplication("jane-doe", old, ID);
+
+        const folder = path.join(profileDir, "applications", ID);
+        expect(await readdir(path.join(profileDir, "applications"))).not.toContain(old);
+        expect(await readFile(path.join(folder, "job.md"), "utf8")).toBe("job");
+        expect(await readFile(path.join(folder, "archive", "01", "resume.md"), "utf8")).toBe("earlier");
+      });
+
+      it("never renames over an existing folder, or to a name that isn't a UUID", async () => {
+        const store = createFsProfileStore(profilesDir);
+        await withArchive(store, ID);
+        await mkdir(path.join(profileDir, "applications", OTHER));
+
+        await expect(store.renameApplication("jane-doe", ID, OTHER)).rejects.toThrow(`Application ${OTHER} already exists`);
+        await expect(store.renameApplication("jane-doe", ID, "2026-11-08-globex-dev")).rejects.toThrow("Invalid application name");
+        await expect(store.renameApplication("jane-doe", ID, "../x")).rejects.toThrow("Invalid application name");
+        expect(await readFile(path.join(profileDir, "applications", ID, "archive", "01", "resume.md"), "utf8")).toBe("earlier");
+      });
+
+      it.each(["../../john-roe/applications/x", `../${ID}`, "jane-doe", ""])("refuses the application name %j", async (id) => {
+        const store = createFsProfileStore(profilesDir);
+
+        await expect(store.deleteApplication("jane-doe", id)).rejects.toThrow("Invalid application name");
+        await expect(store.renameApplication("jane-doe", id, OTHER)).rejects.toThrow("Invalid application name");
+      });
+
+      it("refuses an application that doesn't exist, and another profile's name", async () => {
+        const store = createFsProfileStore(profilesDir);
+
+        await expect(store.deleteApplication("jane-doe", ID)).rejects.toThrow(`Application ${ID} doesn't exist`);
+        await expect(store.renameApplication("jane-doe", ID, OTHER)).rejects.toThrow(`Application ${ID} doesn't exist`);
+        await expect(store.deleteApplication("../john-roe", ID)).rejects.toThrow("Invalid profile name");
+      });
+
+      it("never follows a symlinked application folder into another profile", async () => {
+        const store = createFsProfileStore(profilesDir);
+        const target = await theirs();
+        await symlink(target, path.join(profileDir, "applications", OTHER));
+
+        await expect(store.deleteApplication("jane-doe", OTHER)).rejects.toThrow("doesn't exist");
+        await expect(store.renameApplication("jane-doe", OTHER, ID)).rejects.toThrow("doesn't exist");
+        expect(await readFile(path.join(target, "job.md"), "utf8")).toBe("theirs");
+      });
+
+      it("never follows a symlinked applications folder into another profile", async () => {
+        const store = createFsProfileStore(profilesDir);
+        const target = await theirs();
+        await rm(path.join(profileDir, "applications"), { recursive: true, force: true });
+        await symlink(path.dirname(target), path.join(profileDir, "applications"));
+
+        await expect(store.deleteApplication("jane-doe", OTHER)).rejects.toThrow("doesn't exist");
+        await expect(store.renameApplication("jane-doe", OTHER, ID)).rejects.toThrow("doesn't exist");
+        expect(await readdir(path.dirname(target))).toEqual([OTHER]);
+      });
+    });
   });
 });

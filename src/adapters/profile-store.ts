@@ -46,6 +46,20 @@ export interface ProfileStore {
    * for in the UI, or a run updating the files it has just written. Fails if the file doesn't exist.
    */
   replaceApplicationFile(slug: string, id: string, file: ApplicationFile, content: string): Promise<void>;
+  /**
+   * Deletes an application's folder with everything in it. Only after the user's confirmation in
+   * the UI (Art. IV.8): the X on a link being fetched, or the confirmed update of old applications
+   * (F50). The folder and applications/ must be real folders of the profile: a symlink, which
+   * could lead into another profile, is refused (Art. III.7).
+   */
+  deleteApplication(slug: string, id: string): Promise<void>;
+  /**
+   * Renames an application's folder to `to`, a new application's UUID, with everything in it,
+   * its archive/ included. One `rename` of the folder, so it is atomic (Art. IV.8). Only after the
+   * user confirmed the update of old applications (F50). Fails when `to` exists; symlinks are
+   * refused as for `deleteApplication` (Art. III.7).
+   */
+  renameApplication(slug: string, from: string, to: string): Promise<void>;
 }
 
 export function createFsProfileStore(profilesDir: string): ProfileStore {
@@ -59,6 +73,19 @@ export function createFsProfileStore(profilesDir: string): ProfileStore {
   function applicationFolder(slug: string, id: string): string {
     if (!isApplicationId(id)) throw new Error("Invalid application name");
     return path.join(/* turbopackIgnore: true */ profileFolder(slug), "applications", id);
+  }
+
+  /**
+   * An application's folder, once applications/ and the folder itself are known to be real folders,
+   * not symlinks, so nothing outside the profile is reached (Art. III.7).
+   */
+  async function realApplicationFolder(slug: string, id: string): Promise<string> {
+    const folder = applicationFolder(slug, id);
+    for (const part of [path.dirname(folder), folder]) {
+      const stats = await lstat(part).catch(() => null);
+      if (!stats?.isDirectory()) throw new Error(`Application ${id} doesn't exist`);
+    }
+    return folder;
   }
 
   return {
@@ -160,6 +187,19 @@ export function createFsProfileStore(profilesDir: string): ProfileStore {
         throw new Error(`${file} doesn't exist in ${id}`);
       });
       await writeFileAtomic(target, content);
+    },
+
+    async deleteApplication(slug, id) {
+      await rm(await realApplicationFolder(slug, id), { recursive: true });
+    },
+
+    async renameApplication(slug, from, to) {
+      if (!isUuidApplicationId(to)) throw new Error("Invalid application name");
+      const folder = await realApplicationFolder(slug, from);
+      const target = path.join(/* turbopackIgnore: true */ path.dirname(folder), to);
+      // rename would replace an empty folder, so the new name must be free.
+      if (await lstat(target).then(() => true, () => false)) throw new Error(`Application ${to} already exists`);
+      await rename(folder, target);
     },
   };
 }
