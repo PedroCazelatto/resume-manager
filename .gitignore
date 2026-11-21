@@ -23,3 +23,6 @@ next-env.d.ts
 
 # Worktrees of assistants working in parallel
 .claude/worktrees/
+
+# Throwaway experiments (e.g. speed tests), deleted when done
+/scratch/
