@@ -1,62 +1,63 @@
 ---
 title: Name application folders with a UUID, and update old applications
 id: F50
-version: next version
+version: implemented
 reported: 2026-11-17
 ---
 
-## Problem
+## What it does
 
-Application folders are named `<YYYY-MM-DD>-<company>-<role>`, so a folder can only be created after the model has read the company and role. The user wants the application to exist before the model runs, so each application gets a UUID instead (constitution Art. IV.3–4, version 11.0.0). Applications saved before the change use the old folder names and the old `job.md` fields ([job-posting-details](job-posting-details.md)), and the ones made from pasted text have no link.
-
-## Behaviour
-
-- Every new application gets a folder `applications/<uuid>/`, named by a random lowercase UUID. The UUID is the application's ID everywhere: in URLs (`/applications/<uuid>`), in runs, and in the stream's events.
-- **When the folder is made.** An application's folder and its `job.md` are made as soon as its link's fetch starts, holding the link and `source` ([job-posting-details](job-posting-details.md)); the rest of `job.md` is written as it becomes known (the posting's text as the body, then the details). An Indeed link, which is never fetched ([link-handling-changes](link-handling-changes.md)), gets its folder when it is added. A link still waiting to fetch has no folder. So a failed fetch, a cancelled run and an archived row ([runs-list-changes](runs-list-changes.md)) all have an application, and survive a restart.
-- **The X on a fetching link deletes its folder.** The X that removes a link from the fetch queue ([runs-list-changes](runs-list-changes.md) item 2) deletes the folder made when its fetch started, so nothing of the link is left. Clicking the X is the confirmation Art. IV.8 asks for.
-- **Pasted text goes into the application.** Pasting the text on a row whose fetch failed (Indeed included) writes it as the body of that application's `job.md`, keeping the frontmatter (Art. IV.7, IV.8).
-- **One application per link.** When a link is added again and the profile has an unfinished application with the same link (its fetch or generation failed, or it was cancelled, archived or not), that application starts again, as "Try again" does, and leaves the archived list. This replaces, for those links, the skip rule of [link-handling-changes](link-handling-changes.md) ("A link that is already there is skipped"); a link whose application is waiting, fetching, running or finished is still skipped and named.
-- After a restart, an unfinished application is listed as cancelled ([home-applications-table](home-applications-table.md)); nothing starts again by itself.
-- The application's date is `job.md`'s `fetched_at`, since the folder name no longer carries it. An application whose text hasn't arrived yet (a fetch that failed or is under way, an Indeed link waiting for its text) has no date until it does.
-- Old applications are updated once, after the user confirms it in the app (Art. IV.8). When the selected profile has an old application, the app shows what the update will do, and nothing changes until the user confirms:
-  - each old `job.md` is rewritten to the new fields: `role` becomes `title`, and `source` becomes the platform named from its `url` ([job-posting-details](job-posting-details.md));
+- **UUID folders.** Every new application gets a folder `applications/<uuid>/`, named by a random lowercase UUID (Art. IV.3–4). The UUID is the application's ID everywhere: in URLs (`/applications/<uuid>`), in runs and in the stream's events. Two postings of the same company and title get two folders. Wherever an application ID arrives, a UUID or an old dated name (`<YYYY-MM-DD>-<company>-<role>`) is accepted, never anything else (no `..`, no slash), so old applications still list and open until their update is confirmed.
+- **When the folder is made.** A link's folder and `job.md` are made when its fetch starts, holding the link as given and its `source` ([job-posting-details](job-posting-details.md)); a link still waiting to fetch has none. Once fetched, `job.md` gets the address the text was read from as `url` (and `source` named from it), the details the page holds, `fetched_at`, and the text as the body. The analysis then adds the details the model copied from the text and `language`, keeping every other field. An Indeed link gets its folder when it is added ([link-handling-changes](link-handling-changes.md)). So a failed fetch, a cancelled run and an archived row ([runs-list-changes](runs-list-changes.md)) all have an application, and survive a restart. Every run reaches the model with its application's folder made, and the pipeline reads the posting from `job.md`.
+- **The X on a fetching link deletes its folder.** The X that removes a link from the fetch queue deletes the folder its fetch made, so nothing of the link is left. Clicking the X is the confirmation Art. IV.8 asks for.
+- **Pasted text goes into the application.** Pasting the text on a row whose fetch failed (Indeed included) writes it as the body of that application's `job.md`, with `fetched_at`, keeping every other field (Art. IV.7, IV.8). The same run then moves on ([runs-list-changes](runs-list-changes.md)).
+- **"Try again" on a failed fetch** fetches its link again into the same folder. The Runs list offers "Try again" on a run that ended before its analysis was saved (it used to say "before its folder existed"), and not while another run of the same application is fetching, waiting or running.
+- **One application per link.** A link added again whose application didn't finish (its fetch or generation failed, or it was cancelled, archived or not) starts that same application again, as "Try again" does, and takes it out of the archived list; no second folder is made. While its `job.md` has no posting text, its link is fetched again into it (an Indeed link is listed again as needing its text, never requested); otherwise the run continues from its first step without saved output. A link whose application finished, or has a run fetching, waiting or running, is still skipped and named. An application finished once its `resume.md` and `verification.md` exist. "Try again" on an application's page starts it again the same way, so an application whose text never arrived has its link fetched again.
+- After a restart, nothing starts again by itself; listing unfinished applications as cancelled is [home-applications-table](home-applications-table.md)'s.
+- **The one-time update of old applications.** When the selected profile has an old application, the home page shows a card, "Update the saved applications", listing what the update will do. Nothing changes until the user presses "Update the applications":
+  - each old `job.md` is rewritten to the new fields: `role` becomes `title` and `source` becomes the platform named from its `url`, every other field kept in its place and the body as it is;
   - each application whose `job.md` has no `url` (made from pasted text) is deleted, folder and all;
-  - each old folder (named `<YYYY-MM-DD>-<company>-<role>`) is renamed to a new random UUID, with everything inside it, its `archive/` included.
-- The update keeps every frontmatter field the app doesn't know (Art. IV.7), keeps each body as it is, and writes atomically (Art. IV.8). It touches only the selected profile (Art. III.7).
-- Until the user confirms, old applications are still listed and open as before.
+  - each old dated folder is renamed to a new random UUID, with everything inside it, its `archive/` included, in one `rename`.
+  An old folder whose `job.md` is missing or not valid is named with its problems and left alone (Art. IV.6). The update touches only the selected profile (Art. III.7), and the runs in memory follow the new names.
+- The application's date is `job.md`'s `fetched_at`, the time the posting's text arrived (fetched, pasted on a row, or added from the form's "Paste text" tab); an application whose text hasn't arrived has none.
 
-## Acceptance criteria
+## Where it lives
 
-- [ ] A new application's folder is a lowercase UUID, and its page opens at `/applications/<uuid>`.
-- [ ] Two applications for the same company and title get two folders.
-- [ ] A link's folder and `job.md` appear when its fetch starts, and not while it waits to fetch; an Indeed link's appear when it is added. A failed fetch and a cancelled run are still there after a restart.
-- [ ] The X on a fetching link deletes the folder made for it; nothing of the link is left.
-- [ ] Pasting the text on a failed fetch writes the body of that application's `job.md` and keeps its frontmatter.
-- [ ] Adding a link whose application failed or was cancelled (archived or not) starts that same application again, takes it out of the archived list, and makes no second folder; a link whose application is waiting, fetching, running or finished is skipped and named.
-- [ ] The update lists what it will rewrite, rename and delete, changes nothing if the user doesn't confirm, and after confirming leaves only applications with the new fields and a link, each in a folder named by a UUID.
-- [ ] Unknown frontmatter fields and every body survive the rewrite; another profile is never touched.
-- [ ] The rewrite and the list of changes are pure core code with unit tests on `example-profiles/` data copies; `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` pass.
-- [ ] The README's example application folder (under "Your data") is a UUID, updated in the file and left uncommitted for the user's review (Art. XI.5).
-- [ ] This file says `version: implemented` in the implemented format, `backlog/index.md` lists it under Implemented, and [application-folders](application-folders.md) describes the new names.
+- `src/core/application/folder.ts`: `applicationFolderName(uuid)` (the UUID handed in, in lowercase), `isUuidApplicationId`, `isDatedApplicationId`, `isApplicationId` (either), `generationFinished`. `slugify`, `withCollisionSuffix` and the dated folder name are gone.
+- `src/core/application/job-file.ts` (new): `newJobFile`, `fetchedJobFile`, `pastedJobFile`, `hasPostingText`; each validates the file it rewrites first.
+- `src/core/application/update.ts` (new): `planUpdate` (what the update will rewrite, rename and delete, and its problems), `updatedJob` (the new fields), `updateNeeded`.
+- `src/core/pipeline/run.ts`: `RunInput.start` is `{ id }` only; the analysis runs when `analysis.md` is missing, from `job.md`'s body, link and details, then patches `job.md` and adds `analysis.md`. `ApplicationFiles.create` and `today` are gone.
+- `src/core/posting/known-links.ts`: `skipKnownLinks` returns each kept link with the `applicationId` it starts again; `KnownRun.applicationId`, `SavedLink.finished`, `KeptLink`.
+- `src/core/runs/queue.ts`: `madeApplication`, `moveApplication`, `forgetApplication`; `enqueueFetch` and `addNotFetched` take an `applicationId`; `canTryAgain` reads the `saved` event; `offersTryAgain` is false while the application has a run going.
+- `src/adapters/profile-store.ts`: `createApplication(slug, id, files)` (a UUID, never an existing folder), `deleteApplication`, `renameApplication` (applications/ and the folder must be real folders: symlinks and `..` are refused), `listApplications` (UUIDs and dated names).
+- `src/app/runs.ts`: `RunFolders` (the folders the fetch queue makes, writes and deletes), `RunRequest.applicationId`, `FOLDER_FAILED`, `pasteTarget`, `renamed`, `forget`; `createRunRegistry(execute, fetchPosting, now, folders)`.
+- `src/app/folders.ts` (new): `createApplicationFolders`, the UUID and the clock made here. `src/app/run.ts`: the registry gets the folders; `enqueueRun` makes pasted text's folder; `enqueueLinks` makes an Indeed link's folder and starts unfinished applications again (`startAgain`); `pasteRun` writes the text first; `retryApplication` (the page's "Try again").
+- `src/app/update.ts` (new): `readUpdate`, `shownUpdate`, `applyUpdate`. `src/app/actions.ts`: `updateApplications`, the server action the card calls. `src/components/application-update.tsx` (new), on `src/app/page.tsx`.
+- Routes: `POST /api/applications/[id]` calls `retryApplication` (still 202 `{ runId }`); `POST /api/runs/[runId]/posting` also answers 409 when the application's `job.md` is missing or not valid, named with its path.
 
-## Technical notes
+## Tests
 
-- Folder names come from `applicationFolderName` in `src/core/application/folder.ts`. Core code stays pure (Art. V.3): the UUID is made outside core (for example `crypto.randomUUID()` in `src/app/run.ts`) and handed in, as the clock is.
-- Application IDs are checked wherever they arrive from a URL or a request; the check moves from the dated pattern to a UUID.
-- `ProfileStore` (`src/adapters/profile-store.ts`) needs deleting an application folder and renaming one, both limited to the selected profile's `applications/` and refusing symlinks and `..`, like `replaceApplicationFile`. A rename is a single `rename` of the folder, so it is atomic (Art. IV.8).
-- Finding an application by its link (one application per link) reads the profile's `job.md` files through `ProfileStore`; the matching rule (`jobKey` in `src/core/posting/sites.ts`, the LinkedIn job ID of [link-handling-changes](link-handling-changes.md) included) is a pure function in core next to the skip rule's (`skipKnownLinks` and `savedLinks` in `src/core/posting/known-links.ts`; `enqueueLinks` in `src/app/run.ts` reads the runs and the `job.md` files, through `ProfileStore.listApplications`).
-- Every place that shows the date from the folder name moves to `fetched_at`, and copes with an application that has none yet.
-- `jobSchema` in `src/core/application/schemas.ts`: `title`, `company`, `fetched_at` and `language` become optional, as in Art. IV.5 (version 12.0.0); every reader of them copes with a missing value.
-- The example profile's applications (`example-profiles/`) are updated to the new layout with the change, so tests and test runs use it.
+- `src/core/application/folder.test.ts`: the UUID name, in lowercase; IDs accepted (UUID, dated) and refused (`..`, slashes, uppercase, others); `generationFinished`.
+- `src/core/application/job-file.test.ts`: a new `job.md` with and without text; the fetched posting's address, platform, page details, `fetched_at` and text, every other field kept; pasted text keeping the link; invalid files reported.
+- `src/core/application/update.test.ts`, on copies of the example profile's two applications: both deleted (no link); `role` → `title` and the platform from the link, fields in place, the body and an unknown field kept; renaming only old names, rewriting only old fields; nothing for new applications; a missing or invalid `job.md` named.
+- `src/core/pipeline/run.test.ts`: every run starts from a `job.md` written before the model; the analysis keeps the page's details, the link, the platform, `fetched_at` and unknown fields; no model call without the posting's text; `job.md` unchanged when the analysis fails.
+- `src/core/posting/known-links.test.ts`: an unfinished application starts again (also after its row failed or was cancelled, and through the LinkedIn job ID); skipped while a run of it is going or when one with the same link finished.
+- `src/core/runs/queue.test.ts`: "Try again" on a failed fetch with its application, not while another run of it is going; renamed and deleted applications.
+- `src/adapters/profile-store.test.ts`: UUID folders only, never reused; old names listed and read; deleting and renaming with everything inside, never over an existing folder, never through a symlinked folder or `applications/`.
+- `src/app/runs.test.ts`, with folders in memory: the folder made as the fetch starts and the posting written into it; the X during the folder's making or the fetch deletes it, but not the folder of a link fetched again; a folder that can't be made or written fails the fetch; "Try again" into the same folder; `pasteTarget`.
+- `src/app/run.test.ts`, on a scratch copy of `example-profiles/`: the folder appears when the fetch starts, not while waiting, and gets the fetched posting; an Indeed link's at once; the X deletes it; a failed fetch and a cancelled run survive a restart; "Try again" into the same folder; two folders for the same job; pasted text in `job.md`, an invalid one refused; one application per link (after a failed fetch, archived, cancelled with text after a restart, an Indeed one after a restart), skipped when finished or busy; the page's "Try again" fetching again.
+- `src/app/update.test.ts`, on a scratch copy with its own applications: the list changes nothing; confirmed, only UUID folders with the new fields and a link are left, `archive/` moved, another profile untouched; refused when the applications changed or one has a run going; runs follow the new names; an invalid old `job.md` left alone. `src/app/archive.test.ts`: an Indeed application archived in its `job.md`.
+- Checked by hand on 2026-11-21 against the built app (`next start` on port 3101) with a scratch copy of `example-profiles` and an Ollama address where nothing listens (no model, and no request left the machine): the home page listed both example applications under "Deleted, folder and all, because their job.md has no link:" with "Update the applications"; an Indeed link got a UUID folder with `url` and `source: Indeed` as it was added; pasted text became `job.md`'s body with `fetched_at`; the run failed at the model; `/applications/<uuid>` and the old dated application answered 200; the same link added again queued one run on the same application, with no second folder; the server log held no posting text.
+- Not looked at in a browser: the update card. Not seen on a real server: confirming the update (the tests cover it), a real fetch writing `job.md`, and the X deleting a folder.
 
-## Depends on
+## Rules it follows
 
-- Constitution version 11.0.0 (Art. IV.3, IV.4).
-- [job-posting-details](job-posting-details.md): the new `job.md` fields the rewrite produces.
-- [runs-list-changes](runs-list-changes.md) and [link-handling-changes](link-handling-changes.md): the X on the fetch queue, pasting on a failed fetch, Indeed rows and the skip rule this task changes.
-- Constitution version 12.0.0 (Art. IV.5: `job.md` is written when the fetch starts, so `title`, `company`, `fetched_at` and `language` are optional and filled once known).
+- Art. IV.3–IV.5 (UUID folders, `job.md` written as soon as the fetch starts, its fields), IV.6 (invalid `job.md` named and left alone), IV.7 (every field and body kept), IV.8 (atomic writes; one `rename` per folder; deleting only after the X or the confirmed update).
+- Art. III.7 (only the selected profile's `applications/`; symlinks and `..` refused), III.4 (no posting text in logs or lists), III.2 (an Indeed link is never requested, also when started again).
+- Art. V.3 (the UUID and the clock are made outside core; the rewrite, the list of changes, the matching rule and `job.md`'s content are pure core code).
+- Art. IX.2 (the model and the fetcher are mocked; no test opens a socket), IX.4 (no new dependency).
 
-## Decisions
+## Notes
 
 - Decided 2026-11-17 (the user): "The application folder must not be named after title and company because we only have those after the model run, but we may need it before the model. Use an UUID for each application."
 - Decided 2026-11-17: old `job.md` files are rewritten to the new fields ("Rewrite them."), and old applications without a link are deleted ("Delete them."). Both happen only after the user's confirmation in the app (Art. IV.8).
@@ -65,3 +66,19 @@ Application folders are named `<YYYY-MM-DD>-<company>-<role>`, so a folder can o
 - Decided 2026-11-21 (`job.md` before its details are known): `title`, `company`, `fetched_at` and `language` become optional, with no new field; the application's date stays `fetched_at`, chosen over adding a `created_at`.
 - Decided 2026-11-21 (a link added again whose application failed or was cancelled): the existing application starts again, as "Try again" does, and leaves the archived list ("Queue it on the same application"), chosen over skipping it or making a second application.
 - Decided 2026-11-21: after a restart, an unfinished application is listed as cancelled, in the Generating tab, with "Try again"; nothing starts again by itself, and runs stay in memory only (Art. IV.1).
+- Built on 2026-11-21 with the smallest behaviour where the task said nothing:
+  - any lowercase UUID in the 8-4-4-4-12 form is an application ID; new ones come from `crypto.randomUUID()`;
+  - `fetched_at` is when the text arrived: when the fetch worked, when it was pasted on a row, or when pasted text was added from the form's "Paste text" tab, which gets its folder then; the analysis no longer writes it;
+  - the page's details are written to `job.md` with the fetched text, before the model runs, and the analysis reads them back as the page's;
+  - the X deletes only a folder made by the same fetch; a link fetched again into its application ("Try again", or its link added again) leaves the folder when the X removes it; the folder is deleted right after the fetch stops, once the answer was sent;
+  - a folder that can't be made or written fails the fetch with "Couldn't save the application's folder. See the server console."; a `job.md` that became invalid fails it with "applications/<id>/job.md has problems: …"; pasting on a run whose `job.md` is missing or invalid answers 409 with "applications/<id>/job.md doesn't exist." or "… has problems: …", and a run without a folder gets one with the pasted text;
+  - pasting keeps `job.md`'s `url` even when the link sent with the text differs; the run lists the link sent, as before;
+  - a run started again is a "Try again" (kind `retry`); restarted links count among the runs added in the form's message, with no line of their own; a finished application with the same link wins over one that didn't finish, and among unfinished ones the first by folder name; a `job.md` that became invalid in between is named under the form's problems;
+  - an Indeed application started again gets a new row needing its text even when its earlier row is still listed;
+  - starting an archived application again restores its runs in memory, as cancelled, like Restore;
+  - the page's "Try again" goes through the same restart, without leaving the archived list; with a missing or invalid `job.md` it queues the run as before, which reports the problem;
+  - an old application is one with a dated folder name, or a `job.md` with `role` and no `title`, a `source` of `url` or `paste`, or no `url`; a `role` beside a `title` is kept; a UUID folder whose `job.md` isn't valid isn't listed by the update;
+  - the update card sits above the profile's problems and the form, only while there is something to update or name; without anything to change it has no button. Its words: the title "Update the saved applications"; "These applications were saved before each application's folder was named by a random UUID. Nothing changes until you confirm."; "job.md rewritten to the new fields (role becomes title, source names the job platform):"; "Renamed to a new random UUID, with everything inside:"; "Deleted, folder and all, because their job.md has no link:"; "Left as they are until their job.md is fixed:"; the button "Update the applications" ("Updating…" while it works); the new UUIDs aren't shown before confirming;
+  - confirming sends the folders shown, and the server changes nothing when they differ from the update it would make now ("The applications changed since the update was shown. Look at it again, then confirm.") or when one of them has a run going ("An application to update has a run waiting or running. Confirm the update once it has ended."); it is a server action, `updateApplications`, with no new route; it deletes, then rewrites, then renames; a deleted application's runs leave the Runs list;
+  - no page showed the date from the folder name, so nothing was moved to `fetched_at`; the date is shown with [home-applications-table](home-applications-table.md)'s rows. A "Try again" or "Verify again" row shows its application's ID until its job's details arrive, as before.
+- Left for the user's answer on 2026-11-21: how the example profile's applications (untracked) move to the new layout; whether the X on a link fetched again into its application should delete that folder; whether pasting with a changed link should change `job.md`'s `url`; whether an Indeed application whose row still waits for its text should be skipped instead of started again; whether the link as typed is also kept and compared (open before this task).

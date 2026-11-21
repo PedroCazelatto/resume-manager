@@ -6,14 +6,16 @@ version: implemented
 
 ## What it does
 
-- Each run is saved in `applications/<YYYY-MM-DD>-<company>-<role>/` inside the profile, as `job.md`, `analysis.md`, `resume.md` and `verification.md`.
-- Company and role are turned into lowercase ASCII kebab-case; a second run with the same name gets `-2`, `-3`…, so nothing is overwritten.
+- Each application is saved in `applications/<uuid>/` inside the profile, named by a random lowercase UUID, as `job.md`, `analysis.md`, `resume.md` and `verification.md` ([application-uuids](application-uuids.md)). Every application gets a new folder, so nothing is overwritten.
+- The folder and `job.md` are made before the model runs: when a link's fetch starts, or when an Indeed link or pasted text is added.
+- Applications saved before 2026-11-21 are named `<YYYY-MM-DD>-<company>-<role>`; they still list and open until the user confirms their one-time update, which renames them to UUIDs.
 - The application page is `/applications/<folder name>` and always reads from the selected profile.
 
 ## Where it lives
 
 - `src/core/application/folder.ts`: names, IDs and the file list.
-- `src/adapters/profile-store.ts`: `createApplication`, `readApplicationFile`, `addApplicationFile`, `replaceApplicationFile`.
+- `src/adapters/profile-store.ts`: `createApplication`, `listApplications`, `readApplicationFile`, `addApplicationFile`, `replaceApplicationFile`, `deleteApplication`, `renameApplication`.
+- `src/app/folders.ts`: makes a new application's folder and writes its `job.md` before the model runs.
 - `src/app/applications/[id]/page.tsx`.
 
 ## Tests
@@ -23,6 +25,7 @@ version: implemented
 ## Rules it follows
 
 - Art. IV.3–IV.4 (layout and naming), Art. IV.8 (atomic writes, no overwrite), Art. III.7.
+- Art. V.3: the UUID is made outside core and handed in.
 
 ## Notes
 

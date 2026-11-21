@@ -13,7 +13,6 @@ Build order, decided 2026-11-21: the quickest tasks first, as far as what each d
 Also decided 2026-11-21 (the user): the next version keeps only link-handling-changes (since implemented), runs-list-changes (since implemented), job-posting-details, application-uuids and home-applications-table. Browser-extension, edit-before-restart and runs-list-push move to the future version.
 
 - [job-posting-details.md](job-posting-details.md) — Job posting details: title, company, source and more (F46)
-- [application-uuids.md](application-uuids.md) — Name application folders with a UUID, and update old applications (F50)
 - [home-applications-table.md](home-applications-table.md) — Home page as one table of all applications, with the queue in tabs (F26)
 
 ## Future version
@@ -71,6 +70,7 @@ Also decided 2026-11-21 (the user): the next version keeps only link-handling-ch
 - [english-only-resumes.md](english-only-resumes.md) — Write every resume in English and remove the language choice (F51)
 - [link-handling-changes.md](link-handling-changes.md) — Link handling changes decided on 2026-11-17 (F47)
 - [runs-list-changes.md](runs-list-changes.md) — Remove, cancel and archive runs, and other Runs list changes decided on 2026-11-17 (F48)
+- [application-uuids.md](application-uuids.md) — Name application folders with a UUID, and update old applications (F50)
 
 ## Out of scope
 
