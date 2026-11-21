@@ -94,6 +94,48 @@ Each row of the table shows its main action as a visible button, and its other a
 
 The generation in progress sits above the tabs, with its own X.
 
+### 10. How a restored failed fetch reads (F48 runs-list-changes, F26 home-applications-table)
+Asked 2026-11-21, after building F48.
+
+Restoring an archived row brings an unfinished one back "as cancelled". As built, a failed fetch (one that needs the posting's text) also comes back reading "cancelled", not "needs the posting's text", and still offers "Paste the text". This decides the row's colour in F26's table (grey, not amber) and whether the Generating tab counts it as a problem.
+
+### 11. A restored failed run's error message (F48 runs-list-changes)
+Asked 2026-11-21, after building F48.
+
+A run that failed and is restored reads "cancelled". As built, its red error message from the failure is still shown under the "cancelled" badge. It is undecided whether a restored run keeps its old error message.
+
+### 12. Starting a run on an archived application (F48 runs-list-changes, F26 home-applications-table)
+Asked 2026-11-21, after building F48.
+
+An archived application can still be opened at `/applications/<id>`, and "Try again" or "Verify again" can be started from its page. As built, the run is queued and listed as usual while `job.md` keeps `archived_at`, so in F26's table the row would be archived and generating at the same time. It is undecided what starting a run on an archived application should do.
+
+### 13. Archiving an application with another run waiting or running (F48 runs-list-changes)
+Asked 2026-11-21, after building F48.
+
+Archiving works per application: archiving a row that has an application archives the whole application, and all of its ended rows leave the list together. As built, the archive button is hidden, and the server refuses, while another run of the same application is waiting or running (for example a "Verify again" queued behind a failed "Try again"). This adds a condition to "the archive button appears on cancelled runs, failed runs and finished applications".
+
+### 14. The example profile's applications are not in git (F50 application-uuids, tests)
+Asked 2026-11-21, after building F48.
+
+`.gitignore` leaves out `example-profiles/*/applications/` (commit e163132, "ignore applications generated from the example profile"). Yet tests rely on the two example applications in that untracked folder (`src/app/run.test.ts`, and F48's new `src/app/archive.test.ts`), so they fail in a fresh clone. F50 also says the example profile's applications are updated to the new layout "so tests and test runs use it". It is undecided whether the example applications should be tracked in git, and how applications made by test runs would then be kept out of it.
+
+### 15. Small choices made while building F48 runs-list-changes
+Asked 2026-11-21. F48 is built and committed. These are the choices it made that the docs didn't cover; they are in the code now. Do they stand?
+
+1. The X and the archive button are outline icon buttons without tooltips. Their accessible names are "Remove link", "Cancel" and "Archive". The X takes the place of the button it replaced (next to the running step, for the running run), and is disabled while cancelling; the "Cancelling…" text is gone. The archive button comes last in the row.
+2. Icons: lucide's X, ChevronDown and ChevronUp, Check, Menu, Moon and Sun became Phosphor's `x`, `caret-down` and `caret-up`, `check`, `list`, `moon` and `sun`, and the archive button uses `archive`. A lint rule refuses icon imports outside the icon file. `components.json` still names lucide, so that a future `shadcn add` fails loudly instead of bringing in icons outside that file.
+3. "This run was removed from the queue." is gone, since a waiting run is now cancelled, not removed.
+4. Routes that archive and restore an application by its ID (`/api/applications/<id>/archive`) were built as well as the ones for runs, so an application can be restored after a restart. Nothing in the UI calls them yet.
+5. An archived run can't be tried again and takes no pasted text, and it still counts toward the 50 ended runs kept in memory.
+6. When the text is pasted from a row, the form's Link field stays editable, and the link sent becomes the run's link. "Added to the runs below." is still shown afterwards.
+7. The application page also reloads when it loses the connection to its run, as it already did for a run it picked up after a reload.
+8. New messages: "Only a run that ended can be archived, and not while a run of its application is waiting or running.", "This run isn't archived.", "This application has a run waiting or running.", "This application is already archived.", "This application isn't archived.", "This run doesn't need the posting's text.", and "applications/<id>/job.md has problems: …" for an invalid file. A failed archive shows its message under the row.
+
+### 16. A LinkedIn job link for F46's page check (F46 job-posting-details)
+Asked 2026-11-21.
+
+F46 reads the title, company and location from a LinkedIn job page's top-card elements. LinkedIn doesn't document its page structure, so the task says to check it on one real public job page, with at most one request, and to write the test fixture by hand from it (the real page is never committed). The docs don't name the page. Please give a public LinkedIn job link (`https://www.linkedin.com/jobs/view/…`) to use for that one request. Everything else in F46 is built meanwhile.
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 
