@@ -136,6 +136,48 @@ Asked 2026-11-21.
 
 F46 reads the title, company and location from a LinkedIn job page's top-card elements. LinkedIn doesn't document its page structure, so the task says to check it on one real public job page, with at most one request, and to write the test fixture by hand from it (the real page is never committed). The docs don't name the page. Please give a public LinkedIn job link (`https://www.linkedin.com/jobs/view/…`) to use for that one request. Everything else in F46 is built meanwhile.
 
+### 17. Employment types that aren't hours (F46 job-posting-details)
+Asked 2026-11-21, after building most of F46.
+
+A posting's schema.org data gives an employment type. Full-time and part-time go into `hours` ("Full-time", "Part-time"). The other types (contractor, temporary, intern, and the rest) are dropped, because `job.md` has no field for them. It is undecided whether they should be kept: in `hours`, or in a new field, which would need a place in Art. IV.5.
+
+### 18. Other details a posting page holds (F46 job-posting-details)
+Asked 2026-11-21, after building most of F46.
+
+F46 says to "extract everything the HTML holds about the job". The schema.org data can also hold qualifications, responsibilities, skills, benefits, the date posted and the closing date. As built, only the fields of Art. IV.5 are kept, and these are dropped. It is undecided whether they should be kept, and where: in the posting's text in `job.md`, or in fields of their own.
+
+### 19. Where the job's details are shown (F46 job-posting-details, F26 home-applications-table)
+Asked 2026-11-21, after building most of F46.
+
+The salary, work model, hours, source and the company's website are saved in `job.md`. The Runs list shows only the title, the company and the source, and the application page shows only the title and the company. It is undecided whether the application page (or anywhere else) should show the rest.
+
+### 20. Checking the details the model copies (F46 job-posting-details)
+Asked 2026-11-21, after building most of F46.
+
+A detail the page doesn't hold may be filled by the model "only with what the posting's text states, copied and never guessed". As built, the model's copy isn't checked against the posting's text. It is undecided whether the app should drop a copied detail that doesn't appear word for word in the text. That would back up "the model never creates a value", but it could also drop fair copies (a spacing difference, or `work_model`, which is one of three fixed words).
+
+### 21. Country codes in a job's location (F46 job-posting-details)
+Asked 2026-11-21, after building most of F46.
+
+A page's schema.org data often gives the country as a code ("IE"). As built, the code is kept as written, so a location can read "Dublin, IE". It is undecided whether codes should become country names.
+
+### 22. Small choices made while building F46 job-posting-details
+Asked 2026-11-21. Most of F46 is built and committed; the LinkedIn part waits for question 16. These are the choices it made that the docs didn't cover; they are in the code now. Do they stand?
+
+1. The posting's text in `job.md` comes from LinkedIn's description element on LinkedIn, otherwise from the schema.org description, otherwise from the page's main area.
+2. When a page holds several `JobPosting` entries, the first one found is used. The company is the hiring organisation's name, and the company's website is its first http or https address. Any other address (`javascript:`, `data:`, one without `http`) is dropped.
+3. A location reads "town, region, country", without street or postal code; several places are joined with "; ".
+4. A salary reads like "€60,000–€70,000 a year", "From €60,000 a year" or "Up to €70,000 a year". A value that isn't a number is kept as written.
+5. `work_model` is set from the page only when it says the job is remote (`TELECOMMUTE`). Hybrid and on-site come only from the model's copy of the text.
+6. `hours` is the page's working hours as written, otherwise "Full-time" or "Part-time" from the employment type.
+7. In the analysis prompt, the details read from the page sit at the top of the delimited posting block as `Title:`, `Company:`, `Location:`, `Salary:`, `Work model:`, `Hours:` lines. The company's website isn't sent to the model. The prompt's rule reads: "Use null for every detail the posting doesn't state. Never guess, infer or make up a detail."
+8. The tailoring prompt now also gets the job's details from `job.md`, above the posting's text, so LinkedIn postings keep their title and company once the page-title line is dropped from the text.
+9. When neither the page nor the model gives a title or a company, the application page's heading shows the link, then the application's ID.
+10. A Runs list row:
+    - The first line is the job's title (a link once the application exists), or the URL before a title is known.
+    - Next to it is a small label for "Try again" or "Verify again". A new application has no label, so "New application" is gone.
+    - The second line is "company · source", small and grey. The company links to its website in a new tab.
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 
