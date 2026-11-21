@@ -9,7 +9,7 @@ version: implemented
 - Each step's output is saved as soon as it exists, so a failed run can be continued instead of restarted.
 - "Try again" appears on the application page whenever `resume.md` or `verification.md` is missing.
 - Steps whose output file exists are skipped: a run with a saved analysis goes straight to the resume; one with a saved resume goes straight to verification.
-- A new run that failed or was cancelled before its analysis was saved has no application folder. The Runs list offers "Try again" on such a run: it queues a new run with the same posting text, or, for a run whose fetch failed, the same link in the fetch queue again ([posting-by-url](posting-by-url.md)). The button is used once: after that the run has no "Try again" while the run it queued is still listed. If that run fails too, it has its own button; if it was removed while waiting or has left the list, the button comes back on the first one. A run that has an application links to its page instead, which has its own "Try again".
+- A new run that failed or was cancelled before its analysis was saved has no application folder. The Runs list offers "Try again" on such a run: it queues a new run with the same posting text, or, for a run whose fetch failed, the same link in the fetch queue again ([posting-by-url](posting-by-url.md)). The button is used once: after that the run has no "Try again" while the run it queued is still listed. If that run fails or is cancelled, it has its own button; once it has left the list, the button comes back on the first one. A cancelled waiting run stays listed since [runs-list-changes](runs-list-changes.md), so it is the one that has the button. A run that has an application links to its page instead, which has its own "Try again".
 - The server keeps the posting in memory with the run, for as long as the run stays in the Runs list. After a restart it is gone, and the posting has to be pasted again.
 - The posting never leaves the server again: it is not logged and not part of `GET /api/runs`. The button sends only the run's ID.
 - "Try again" has no language field: every resume is written in English ([english-only-resumes](english-only-resumes.md)).
@@ -17,7 +17,7 @@ version: implemented
 ## Where it lives
 
 - `src/core/pipeline/run.ts`: `runApplication` with `start: { id }`.
-- `src/core/runs/queue.ts`: `canTryAgain` (a new run that failed or was cancelled and has no application).
+- `src/core/runs/queue.ts`: `canTryAgain` (a new run that failed or was cancelled, has no application and isn't archived).
 - `src/app/runs.ts`: the registry keeps each run's request (`RunRequest`: the posting, link or application ID); `retry` queues it again as a new run; `RunSummary` carries `retryable`.
 - `src/app/run.ts`: `retryRun`. `POST /api/runs/[runId]` answers `{ runId }` with 202, 404 for an unknown or another profile's run, 409 for a run that can't be tried again this way.
 - `src/app/api/applications/[id]/route.ts`: "Try again" on a saved application.

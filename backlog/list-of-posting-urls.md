@@ -49,7 +49,7 @@ reported: 2026-11-14
 ## Notes
 
 - Decided 2026-11-15: a failure does not stop the rest.
-- Each link is a full run of three model calls, so a list can take hours. [cancel-a-run](cancel-a-run.md) stops the running one; "Remove" takes a waiting or fetching one off the list.
+- Each link is a full run of three model calls, so a list can take hours. [cancel-a-run](cancel-a-run.md) stops the running one; an X cancels a waiting one, which stays listed as cancelled, and takes a link that is waiting to fetch or fetching off the list ([runs-list-changes](runs-list-changes.md)).
 - The task was written before the two queues of [posting-by-url](posting-by-url.md) (decided 2026-11-17). It follows them: the links are fetched one after another as soon as the list is submitted, and each joins the run queue when its fetch ends. The runs therefore reach the model in the order given, except that a link whose fetch is tried again joins behind the ones already waiting.
 - A failed link was already kept with its run for "Try again" by [posting-by-url](posting-by-url.md) and [try-again-failed-run](try-again-failed-run.md); nothing was added for it.
 - Built with the smallest behaviour where the task said nothing, then decided on 2026-11-17:

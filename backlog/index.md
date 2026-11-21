@@ -10,9 +10,8 @@ How the next task is chosen: use the app for real applications, write down what 
 
 Build order, decided 2026-11-21: the quickest tasks first, as far as what each depends on allows, and one task at a time, because almost every task touches the same files (`src/app/runs.ts`, `src/core/runs/queue.ts`, `src/components/runs-list.tsx`). The order is runs-list-changes, job-posting-details, application-uuids, and home-applications-table last. A task still waiting for the user's answer to a question moves down, and the next one goes first.
 
-Also decided 2026-11-21 (the user): the next version keeps only link-handling-changes (since implemented), runs-list-changes, job-posting-details, application-uuids and home-applications-table. Browser-extension, edit-before-restart and runs-list-push move to the future version.
+Also decided 2026-11-21 (the user): the next version keeps only link-handling-changes (since implemented), runs-list-changes (since implemented), job-posting-details, application-uuids and home-applications-table. Browser-extension, edit-before-restart and runs-list-push move to the future version.
 
-- [runs-list-changes.md](runs-list-changes.md) — Remove, cancel and archive runs, and other Runs list changes decided on 2026-11-17 (F48)
 - [job-posting-details.md](job-posting-details.md) — Job posting details: title, company, source and more (F46)
 - [application-uuids.md](application-uuids.md) — Name application folders with a UUID, and update old applications (F50)
 - [home-applications-table.md](home-applications-table.md) — Home page as one table of all applications, with the queue in tabs (F26)
@@ -71,6 +70,7 @@ Also decided 2026-11-21 (the user): the next version keeps only link-handling-ch
 - [run-queue.md](run-queue.md) — Queue runs and track them on the server (F42)
 - [english-only-resumes.md](english-only-resumes.md) — Write every resume in English and remove the language choice (F51)
 - [link-handling-changes.md](link-handling-changes.md) — Link handling changes decided on 2026-11-17 (F47)
+- [runs-list-changes.md](runs-list-changes.md) — Remove, cancel and archive runs, and other Runs list changes decided on 2026-11-17 (F48)
 
 ## Out of scope
 
