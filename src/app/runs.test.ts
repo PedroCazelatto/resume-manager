@@ -712,6 +712,33 @@ describe("run registry", () => {
       expect(started.at(-1)!.input).toEqual({ start: { posting: POSTING, url: PAGE, fetched: true } });
     });
 
+    it("lists the link as given until the fetch worked, then the address the text was read from (F47)", async () => {
+      const { execute, ends } = manualRuns();
+      const { fetchPosting, answers } = manualFetches();
+      const registry = createRunRegistry(execute, fetchPosting);
+      const given = "https://www.linkedin.com/jobs/search/?currentJobId=4321987650";
+      const read = "https://www.linkedin.com/jobs/view/4321987650";
+      const failing = "https://jobs.example.com/gone";
+      const runId = registry.enqueue("jane-doe", "new", link(given));
+      const lost = registry.enqueue("jane-doe", "new", link(failing));
+      const url = (id: string) => registry.list("jane-doe").find((run) => run.runId === id)?.url;
+
+      expect(url(runId)).toBe(given);
+      answers.get(given)!({ ok: true, text: POSTING, url: read });
+      await settled();
+      expect(url(runId)).toBe(read);
+
+      const ended = followed(registry, "jane-doe", runId);
+      ends.get(runId)!.resolve();
+      await ended;
+      expect(url(runId)).toBe(read);
+
+      // A fetch that failed keeps the link as given.
+      answers.get(failing)!(refused);
+      await settled();
+      expect(url(lost)).toBe(failing);
+    });
+
     it("lists the link kept with a pasted posting, never the posting", () => {
       const { execute } = manualRuns();
       const registry = createRunRegistry(execute);

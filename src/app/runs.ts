@@ -69,7 +69,11 @@ export interface RunSummary {
   warnings: Partial<Record<RunStep, string>>;
   /** The Runs list offers "Try again" on the run itself: it ended before its application was saved (F19). */
   retryable: boolean;
-  /** The posting's link: the one a link run fetches, or the one kept with a pasted posting (F10). */
+  /**
+   * The posting's link: the link as given until its fetch worked, then the address the text was
+   * read from, after the LinkedIn rewrite and any redirects, which is the `url` saved in
+   * `job.md` (F10, F47). For pasted text, the link kept with it.
+   */
   url?: string;
   /** The run failed while fetching its link; the list offers "Paste the text instead" (F10). */
   fetchFailed: boolean;
