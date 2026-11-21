@@ -80,6 +80,20 @@ Asked 2026-11-21. F47 is built and committed. These are the choices it made that
 7. An Indeed row has no steps, is listed with the ended runs (it counts toward the 50 ended runs kept), and the form counts it among the runs added.
 8. A failed certificate check shows the existing message "Can't reach the page".
 
+### 9. The main action of each kind of row (F26 home-applications-table)
+Asked 2026-11-21, after your answer to question 3.
+
+Each row of the table shows its main action as a visible button, and its other actions in the hamburger menu. The docs don't say which action is the main one for each kind of row. The kinds of row are:
+- a link waiting to fetch, or being fetched;
+- a run waiting for the model;
+- a failed fetch, or an Indeed link that needs its text;
+- a failed generation;
+- a cancelled run;
+- a finished application, in the Ready tab;
+- an archived row, in the Archived tab.
+
+The generation in progress sits above the tabs, with its own X.
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 

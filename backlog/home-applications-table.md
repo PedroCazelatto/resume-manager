@@ -25,7 +25,7 @@ Past applications can only be found as folders on disk or by their URL, and the 
   1. the status, as a glowing ball in the status colour: running and finished green, failed red, needing the posting's text amber, the others grey;
   2. the job's title, with the company under it in a smaller font, the company being a link to its website when the posting gives it; the URL while the title isn't known ([job-posting-details](job-posting-details.md));
   3. the state, with the source under it, and the run's kind as a small label ("Try again", "Verify again");
-  4. the row's actions button (open, cancel, try again, paste the text, archive, restore, as the row allows; edit is added later by [edit-before-restart](edit-before-restart.md)).
+  4. the row's actions: its main action as a visible button, and a hamburger button that opens a menu with the row's other actions (open, cancel, try again, paste the text, archive, restore, as the row allows; edit is added later by [edit-before-restart](edit-before-restart.md)).
 - A finished application's state is draft or ready, or "has problems" when one of its files is invalid (Art. IV.6).
 - The runs count leaves the sidebar, since it is on the tab now.
 - The selected sidebar entry and the keyboard focus ring use the green accent.
@@ -68,4 +68,5 @@ Past applications can only be found as folders on disk or by their URL, and the 
 - Decided 2026-11-17: the form's "Paste text" tab is removed.
 - Decided 2026-11-21 (the archived list): "Now the archived applications can go to a new tab instead of the sidebar." Archived rows are sorted newest archived first (chosen the same day). Cancelled runs, failed runs and finished applications can be archived. Restoring: "Put the row back in Generating" for an unfinished one; a finished one goes back to Ready (chosen the same day).
 - Decided 2026-11-21: after a restart, an unfinished application is listed in Generating as cancelled; nothing starts again by itself (chosen over saving the queue to disk).
+- Decided 2026-11-21 (the user, the actions column): "Let the main action as a visible button and also add a hamburguer button that opens a menu with all the other actions."
 - Decided 2026-11-21 (the user): [edit-before-restart](edit-before-restart.md) moves to the future version, so this task is built without the "Edit" button; that task adds it to the table's rows when it is built. [runs-list-push](runs-list-push.md) moves to the future version too, so the table is still fed by `GET /api/runs` every 2 seconds.
