@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { RunEvent, RunStep } from "@/core/pipeline/run";
+import type { SkippedLine } from "@/core/posting/known-links";
+import type { FileError } from "@/core/markdown/validate";
 import type { QueueEvent, RunKind, RunStepState } from "@/core/runs/queue";
 import { elapsedSeconds } from "@/core/runs/reconnect";
 import { askToNotify, tellRunEnded, watchRun } from "@/components/run-notifications";
@@ -73,11 +75,15 @@ export async function enqueueRun(url: string, body: Record<string, string>): Pro
   return "error" in reply ? reply : { runId: reply.runIds[0] };
 }
 
-/** Queues the runs an endpoint answers with: one, or one per link of a list (F33). */
+/**
+ * Queues the runs an endpoint answers with: one, or one per link of a list (F33). A list also
+ * answers the lines it skipped and the saved files it couldn't check, and may queue nothing
+ * when every link was skipped (F47).
+ */
 export async function enqueueRuns(
   url: string,
   body: Record<string, string | string[]>,
-): Promise<{ runIds: string[] } | { error: string }> {
+): Promise<{ runIds: string[]; skipped: SkippedLine[]; problems: FileError[] } | { error: string }> {
   askToNotify();
   try {
     const response = await fetch(url, {
@@ -85,12 +91,21 @@ export async function enqueueRuns(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const reply = (await response.json().catch(() => null)) as { runId?: string; runIds?: string[]; error?: string } | null;
+    const reply = (await response.json().catch(() => null)) as {
+      runId?: string;
+      runIds?: string[];
+      skipped?: SkippedLine[];
+      problems?: FileError[];
+      error?: string;
+    } | null;
     const runIds = reply?.runIds ?? (reply?.runId ? [reply.runId] : []);
-    if (!response.ok || runIds.length === 0) return { error: reply?.error ?? `The server answered ${response.status}.` };
+    const skipped = reply?.skipped ?? [];
+    if (!response.ok || (runIds.length === 0 && skipped.length === 0)) {
+      return { error: reply?.error ?? `The server answered ${response.status}.` };
+    }
     runIds.forEach(watchRun);
     window.dispatchEvent(new Event(RUNS_CHANGED));
-    return { runIds };
+    return { runIds, skipped, problems: reply?.problems ?? [] };
   } catch {
     return { error: "Can't reach the app." };
   }

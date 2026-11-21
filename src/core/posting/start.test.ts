@@ -67,9 +67,12 @@ describe("readNewRunStart", () => {
 });
 
 describe("readLinkStarts", () => {
-  it("starts one run per link, in the order given, a link given twice once", () => {
+  it("starts one run per link, in the order given, a link given twice once, each with its line", () => {
     expect(readLinkStarts(["https://jobs.example.com/2", "", " https://jobs.example.com/1 ", "https://jobs.example.com/2"])).toEqual({
-      starts: [{ url: "https://jobs.example.com/2" }, { url: "https://jobs.example.com/1" }],
+      links: [
+        { line: 1, text: "https://jobs.example.com/2", url: "https://jobs.example.com/2" },
+        { line: 3, text: "https://jobs.example.com/1", url: "https://jobs.example.com/1" },
+      ],
     });
   });
 
@@ -83,8 +86,8 @@ describe("readLinkStarts", () => {
   });
 
   it("starts an Indeed link like any other: the run asks for its text (F47)", () => {
-    expect(readLinkStarts(["https://jobs.example.com/1", "https://ie.indeed.com/viewjob?jk=1"])).toEqual({
-      starts: [{ url: "https://jobs.example.com/1" }, { url: "https://ie.indeed.com/viewjob?jk=1" }],
+    expect(readLinkStarts(["https://jobs.example.com/1", "https://ie.indeed.com/viewjob?jk=1"])).toMatchObject({
+      links: [{ url: "https://jobs.example.com/1" }, { url: "https://ie.indeed.com/viewjob?jk=1" }],
     });
   });
 

@@ -1,5 +1,5 @@
 import type { FetchedPosting } from "./job-fetcher";
-import { readLinks, refusedMessage } from "./links";
+import { readLinks, refusedMessage, type ListedLink } from "./links";
 import { parseLink } from "./url";
 
 /** A posting a run can start from: pasted, with its link when one was kept, or `fetched` from `url`. */
@@ -33,15 +33,16 @@ export function readNewRunStart(body: { posting?: unknown; url?: unknown } | nul
 }
 
 /**
- * Reads a list of links sent by the "From links" tab (F33): one run per link, in the order
- * given. Nothing starts when one of them can't be fetched; the error names each such line.
+ * Reads a list of links sent by the "From links" tab (F33): the links to start a run for, in
+ * the order given, each with its line, so a skipped one can be named (F47). Nothing starts
+ * when one of them can't be fetched; the error names each such line.
  */
-export function readLinkStarts(urls: unknown): { starts: { url: string }[] } | { error: string } {
+export function readLinkStarts(urls: unknown): { links: ListedLink[] } | { error: string } {
   if (!Array.isArray(urls) || !urls.every((url): url is string => typeof url === "string")) {
     return { error: "The links must be a list of lines of text." };
   }
   const read = readLinks(urls);
   if (!read.ok) return { error: refusedMessage(read.refused) };
-  if (read.urls.length === 0) return { error: "Give the posting's link or paste its text first." };
-  return { starts: read.urls.map((url) => ({ url })) };
+  if (read.links.length === 0) return { error: "Give the posting's link or paste its text first." };
+  return { links: read.links };
 }

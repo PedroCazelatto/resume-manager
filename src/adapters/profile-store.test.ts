@@ -198,6 +198,23 @@ describe("createFsProfileStore in a scratch folder", () => {
       expect((await store.loadProfile("jane-doe")).ok).toBe(true);
     });
 
+    it("lists the saved applications' folders, never a file, a symlink or another name", async () => {
+      const store = createFsProfileStore(profilesDir);
+      const applications = path.join(profileDir, "applications");
+      await rm(applications, { recursive: true });
+      expect(await store.listApplications("jane-doe")).toEqual([]);
+
+      const later = await store.createApplication("jane-doe", "2026-11-09-initech-dev", files);
+      const earlier = await store.createApplication("jane-doe", "2026-11-08-globex-dev", files);
+      await writeFile(path.join(applications, "2026-11-07-notes"), "");
+      await mkdir(path.join(applications, "Not An Application"));
+      await mkdir(path.join(profilesDir, "john-roe", "applications", "2026-11-06-umbrella-dev"), { recursive: true });
+      await symlink(path.join(profilesDir, "john-roe", "applications", "2026-11-06-umbrella-dev"), path.join(applications, "2026-11-06-umbrella-dev"));
+
+      expect(await store.listApplications("jane-doe")).toEqual([earlier, later]);
+      await expect(store.listApplications("../john-roe")).rejects.toThrow("Invalid profile name");
+    });
+
     it("reads a file back, or null when it doesn't exist", async () => {
       const store = createFsProfileStore(profilesDir);
       const id = await store.createApplication("jane-doe", "2026-11-09-globex-dev", files);

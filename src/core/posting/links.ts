@@ -12,7 +12,14 @@ export interface RefusedLine {
   reason: string;
 }
 
-export type LinkList = { ok: true; urls: string[] } | { ok: false; refused: RefusedLine[] };
+/** A link of the list: its line's number in the text as given, the line's text, and the link as read. */
+export interface ListedLink {
+  line: number;
+  text: string;
+  url: string;
+}
+
+export type LinkList = { ok: true; links: ListedLink[] } | { ok: false; refused: RefusedLine[] };
 
 /**
  * Reads the links of a list, in the order given. Blank lines are ignored and a link given
@@ -20,7 +27,7 @@ export type LinkList = { ok: true; urls: string[] } | { ok: false; refused: Refu
  * link (F47). Each link must be one the server may fetch.
  */
 export function readLinks(lines: readonly string[]): LinkList {
-  const urls: string[] = [];
+  const links: ListedLink[] = [];
   const jobs = new Set<string>();
   const refused: RefusedLine[] = [];
   lines.forEach((given, index) => {
@@ -30,10 +37,10 @@ export function readLinks(lines: readonly string[]): LinkList {
     if (!checked.ok) refused.push({ line: index + 1, text, reason: checked.reason });
     else if (!jobs.has(jobKey(checked.url))) {
       jobs.add(jobKey(checked.url));
-      urls.push(checked.url.href);
+      links.push({ line: index + 1, text, url: checked.url.href });
     }
   });
-  return refused.length > 0 ? { ok: false, refused } : { ok: true, urls };
+  return refused.length > 0 ? { ok: false, refused } : { ok: true, links };
 }
 
 /** The lines of what was typed in the "From links" tab. */

@@ -1,6 +1,8 @@
 import { LlmError } from "@/core/llm";
 import { runApplication } from "@/core/pipeline/run";
 import { verifyApplication } from "@/core/pipeline/verify";
+import { savedLinks, skipKnownLinks } from "@/core/posting/known-links";
+import type { ListedLink } from "@/core/posting/links";
 import type { RunKind } from "@/core/runs/queue";
 import { createJobFetcher } from "@/adapters/job-fetcher";
 import { llmClient } from "@/app/llm";
@@ -86,15 +88,28 @@ export async function enqueueRun(kind: RunKind, input: RunRequest, replaces?: st
 }
 
 /**
- * Queues one new run per link of a list for the selected profile, in the order given, and
- * answers their `{ runIds }` (F33).
+ * Queues one new run per link of a list for the selected profile, in the order given (F33),
+ * except the links the profile already has, which are skipped (F47). Answers 202 with the
+ * `runIds` queued, the `skipped` lines with why, and the `problems` of the saved `job.md`
+ * files that couldn't be checked. Every link being skipped is not an error.
  */
-export async function enqueueRuns(inputs: RunRequest[]): Promise<Response> {
+export async function enqueueLinks(links: readonly ListedLink[]): Promise<Response> {
   const profile = await readyProfile();
   if ("error" in profile) return profile.error;
 
   const registry = runRegistry();
-  return Response.json({ runIds: inputs.map((input) => registry.enqueue(profile.slug, "new", input)) }, { status: 202 });
+  const { saved, problems } = await readSavedLinks(profile.slug);
+  const kept = skipKnownLinks(links, registry.list(profile.slug), saved);
+  const runIds = kept.links.map((link) => registry.enqueue(profile.slug, "new", { start: { url: link.url } }));
+  return Response.json({ runIds, skipped: kept.skipped, problems }, { status: 202 });
+}
+
+/** The links of the profile's saved applications, from their `job.md` files (Art. III.7). */
+async function readSavedLinks(slug: string): Promise<ReturnType<typeof savedLinks>> {
+  const store = profileStore();
+  const ids = await store.listApplications(slug);
+  const files = await Promise.all(ids.map(async (id) => ({ id, source: await store.readApplicationFile(slug, id, "job.md") })));
+  return savedLinks(files.flatMap(({ id, source }) => (source === null ? [] : [{ id, source }])));
 }
 
 /**

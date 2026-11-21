@@ -32,6 +32,11 @@ export interface ProfileStore {
    * writes the files, and returns the folder name (F25).
    */
   createApplication(slug: string, baseName: string, files: Partial<Record<ApplicationFile, string>>): Promise<string>;
+  /**
+   * The IDs of the profile's saved applications, sorted: the folders of applications/ with a
+   * valid application name. Symlinks are not followed (Art. III.7).
+   */
+  listApplications(slug: string): Promise<string[]>;
   /** One file of an application, or null when it doesn't exist. */
   readApplicationFile(slug: string, id: string, file: ApplicationFile): Promise<string | null>;
   /** Adds a file to an application. Fails if it already exists: nothing is overwritten (Art. IV.8). */
@@ -119,6 +124,18 @@ export function createFsProfileStore(profilesDir: string): ProfileStore {
         return id;
       }
       throw new Error(`Too many applications named ${baseName}`);
+    },
+
+    async listApplications(slug) {
+      const applications = path.join(/* turbopackIgnore: true */ profileFolder(slug), "applications");
+      const entries = await readdir(applications, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return [];
+        throw error;
+      });
+      return entries
+        .filter((entry) => entry.isDirectory() && isApplicationId(entry.name))
+        .map((entry) => entry.name)
+        .sort();
     },
 
     async readApplicationFile(slug, id, file) {

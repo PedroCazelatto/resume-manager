@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { addedMessage, uncheckedMessage } from "@/core/posting/known-links";
 import { readLinks, refusedMessage, splitLines } from "@/core/posting/links";
 import { SectionCard } from "@/components/section-card";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,8 @@ interface FailedFetch {
 
 /**
  * Give postings' links, one per line, or paste one posting's text, and queue a run for
- * each; the Runs list below follows them (F09, F10, F33, F42).
+ * each; the Runs list below follows them (F09, F10, F33, F42). A link the profile already
+ * has is skipped, and the form names it (F47).
  */
 export function NewApplicationForm() {
   const [tab, setTab] = useState<Tab>("links");
@@ -41,8 +43,11 @@ export function NewApplicationForm() {
   /** The run whose fetch failed and whose posting is being pasted. */
   const [replaces, setReplaces] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  /** How many runs the last submission queued. */
-  const [queued, setQueued] = useState(0);
+  /**
+   * What the last submission added and skipped, and the saved files it couldn't check, until
+   * the input changes (F33, F47).
+   */
+  const [sent, setSent] = useState<{ added: string; unchecked: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** Why the form moved to "Paste text" for a run of the Runs list. */
   const [notice, setNotice] = useState<string | null>(null);
@@ -54,7 +59,7 @@ export function NewApplicationForm() {
       setKeptLink(url);
       setReplaces(runId);
       setNotice("Paste the posting's text here. Its link is kept with the application.");
-      setQueued(0);
+      setSent(null);
       setError(null);
       document.getElementById("new-application")?.scrollIntoView({ block: "nearest" });
     };
@@ -65,7 +70,7 @@ export function NewApplicationForm() {
   /** One run per link or pasted posting: the button unlocks again when the input changes. */
   function change(set: (value: string) => void, value: string) {
     set(value);
-    setQueued(0);
+    setSent(null);
   }
 
   async function generate() {
@@ -88,9 +93,15 @@ export function NewApplicationForm() {
         : { posting, url: keptLink, ...(replaces ? { replaces } : {}) };
     const reply = await enqueueRuns("/api/applications", body);
     setSending(false);
-    setQueued("runIds" in reply ? reply.runIds.length : 0);
-    if ("error" in reply) setError(reply.error);
-    else setReplaces(null);
+    if ("error" in reply) {
+      setError(reply.error);
+      return;
+    }
+    setReplaces(null);
+    setSent({
+      added: addedMessage(reply.runIds.length, reply.skipped),
+      unchecked: reply.problems.length > 0 ? uncheckedMessage(reply.problems) : null,
+    });
   }
 
   // Pasted text always goes with its link (F47).
@@ -103,7 +114,7 @@ export function NewApplicationForm() {
         onValueChange={(next) => {
           setTab(next as Tab);
           setReplaces(null);
-          setQueued(0);
+          setSent(null);
           setError(null);
           setNotice(null);
         }}
@@ -146,15 +157,13 @@ export function NewApplicationForm() {
         </TabsContent>
       </Tabs>
       <div className="flex flex-wrap items-center gap-3">
-        <Button disabled={sending || queued > 0 || empty} onClick={generate}>
+        <Button disabled={sending || sent !== null || empty} onClick={generate}>
           Generate resume
         </Button>
-        {queued > 0 && (
-          <span className="text-sm text-muted-foreground">
-            {queued === 1 ? "Added to the runs below." : `Added ${queued} runs to the runs below.`}
-          </span>
-        )}
+        {/* The count of runs added, then each skipped line with why (F47). */}
+        {sent && <span className="text-sm whitespace-pre-line text-muted-foreground">{sent.added}</span>}
       </div>
+      {sent?.unchecked && <p className="text-sm whitespace-pre-line text-destructive">{sent.unchecked}</p>}
       {/* A refused list names one line per line of the message (F33). */}
       {error && <p className="text-sm whitespace-pre-line text-destructive">{error}</p>}
     </SectionCard>
