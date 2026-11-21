@@ -2,9 +2,9 @@ import { readLinkStarts, readNewRunStart } from "@/core/posting/start";
 import { enqueueRun, enqueueRuns } from "@/app/run";
 
 /**
- * Queues a run from a pasted posting, or from a link whose posting is fetched first, and answers its `runId`
- * (F09, F10, F12–F17, F24, F25, F42). A list of links (`urls`) queues one run per link and answers their
- * `runIds`, or queues nothing when one of them can't be fetched (F33).
+ * Queues the runs of a list of links (`urls`) and answers their `runIds`, or queues nothing when
+ * one of them can't be fetched (F33). Pasted text (`posting`) comes with its link (`url`) and
+ * queues one run, answering its `runId` (F09, F10, F42). A link alone is refused (F47).
  */
 export async function POST(request: Request): Promise<Response> {
   const body = (await request.json().catch(() => null)) as {
@@ -23,7 +23,7 @@ export async function POST(request: Request): Promise<Response> {
   const read = readNewRunStart(body);
   if ("error" in read) return Response.json({ error: read.error }, { status: 400 });
 
-  // Pasted text can stand for a run whose fetch failed; a link can't.
-  const replaces = "posting" in read.start && typeof body?.replaces === "string" ? body.replaces : undefined;
+  // The pasted text can stand for a run whose fetch failed.
+  const replaces = typeof body?.replaces === "string" ? body.replaces : undefined;
   return enqueueRun("new", { start: read.start }, replaces);
 }

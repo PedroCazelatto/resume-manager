@@ -37,7 +37,7 @@ export function NewApplicationForm() {
   /** The links as typed, one per line. */
   const [links, setLinks] = useState("");
   const [posting, setPosting] = useState("");
-  /** The link saved with a pasted posting. */
+  /** The link saved with a pasted posting; required, since every posting has its link (F47). */
   const [keptLink, setKeptLink] = useState("");
   /** The run whose fetch failed and whose posting is being pasted. */
   const [replaces, setReplaces] = useState<string | null>(null);
@@ -98,7 +98,7 @@ export function NewApplicationForm() {
     const body: Record<string, string | string[]> =
       tab === "links"
         ? { urls: lines }
-        : { posting, ...(keptLink.trim() ? { url: keptLink } : {}), ...(replaces ? { replaces } : {}) };
+        : { posting, url: keptLink, ...(replaces ? { replaces } : {}) };
     const reply = await enqueueRuns("/api/applications", body);
     setSending(false);
     setQueued("runIds" in reply ? reply.runIds.length : 0);
@@ -106,7 +106,8 @@ export function NewApplicationForm() {
     else setReplaces(null);
   }
 
-  const empty = tab === "links" ? links.trim() === "" : posting.trim() === "";
+  // Pasted text always goes with its link (F47).
+  const empty = tab === "links" ? links.trim() === "" : posting.trim() === "" || keptLink.trim() === "";
 
   return (
     <SectionCard id="new-application" title="New application" contentClassName="space-y-3">
@@ -148,7 +149,8 @@ export function NewApplicationForm() {
             <span className="text-muted-foreground">Link</span>
             <Input
               type="url"
-              placeholder="Optional: the posting's page, saved with the application"
+              required
+              placeholder="The posting's page, saved with the application"
               value={keptLink}
               disabled={sending}
               onChange={(e) => change(setKeptLink, e.target.value)}

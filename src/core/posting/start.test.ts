@@ -22,15 +22,22 @@ describe("fetchedStart", () => {
 });
 
 describe("readNewRunStart", () => {
-  it("starts from pasted text", () => {
-    expect(readNewRunStart({ posting: "  Globex is hiring.  " })).toEqual({ start: { posting: "Globex is hiring." } });
+  it("starts from pasted text and its link", () => {
+    expect(readNewRunStart({ posting: "  Globex is hiring.  ", url: " https://jobs.example.com/7 " })).toEqual({
+      start: { posting: "Globex is hiring.", url: "https://jobs.example.com/7" },
+    });
   });
 
-  it("starts from a link when no text was pasted", () => {
-    expect(readNewRunStart({ url: " https://jobs.example.com/7 " })).toEqual({ start: { url: "https://jobs.example.com/7" } });
-    expect(readNewRunStart({ posting: "  ", url: "https://jobs.example.com/7" })).toEqual({
-      start: { url: "https://jobs.example.com/7" },
-    });
+  it("refuses a link alone: links come as a list (F47)", () => {
+    for (const body of [{ url: "https://jobs.example.com/7" }, { posting: "  ", url: "https://jobs.example.com/7" }]) {
+      expect(readNewRunStart(body)).toEqual({ error: "Paste the posting's text first." });
+    }
+  });
+
+  it("refuses pasted text without its link (F47)", () => {
+    for (const body of [{ posting: "Globex is hiring." }, { posting: "Globex is hiring.", url: "  " }, { posting: "Globex is hiring.", url: 7 }]) {
+      expect(readNewRunStart(body)).toEqual({ error: "Give the posting's link with its text: every posting keeps its link." });
+    }
   });
 
   it("keeps the link with pasted text, an Indeed link included, without fetching it", () => {
@@ -41,7 +48,7 @@ describe("readNewRunStart", () => {
 
   it("refuses an empty request", () => {
     for (const body of [null, {}, { posting: 7, url: null }, { posting: " ", url: "" }]) {
-      expect(readNewRunStart(body)).toEqual({ error: "Give the posting's link or paste its text first." });
+      expect(readNewRunStart(body)).toEqual({ error: "Paste the posting's text first." });
     }
   });
 
@@ -50,15 +57,6 @@ describe("readNewRunStart", () => {
     expect(long.length).toBeGreaterThan(50_000);
     expect(readNewRunStart({ posting: long, url: "https://jobs.example.com/7" })).toEqual({
       start: { posting: long, url: "https://jobs.example.com/7" },
-    });
-  });
-
-  it("refuses a link the server must not fetch", () => {
-    expect(readNewRunStart({ url: "ftp://jobs.example.com/7" })).toEqual({ error: "Only http and https links are accepted." });
-    expect(readNewRunStart({ url: "http://127.0.0.1:11434/api/tags" })).toHaveProperty("error");
-    expect(readNewRunStart({ url: "http://192.168.1.1/" })).toHaveProperty("error");
-    expect(readNewRunStart({ url: "https://ie.indeed.com/viewjob?jk=1" })).toEqual({
-      error: "Indeed blocks automated requests. Paste the posting's text instead.",
     });
   });
 
