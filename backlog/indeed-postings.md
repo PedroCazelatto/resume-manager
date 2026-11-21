@@ -13,7 +13,7 @@ Indeed is one of the two job sites that must work, and it refuses automated requ
 
 - The home page shows a "Send to Resume Manager" link with one line of instructions: drag it to the bookmarks bar.
 - On a job page in the user's own browser (Indeed, LinkedIn, or any other site), clicking the bookmark opens the app's `/send` page in a new tab, carrying the page's link and the posting's text.
-- `/send` shows where the posting came from, the start of its text, the language choice, and one "Generate resume" button, which has the focus. Pressing it puts the run in the queue; if another run is working, this one waits its turn.
+- `/send` shows where the posting came from, the start of its text, and one "Generate resume" button, which has the focus. Pressing it puts the run in the queue; if another run is working, this one waits its turn.
 - The run is saved with the page's link in `job.md` (`source: paste`, `url`).
 - The text taken from the page is, in this order: the text the user selected, if any; the visible text of the page's main area (the `main` element or `[role="main"]`); otherwise the whole page's visible text. It is cut at 50,000 characters.
 - The text keeps the job's title, company and location that sit above the description, since the analysis needs them. Leftover menu words are harmless: the model treats the posting as data.
@@ -30,7 +30,7 @@ Indeed is one of the two job sites that must work, and it refuses automated requ
 ## Technical notes
 
 - The bookmark is a `javascript:` link built from the app's own address (so it works on any port). It only reads the page and opens `http://<app>/send#url=<encoded>&text=<encoded>`; it makes no network request from the job page, so the page's content-security rules don't apply to it. If the browser blocks the new tab, it navigates the current tab instead.
-- New route `src/app/send/page.tsx` (client component for reading `location.hash`); it posts to `POST /api/applications` with `{ posting, url, language }`.
+- New route `src/app/send/page.tsx` (client component for reading `location.hash`); it posts to `POST /api/applications` with `{ posting, url }` (no language since [english-only-resumes](english-only-resumes.md)).
 - `POST /api/applications` gains an optional `url`, validated like any link (http/https only) and saved in `job.md`; `src/core/pipeline/run.ts` passes it to `analysePosting`, which today always writes `source: paste` without a link.
 - The text is untrusted input exactly like a pasted posting (Art. II.7); the 50,000-character limit of `src/app/api/applications/route.ts` applies.
 - Art. III.2: the app itself makes no request to the job site. Art. V.10 is untouched: there is no fetch and no headless browser here.
