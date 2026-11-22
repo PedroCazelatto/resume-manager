@@ -99,7 +99,7 @@ profiles/jane-doe/
 ├── certifications/2024-06-aws-solutions-architect.md
 ├── extras/liffey-code-club-mentor.md
 └── applications/
-    └── 2026-11-05-globex-backend-engineer/
+    └── 3f2b8c1e-5a7d-4c9e-9b1a-2d6e8f0c4a73/
         ├── job.md                # the posting
         ├── analysis.md           # fit/gap
         ├── resume.md             # editable tailored resume
