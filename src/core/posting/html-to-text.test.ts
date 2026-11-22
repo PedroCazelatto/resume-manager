@@ -65,10 +65,8 @@ describe("htmlToText", () => {
         <section><h2>Similar jobs</h2><ul><li>Frontend Engineer at Initech</li></ul></section>
       </main></body></html>`;
 
-    it("takes the description from its known element, under the page's title", () => {
-      expect(htmlToText(LINKEDIN, { linkedIn: true })).toBe(
-        "Globex hiring Backend Engineer in Dublin | LinkedIn\nWe build payment systems.\n- TypeScript",
-      );
+    it("takes the description from its known element alone, without the page's title (F46)", () => {
+      expect(htmlToText(LINKEDIN, { linkedIn: true })).toBe("We build payment systems.\n- TypeScript");
     });
 
     it("falls back to the general rules when the element is missing or empty", () => {

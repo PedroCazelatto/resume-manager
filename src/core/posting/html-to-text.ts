@@ -29,17 +29,18 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
   return pageText(parse(html), options);
 }
 
-/** `htmlToText` for a page already parsed. It removes the page's scripts and other boilerplate. */
+/**
+ * `htmlToText` for a page already parsed. It removes the page's scripts and other boilerplate.
+ * On LinkedIn the description element alone is the text: the job's title and company are read
+ * from the page's top card instead of its `<title>` (F46).
+ */
 export function pageText(root: HTMLElement, options: HtmlToTextOptions = {}): string {
-  // Read before <header> and the rest are removed; on LinkedIn it names the role and the company.
-  const title = lines(root.querySelector("title")?.text ?? "");
   for (const element of root.querySelectorAll(REMOVED)) element.remove();
 
   if (options.linkedIn) {
     const description = root.querySelector(LINKEDIN_DESCRIPTION);
     const text = description ? lines(textOf(description)) : "";
-    // The description alone doesn't say who is hiring, so the page's title goes above it.
-    if (text !== "") return title === "" ? text : `${title}\n${text}`;
+    if (text !== "") return text;
   }
   const described = options.description === undefined ? "" : descriptionText(options.description);
   if (described !== "") return described;

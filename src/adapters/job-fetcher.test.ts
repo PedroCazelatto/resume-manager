@@ -1,5 +1,7 @@
 import type { LookupAddress } from "node:dns";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { linkedInJobPage } from "@/core/posting/linkedin-page.testing";
+import { jobKey, platformName } from "@/core/posting/sites";
 import {
   checkedLookup,
   createJobFetcher,
@@ -406,14 +408,33 @@ describe("createJobFetcher", () => {
         "https://www.linkedin.com/jobs/collections/recommended/?currentJobId=4321987650",
       );
 
-      expect(result).toEqual({
-        ok: true,
-        text: "Globex hiring Backend Engineer in Dublin | LinkedIn\nWe build payment systems.",
-        url: PUBLIC_PAGE,
-        details: {},
-      });
+      expect(result).toEqual({ ok: true, text: "We build payment systems.", url: PUBLIC_PAGE, details: {} });
       expect(urls()).toEqual([PUBLIC_PAGE]);
       expect(asked).toEqual(["www.linkedin.com"]);
+    });
+
+    it("follows LinkedIn's redirect to the country page and reads the job there, as the real page did (F46)", async () => {
+      const country = "https://ie.linkedin.com/jobs/view/senior-backend-engineer-at-globex-4321987650";
+      const { send, urls } = fakeSend({ [`${PUBLIC_PAGE}/`]: () => redirect(country, 301), [country]: () => html(linkedInJobPage()) });
+
+      const result = await createJobFetcher(send, fakeResolver().resolve).fetchPosting(`${PUBLIC_PAGE}/`);
+
+      expect(urls()).toEqual([`${PUBLIC_PAGE}/`, country]);
+      expect(result).toEqual({
+        ok: true,
+        text: "We build payment systems for small shops.\nWhat you will do\n- Design TypeScript services\n- Run them on PostgreSQL",
+        url: country,
+        details: {
+          title: "Senior Backend Engineer",
+          company: "Globex",
+          company_url: "https://www.linkedin.com/company/globex",
+          location: "Dublin, County Dublin, Ireland",
+          hours: "Part-time",
+        },
+      });
+      // Both addresses name the same job, on the same platform.
+      expect(jobKey(new URL(country))).toBe(jobKey(new URL(`${PUBLIC_PAGE}/`)));
+      expect(platformName(new URL(country))).toBe("LinkedIn");
     });
 
     it("falls back to the general rules when the description's element is missing", async () => {

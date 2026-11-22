@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readPostingPage } from "./details";
+import { LINKEDIN_JOB_POSTING, linkedInJobPage } from "./linkedin-page.testing";
 
 /**
  * A job page with the given JSON-LD blocks in its head, written by hand. As on a real page, `</`
@@ -205,8 +206,78 @@ describe("readPostingPage (F46)", () => {
 
     it("comes after LinkedIn's own description element on LinkedIn", () => {
       const body = `<main><div class="show-more-less-html__markup"><p>From LinkedIn's element.</p></div></main>`;
-      expect(readPostingPage(page([POSTING], body), { linkedIn: true }).text).toBe("Backend Engineer - Globex\nFrom LinkedIn's element.");
+      expect(readPostingPage(page([POSTING], body), { linkedIn: true }).text).toBe("From LinkedIn's element.");
       expect(readPostingPage(page([POSTING], body)).text).toBe("We build payment systems.\n- TypeScript\n- PostgreSQL");
+    });
+  });
+
+  describe("on LinkedIn's public job page", () => {
+    const DESCRIPTION = "We build payment systems for small shops.\nWhat you will do\n- Design TypeScript services\n- Run them on PostgreSQL";
+
+    it("gives title, company and location from the top card and the hours from the job criteria, without the model", () => {
+      expect(readPostingPage(linkedInJobPage(), { linkedIn: true })).toEqual({
+        details: {
+          title: "Senior Backend Engineer",
+          company: "Globex",
+          // The JobPosting data fills what the top card doesn't show.
+          company_url: "https://www.linkedin.com/company/globex",
+          location: "Dublin, County Dublin, Ireland",
+          hours: "Part-time",
+        },
+        text: DESCRIPTION,
+      });
+    });
+
+    it("reads the description element alone: no page title, sign-in, criteria or similar jobs", () => {
+      const { text } = readPostingPage(linkedInJobPage(), { linkedIn: true });
+      for (const gone of ["| LinkedIn", "Join or sign in", "Show more", "Seniority level", "applicants", "Initech", "©"]) {
+        expect(text, gone).not.toContain(gone);
+      }
+    });
+
+    it("still reads the top card and the description element on a page without JobPosting data", () => {
+      expect(readPostingPage(linkedInJobPage({ "@type": "BreadcrumbList" }), { linkedIn: true })).toEqual({
+        details: { title: "Senior Backend Engineer", company: "Globex", location: "Dublin, County Dublin, Ireland", hours: "Part-time" },
+        text: DESCRIPTION,
+      });
+    });
+
+    it("falls back to the JobPosting data for what the top card and the criteria don't show", () => {
+      const html = linkedInJobPage()
+        .replace("top-card-layout__title", "title-renamed")
+        .replace("topcard__org-name-link", "org-renamed")
+        .replace("topcard__flavor topcard__flavor--bullet", "flavor-renamed")
+        .replace(">Part-time<", ">Contract<");
+
+      expect(readPostingPage(html, { linkedIn: true }).details).toEqual({
+        title: "Backend Engineer",
+        company: "Globex",
+        company_url: "https://www.linkedin.com/company/globex",
+        location: "Dublin, IE",
+        hours: "Full-time",
+      });
+    });
+
+    it("takes the JobPosting description when the description element is missing", () => {
+      const html = linkedInJobPage().replace("show-more-less-html__markup", "markup-renamed");
+      expect(readPostingPage(html, { linkedIn: true }).text).toBe(DESCRIPTION);
+    });
+
+    it("never takes the applicants count for the location", () => {
+      const html = linkedInJobPage().replace('<span class="topcard__flavor topcard__flavor--bullet">', '<span class="flavor-renamed">');
+      expect(readPostingPage(html, { linkedIn: true }).details.location).toBe("Dublin, IE");
+    });
+
+    it("reads only the JobPosting data on the same page from another site", () => {
+      expect(readPostingPage(linkedInJobPage()).details).toEqual({
+        title: "Backend Engineer",
+        company: "Globex",
+        company_url: "https://www.linkedin.com/company/globex",
+        location: "Dublin, IE",
+        hours: "Full-time",
+      });
+      expect(LINKEDIN_JOB_POSTING.description).toContain("&lt;ul&gt;");
+      expect(readPostingPage(linkedInJobPage()).text).toBe(DESCRIPTION);
     });
   });
 });

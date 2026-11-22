@@ -4,9 +4,10 @@ import { pageText, type HtmlToTextOptions } from "./html-to-text";
 import { webAddress } from "./url";
 
 // A job posting's details read from its page's HTML before the model runs (F46, Art. VI.2):
-// the schema.org `JobPosting` data a page keeps in `<script type="application/ld+json">`.
-// The page is untrusted input (Art. II.7): every value is plain text on one line, and the
-// company's website is kept only as an http or https address.
+// the schema.org `JobPosting` data a page keeps in `<script type="application/ld+json">`, and on
+// LinkedIn the top card and job criteria of its public job page. The page is untrusted input
+// (Art. II.7): every value is plain text on one line, and the company's website is kept only as
+// an http or https address.
 
 /** What a posting's page gives: its description as text, and the details it holds. */
 export interface PostingPage {
@@ -15,19 +16,65 @@ export interface PostingPage {
 }
 
 /**
- * Reads a posting's page: the details its `JobPosting` data holds, and its text. The text is
- * LinkedIn's description element on LinkedIn, otherwise the `JobPosting` description, otherwise
- * the page's main area (`htmlToText`).
+ * Reads a posting's page: the details it holds, and its text. On LinkedIn the top card and the
+ * job criteria come first, and the `JobPosting` data fills what they don't show; elsewhere the
+ * `JobPosting` data alone. The text is LinkedIn's description element on LinkedIn, otherwise the
+ * `JobPosting` description, otherwise the page's main area (`htmlToText`).
  */
 export function readPostingPage(html: string, options: Pick<HtmlToTextOptions, "linkedIn"> = {}): PostingPage {
   const root = parse(html);
-  // Read before the page's text, which drops every script.
+  // Read before the page's text, which drops every script and the page's boilerplate.
   const posting = findJobPosting(jsonLd(root));
+  const fromData = posting === null ? {} : jobPostingDetails(posting);
+  const fromLinkedIn = options.linkedIn ? linkedInDetails(root) : {};
   const description = posting === null ? undefined : stringOf(posting.description);
-  return {
-    details: posting === null ? {} : jobPostingDetails(posting),
-    text: pageText(root, { ...options, description }),
-  };
+  return { details: inOrder({ ...fromData, ...fromLinkedIn }), text: pageText(root, { ...options, description }) };
+}
+
+const DETAILS = ["title", "company", "company_url", "location", "salary", "work_model", "hours"] as const;
+
+/** The known details, in job.md's order (Art. IV.5). */
+function inOrder(details: JobDetails): JobDetails {
+  return Object.fromEntries(DETAILS.flatMap((field) => (details[field] === undefined ? [] : [[field, details[field]]])));
+}
+
+/**
+ * Where LinkedIn's public job page shows the job's details, as checked on a real page on
+ * 2026-11-22 (F46). The location is the bullet of the top card's first row: the applicants count
+ * in the second row is a bullet too, but not a `topcard__flavor`.
+ */
+const LINKEDIN = {
+  title: ".top-card-layout__title",
+  company: ".topcard__org-name-link",
+  location: ".topcard__flavor.topcard__flavor--bullet",
+  criterion: ".description__job-criteria-item",
+  criterionName: ".description__job-criteria-subheader",
+  criterionValue: ".description__job-criteria-text",
+};
+
+/** An element's text on one line, or undefined when it has none. */
+function elementText(element: HTMLElement | null | undefined): string | undefined {
+  const text = element?.text.replace(/\s+/g, " ").trim();
+  return text ? text : undefined;
+}
+
+/**
+ * The details LinkedIn's public job page shows: the title, company and location from its top
+ * card, and the hours from the "Employment type" of its job criteria (full-time or part-time).
+ * Its other criteria (seniority level, job function, industries) have no field in job.md.
+ */
+function linkedInDetails(root: HTMLElement): JobDetails {
+  const criteria = new Map(
+    root
+      .querySelectorAll(LINKEDIN.criterion)
+      .map((item) => [elementText(item.querySelector(LINKEDIN.criterionName))?.toLowerCase(), elementText(item.querySelector(LINKEDIN.criterionValue))]),
+  );
+  return inOrder({
+    title: elementText(root.querySelector(LINKEDIN.title)),
+    company: elementText(root.querySelector(LINKEDIN.company)),
+    location: elementText(root.querySelector(LINKEDIN.location)),
+    hours: hoursOf(criteria.get("employment type")),
+  });
 }
 
 type JsonObject = Record<string, unknown>;
@@ -108,7 +155,7 @@ export function jobPostingDetails(posting: JsonObject): JobDetails {
     work_model: listOf(posting.jobLocationType).some((type) => plainText(type)?.toUpperCase() === "TELECOMMUTE") ? "remote" : undefined,
     hours: plainText(posting.workHours) ?? hoursOf(posting.employmentType),
   };
-  return Object.fromEntries(Object.entries(details).filter(([, value]) => value !== undefined)) as JobDetails;
+  return inOrder(details);
 }
 
 /**
