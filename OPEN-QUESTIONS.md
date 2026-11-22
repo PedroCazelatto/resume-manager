@@ -248,6 +248,16 @@ Asked 2026-11-21, after F46's one request to the link from question 16.
 
 F46 says to check LinkedIn's page structure "on one real public job page (at most one request)". The one request to `https://www.linkedin.com/jobs/view/4488373441/` answered with a redirect (301, empty body) to `https://ie.linkedin.com/jobs/view/partner-solutions-engineer-at-google-4488373441`. LinkedIn sends its `www` job pages to a country subdomain, and the app itself follows that redirect when it fetches such a link. Without the page's content, the top-card classes, the job-criteria list and whether the page holds `JobPosting` data can't be seen, so the LinkedIn part of F46 isn't built. It is undecided whether F46 may make one more request, to the address LinkedIn redirected to.
 
+### 32. What "cancel" does on an Indeed row (F26 home-applications-table, F48 runs-list-changes)
+Asked 2026-11-22, after your answer to question 23.
+
+F48 built rows whose fetch failed, Indeed rows included, without an X, because a failed row can't be cancelled (decided 2026-11-17: "If it failed, we cant cancel, so no X button. Just delete or retry."). Answer 23 makes "cancel" the main action of an Indeed row while no extension exists. It is undecided what cancelling an Indeed row does. It could become a cancelled row that stays listed with "Paste the text". Or it could remove the link the way the X on a link in the fetch queue does, deleting its folder.
+
+### 33. Deleting an archived row that never finished (F26 home-applications-table)
+Asked 2026-11-22, after your answer to question 25.
+
+Archiving was chosen instead of deleting, so that "nothing is deleted, so no confirmation box is needed" (decision 9). Answer 25 adds "Delete" as the main action of an archived row that never finished. Art. IV.8 says the app must not delete a user file without explicit confirmation in the UI. It is undecided whether Delete asks for confirmation in a dialog, or whether the click itself is the confirmation, as for the X on a link being fetched (F50). It is also undecided what it deletes: the application's whole folder (`job.md`, and any `analysis.md`, `resume.md`, `verification.md` and `archive/`), or something less.
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 

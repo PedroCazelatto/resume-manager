@@ -57,4 +57,5 @@ A row of the Runs list says little about its job until the analysis is saved: a 
 - Decided 2026-11-17: the company is a link to the company's website when the posting has it.
 - Decided 2026-11-17: application folders are named by a UUID, not by company and title ([application-uuids](application-uuids.md)).
 - Decided 2026-11-21 (the user): the real LinkedIn job page checked, with one request, for the top-card structure is https://www.linkedin.com/jobs/view/4488373441/.
+- Decided 2026-11-22 (the user): that link answers with a redirect (301) to `https://ie.linkedin.com/jobs/view/partner-solutions-engineer-at-google-4488373441`; the check follows it: "Of course, if it is just a redirect, it must continue fetching."
 - Constitution amended for this task in versions 10.0.0 and 11.0.0 (2026-11-17).
