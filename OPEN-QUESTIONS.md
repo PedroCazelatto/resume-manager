@@ -258,6 +258,18 @@ Asked 2026-11-22, after your answer to question 25.
 
 Archiving was chosen instead of deleting, so that "nothing is deleted, so no confirmation box is needed" (decision 9). Answer 25 adds "Delete" as the main action of an archived row that never finished. Art. IV.8 says the app must not delete a user file without explicit confirmation in the UI. It is undecided whether Delete asks for confirmation in a dialog, or whether the click itself is the confirmation, as for the X on a link being fetched (F50). It is also undecided what it deletes: the application's whole folder (`job.md`, and any `analysis.md`, `resume.md`, `verification.md` and `archive/`), or something less.
 
+### 34. The company link of a LinkedIn posting (F46 job-posting-details, F26 home-applications-table)
+Asked 2026-11-22, after building F46.
+
+On the real LinkedIn page, the schema.org data's `sameAs` (which F46 lists as a source of the company's website) is LinkedIn's own page for the company (`https://www.linkedin.com/company/google`), not the company's website. As built, it is kept as `company_url`, so a LinkedIn row's company links to LinkedIn's company page. It is undecided whether that stays, or whether a LinkedIn posting should have no `company_url` unless its page gives the company's own website.
+
+### 35. Choices made while reading LinkedIn pages (F46 job-posting-details)
+Asked 2026-11-22. F46 is now built and committed, the LinkedIn part included, from one real page (the link of question 16 and its redirect). These are the choices it made that the docs didn't cover; they are in the code now. Do they stand?
+
+1. On LinkedIn, the posting's text is the page's description element. The schema.org description is used only when that element is missing. On the real page, both held the same text.
+2. On LinkedIn, the title, company and location shown at the top of the page, and the employment type from its "job criteria" list, win over the schema.org values. The schema.org data fills only what those don't show. On the real page, the location at the top ("Dublin, County Dublin, Ireland") said more than the schema.org one ("Dublin", "IE").
+3. LinkedIn's other job criteria (seniority level, job function, industries) aren't kept, since `job.md` has no field for them (see also question 18).
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 
