@@ -5,6 +5,7 @@ import { CaretUpIcon } from "@phosphor-icons/react/dist/ssr/CaretUp";
 import { CheckIcon } from "@phosphor-icons/react/dist/ssr/Check";
 import { ListIcon } from "@phosphor-icons/react/dist/ssr/List";
 import { MoonIcon } from "@phosphor-icons/react/dist/ssr/Moon";
+import { PlusIcon } from "@phosphor-icons/react/dist/ssr/Plus";
 import { SunIcon } from "@phosphor-icons/react/dist/ssr/Sun";
 import { XIcon } from "@phosphor-icons/react/dist/ssr/X";
 
@@ -20,6 +21,7 @@ const ICONS = {
   check: CheckIcon,
   list: ListIcon,
   moon: MoonIcon,
+  plus: PlusIcon,
   sun: SunIcon,
   x: XIcon,
 } as const;

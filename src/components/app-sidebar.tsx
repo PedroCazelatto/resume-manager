@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { NavItem, NavLink } from "@/components/nav-link";
 import { ProfilePicker } from "@/components/profile-picker";
-import { RunsIndicator } from "@/components/runs-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 
@@ -16,18 +15,18 @@ export function AppName() {
 }
 
 /**
- * The sidebar of every page: the app's name, the navigation, the runs indicator, the profile
- * picker and the dark-mode toggle (F35). On narrow screens it opens from the top bar's menu.
+ * The sidebar of every page: the app's name, the navigation, the profile picker and the
+ * dark-mode toggle (F35, F26). On narrow screens it opens from the top bar's menu.
  */
 export function SidebarContent() {
   return (
     <div className="flex h-full flex-col gap-6 p-4">
       <AppName />
+      {/* One entry for the home page's table; its runs count is on the Generating tab (F26). */}
       <nav className="flex flex-col gap-1">
-        <Suspense fallback={<NavItem href="/" current={false}>New application</NavItem>}>
-          <NavLink href="/">New application</NavLink>
+        <Suspense fallback={<NavItem href="/" current={false}>Resumes</NavItem>}>
+          <NavLink href="/">Resumes</NavLink>
         </Suspense>
-        <RunsIndicator />
       </nav>
       <Suspense fallback={null}>
         <SidebarProfile />

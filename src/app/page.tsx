@@ -1,18 +1,20 @@
 import { Suspense } from "react";
 import { updateNeeded } from "@/core/application/update";
+import { AddLinksDialog } from "@/components/add-links-dialog";
 import { ApplicationUpdate } from "@/components/application-update";
-import { ProfilePicker } from "@/components/profile-picker";
 import { FileProblems } from "@/components/file-problems";
-import { NewApplicationForm } from "@/components/new-application-form";
-import { RunsList } from "@/components/runs-list";
+import { HomeTable } from "@/components/home-table";
+import { ProfilePicker } from "@/components/profile-picker";
+import { readHome } from "./home";
 import { profileStore, readSelectedProfile } from "./profiles";
 import { DEFAULT_TEMPLATE, templateStore } from "./templates";
 import { readUpdate, shownUpdate } from "./update";
 
+// The home page is one table of the selected profile's applications, with the queue in tabs and
+// a button that adds links (F26).
 export default function Home() {
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-4 md:p-8">
-      <h1 className="sr-only">Resume Manager</h1>
+    <main className="mx-auto max-w-5xl space-y-6 p-4 md:p-8">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading profiles…</p>}>
         <ProfileSection />
       </Suspense>
@@ -24,25 +26,35 @@ async function ProfileSection() {
   const store = profileStore();
   const { slugs, invalidNames } = await store.listProfiles();
   const selected = await readSelectedProfile(slugs);
+  const heading = <h1 className="text-2xl font-semibold tracking-tight">Resumes</h1>;
 
   if (slugs.length === 0) {
     return (
-      <p className="text-sm">
-        No profiles found in <code className="font-mono">profiles/</code>. Copy{" "}
-        <code className="font-mono">example-profiles/jane-doe</code> there, rename the folder and edit the files.
-      </p>
+      <div className="space-y-6">
+        {heading}
+        <p className="text-sm">
+          No profiles found in <code className="font-mono">profiles/</code>. Copy{" "}
+          <code className="font-mono">example-profiles/jane-doe</code> there, rename the folder and edit the files.
+        </p>
+      </div>
     );
   }
 
-  const [result, template, update] = await Promise.all([
+  const [result, template, update, home] = await Promise.all([
     selected ? store.loadProfile(selected) : null,
     templateStore().loadTemplate(DEFAULT_TEMPLATE),
     // Applications saved before F50 wait for the user to confirm their update.
     selected ? readUpdate(selected) : null,
+    selected ? readHome(selected) : null,
   ]);
 
   return (
     <div className="space-y-6">
+      {/* The button that adds links sits at the top right (F26). */}
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        {heading}
+        {result?.ok && <AddLinksDialog />}
+      </header>
       {/* The sidebar holds the picker; the page shows it too while no profile is chosen (F35). */}
       {!selected && (
         <div className="max-w-64">
@@ -62,7 +74,7 @@ async function ProfileSection() {
           errors={result.errors}
         />
       )}
-      {result?.ok && (
+      {result?.ok && home && (
         <>
           <div className="space-y-1">
             <p className="text-sm">
@@ -82,9 +94,8 @@ async function ProfileSection() {
               errors={[template.error]}
             />
           )}
-          <NewApplicationForm />
-          {/* A new key empties the list when the profile changes (Art. III.7). */}
-          <RunsList key={selected} />
+          {/* A new key empties the table when the profile changes (Art. III.7). */}
+          <HomeTable key={selected} initial={home} />
         </>
       )}
     </div>
