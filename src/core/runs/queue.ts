@@ -454,6 +454,19 @@ export function restoreRuns<I>(runs: readonly QueuedRun<I>[], profile: string, t
 }
 
 /**
+ * Takes an archived run of this profile off the list for good, once the user confirmed deleting
+ * its row (F26): only a run that never finished and has no application, so nothing of it is on
+ * disk. Any other run stays; an application is deleted with its folder (`forgetApplication`).
+ */
+export function discardRun<I>(runs: readonly QueuedRun<I>[], profile: string, runId: string): { runs: QueuedRun<I>[]; discarded: boolean } {
+  const run = findRun(runs, profile, runId);
+  if (!run || run.archivedAt === undefined || run.applicationId !== undefined || !isFinished(run) || run.status === "done") {
+    return { runs: [...runs], discarded: false };
+  }
+  return { runs: runs.filter((other) => other !== run), discarded: true };
+}
+
+/**
  * An application of this profile was renamed (the one-time update of old applications, F50):
  * its runs, and the events that name it, name it by its new folder `to`.
  */

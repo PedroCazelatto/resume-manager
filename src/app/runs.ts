@@ -10,6 +10,7 @@ import {
   canArchive,
   cancelNotFetched,
   cancelRun,
+  discardRun,
   offersTryAgain,
   triedAgain,
   enqueue,
@@ -400,7 +401,10 @@ export function createRunRegistry(
       });
     },
 
-    /** An application of this profile was deleted by the one-time update: its runs leave the list (F50). */
+    /**
+     * An application of this profile was deleted, by the one-time update (F50) or its row's Delete
+     * (F26): its runs leave the list.
+     */
     forget(profile: string, applicationId: string): void {
       runs = forgetApplication(runs, profile, applicationId);
     },
@@ -448,7 +452,8 @@ export function createRunRegistry(
      * run is cancelled at once and never starts; it stays listed as cancelled (F48). The running
      * one is told to stop: it ends as `cancelled` once its model call has stopped, and the next
      * run starts then (F32). An Indeed link's run that needs its text is cancelled at once and
-     * stays listed, still taking the pasted text (F26).
+     * stays listed, still taking the pasted text (F26). An archived run without an application
+     * that never finished leaves the archived list for good: its row's Delete (F26).
      */
     remove(profile: string, runId: string): "removed" | "cancelled" | "cancelling" | "ended" | "unknown" {
       const run = findRun(runs, profile, runId);
@@ -467,6 +472,12 @@ export function createRunRegistry(
       if (notFetched.cancelled) {
         runs = notFetched.runs;
         return "cancelled";
+      }
+      // An archived row without an application that never finished, deleted once confirmed (F26).
+      const discarded = discardRun(runs, profile, runId);
+      if (discarded.discarded) {
+        runs = discarded.runs;
+        return "removed";
       }
       const result = removeLink(runs, profile, runId);
       if (!result.removed) return "ended";

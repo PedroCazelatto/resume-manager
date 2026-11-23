@@ -1,11 +1,11 @@
-import { cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFsProfileStore } from "@/adapters/profile-store";
 import { parseFrontmatter } from "@/core/markdown/frontmatter";
 import type { FetchedPosting } from "@/core/posting/job-fetcher";
-import { archiveApplication, archiveRun, restoreApplication, restoreRun } from "./archive";
+import { archiveApplication, archiveRun, deleteApplication, restoreApplication, restoreRun } from "./archive";
 import { enqueueLinks, runRegistry } from "./run";
 
 // Archiving runs against a scratch copy of the fictional profile (Art. III.5). The model is never
@@ -28,6 +28,8 @@ vi.mock("@/app/llm", () => ({
 }));
 
 const SAVED = "2026-11-10-globex-ltd-senior-backend-engineer";
+/** The example application whose generation never finished: it has no verification.md. */
+const UNFINISHED = "2026-11-10-globex-corporation-senior-backend-engineer";
 const INDEED = "https://ie.indeed.com/viewjob?jk=1";
 
 let profileDir: string;
@@ -206,5 +208,77 @@ describe("archiving an application by its ID (F48)", () => {
     expect(runRegistry().list("jane-doe")).toEqual([]);
     expect(await answer(restoreApplication(SAVED))).toEqual({ status: 204, body: null });
     expect(runRegistry().list("jane-doe")).toMatchObject([{ runId, status: "cancelled" }]);
+  });
+});
+
+describe("deleting an archived application that never finished (F26)", () => {
+  const folder = (id: string, profile = profileDir) => path.join(profile, "applications", id);
+  const exists = (file: string) => stat(file).then(() => true, () => false);
+
+  /** A failed "Try again" of the unfinished application, then the application archived. */
+  async function archivedWithRun(): Promise<string> {
+    const runId = runRegistry().enqueue("jane-doe", "retry", { start: { id: UNFINISHED } });
+    await vi.waitFor(() => expect(runRegistry().list("jane-doe")[0]).toMatchObject({ runId, status: "failed" }));
+    expect(await answer(archiveApplication(UNFINISHED))).toEqual({ status: 204, body: null });
+    return runId;
+  }
+
+  it("deletes its whole folder, archive/ included, and its runs leave the list; nothing else changes", async () => {
+    const runId = await archivedWithRun();
+    await mkdir(path.join(folder(UNFINISHED), "archive", "01"), { recursive: true });
+    await writeFile(path.join(folder(UNFINISHED), "archive", "01", "resume.md"), "An earlier resume.\n");
+    const before = await snapshot();
+
+    expect(await answer(deleteApplication(UNFINISHED))).toEqual({ status: 204, body: null });
+
+    expect(await exists(folder(UNFINISHED))).toBe(false);
+    expect(await snapshot()).toEqual(Object.fromEntries(Object.entries(before).filter(([file]) => !file.startsWith(`applications/${UNFINISHED}/`))));
+    expect(runRegistry().list("jane-doe")).toEqual([]);
+    // Its run is gone too, archived or not.
+    expect(await answer(restoreRun(runId))).toEqual({ status: 404, body: { error: "Unknown run." } });
+    expect(await answer(deleteApplication(UNFINISHED))).toEqual({ status: 404, body: { error: "Unknown application." } });
+  });
+
+  it("refuses an application that isn't archived, a finished one, and an invalid job.md, deleting nothing", async () => {
+    const refusal = { status: 409, body: { error: "Only an archived application that never finished can be deleted." } };
+    await archiveApplication(SAVED);
+    const before = await snapshot();
+
+    expect(await answer(deleteApplication(UNFINISHED))).toEqual(refusal);
+    expect(await answer(deleteApplication(SAVED))).toEqual(refusal);
+
+    await archiveApplication(UNFINISHED);
+    const job = path.join(folder(UNFINISHED), "job.md");
+    const broken = (await readFile(job, "utf8")).replace("language: en", "language: English");
+    await writeFile(job, broken);
+    expect(await answer(deleteApplication(UNFINISHED))).toEqual({
+      status: 409,
+      body: { error: `applications/${UNFINISHED}/job.md has problems: language: must be a two-letter ISO 639-1 code, e.g. en` },
+    });
+    expect(await exists(folder(UNFINISHED))).toBe(true);
+    expect(await exists(folder(SAVED))).toBe(true);
+    expect(Object.keys(await snapshot())).toEqual(Object.keys(before));
+  });
+
+  it("refuses an application with a run waiting or running, and names that aren't an application's", async () => {
+    await archiveApplication(UNFINISHED);
+    app.modelHangs = true;
+    runRegistry().enqueue("jane-doe", "retry", { start: { id: UNFINISHED } });
+
+    expect(await answer(deleteApplication(UNFINISHED))).toEqual({ status: 409, body: { error: "This application has a run waiting or running." } });
+    expect(await exists(folder(UNFINISHED))).toBe(true);
+    expect(await answer(deleteApplication("../john-roe"))).toEqual({ status: 404, body: { error: "Unknown application." } });
+    expect(await answer(deleteApplication("2026-11-12-initech-dev"))).toEqual({ status: 404, body: { error: "Unknown application." } });
+  });
+
+  it("never touches another profile's application of the same name (Art. III.7)", async () => {
+    const other = path.join(app.profilesDir, "john-roe");
+    await cp(profileDir, other, { recursive: true });
+    await archiveApplication(UNFINISHED);
+
+    expect(await answer(deleteApplication(UNFINISHED))).toEqual({ status: 204, body: null });
+
+    expect(await exists(folder(UNFINISHED))).toBe(false);
+    expect(await exists(folder(UNFINISHED, other))).toBe(true);
   });
 });

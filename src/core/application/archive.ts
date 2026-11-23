@@ -1,5 +1,6 @@
 import { parseFrontmatter, stringifyFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile, type FileError } from "../markdown/validate";
+import { generationFinished, type ApplicationFile } from "./folder";
 import { jobSchema } from "./schemas";
 
 // An application keeps its archived state in its job.md, as `archived_at`, so it stays archived
@@ -39,6 +40,19 @@ export function restoredJob(source: string, file: string): JobChange {
     ok: true,
     source: withFields(source, (data) => Object.fromEntries(Object.entries(data).filter(([field]) => field !== "archived_at"))),
   };
+}
+
+/**
+ * Whether an application can be deleted (F26): only an archived one that never finished, whose
+ * job.md is valid, so its archived state can be read (Art. IV.6). `files` are the application's
+ * files that exist. A finished application is never deleted; it can only be archived. Deleting
+ * takes the whole folder, so the app asks the user to confirm first (Art. IV.8).
+ */
+export function deletable(source: string, file: string, files: readonly ApplicationFile[]): { ok: true } | { ok: false; reason: "invalid"; error: FileError } | { ok: false; reason: "not archived" | "finished" } {
+  const job = readJob(source, file);
+  if ("error" in job) return { ok: false, reason: "invalid", error: job.error };
+  if (!job.archived) return { ok: false, reason: "not archived" };
+  return generationFinished(files) ? { ok: false, reason: "finished" } : { ok: true };
 }
 
 /** Rewrites the frontmatter's fields and keeps the body. The file was validated, so it parses. */

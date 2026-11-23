@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseFrontmatter } from "../markdown/frontmatter";
 import { validateMarkdownFile } from "../markdown/validate";
-import { archivedJob, restoredJob } from "./archive";
+import { archivedJob, deletable, restoredJob } from "./archive";
 import { jobSchema } from "./schemas";
 
 const FILE = "applications/2026-11-10-globex-backend-engineer/job.md";
@@ -90,5 +90,26 @@ describe("restoredJob (F48)", () => {
   it("leaves a job.md that isn't archived alone, and reports one that isn't valid", () => {
     expect(restoredJob(JOB, FILE)).toEqual({ ok: false, reason: "not archived" });
     expect(restoredJob("---\nsource: LinkedIn\n---\n", FILE)).toMatchObject({ ok: false, reason: "invalid", error: { file: FILE } });
+  });
+});
+
+describe("deletable (F26)", () => {
+  const archived = (source: string) => {
+    const result = archivedJob(source, FILE, AT);
+    if (!result.ok) throw new Error(result.reason);
+    return result.source;
+  };
+
+  it("allows only an archived application that never finished", () => {
+    expect(deletable(archived(JOB), FILE, ["job.md"])).toEqual({ ok: true });
+    expect(deletable(archived(JOB), FILE, ["job.md", "analysis.md", "resume.md"])).toEqual({ ok: true });
+    expect(deletable(archived(JOB), FILE, ["job.md", "analysis.md", "resume.md", "verification.md"])).toEqual({ ok: false, reason: "finished" });
+    expect(deletable(JOB, FILE, ["job.md"])).toEqual({ ok: false, reason: "not archived" });
+  });
+
+  it("refuses a job.md that isn't valid, naming it with its problems (Art. IV.6)", () => {
+    const result = deletable("---\nsource: [\n---\n", FILE, ["job.md"]);
+
+    expect(result).toMatchObject({ ok: false, reason: "invalid", error: { file: FILE } });
   });
 });

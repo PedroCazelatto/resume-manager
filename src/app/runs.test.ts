@@ -1290,6 +1290,20 @@ describe("run registry", () => {
       expect(registry.archiveTarget("jane-doe", failed)).toEqual({ runId: failed });
     });
 
+    it("deletes an archived run without an application that never finished, once asked (F26)", async () => {
+      const { registry, ids } = await everyKind();
+      const [finished, failed] = ids;
+      registry.archive("jane-doe", { runId: failed }, AT);
+      registry.archive("jane-doe", { runId: finished }, AT);
+
+      expect(registry.remove("john-roe", failed)).toBe("unknown");
+      expect(registry.remove("jane-doe", finished)).toBe("ended");
+      expect(registry.remove("jane-doe", failed)).toBe("removed");
+      expect(registry.remove("jane-doe", failed)).toBe("unknown");
+      expect(registry.restoreTarget("jane-doe", failed)).toBe("unknown");
+      expect(registry.restoreTarget("jane-doe", finished)).toEqual({ runId: finished });
+    });
+
     it("takes an archived row out of the list, keeps it in memory, and restores it as cancelled with Try again", async () => {
       const { registry, ids } = await everyKind();
       const [finished, failed] = ids;

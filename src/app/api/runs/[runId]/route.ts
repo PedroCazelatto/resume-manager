@@ -4,6 +4,8 @@ import { retryRun, runRegistry, selectedProfile } from "@/app/run";
  * Stops a run of the selected profile (F48): a link in the fetch queue leaves it and the list,
  * and a waiting run is cancelled, both at once (204), as is an Indeed link's run that needs its
  * text (F26); the running one is cancelled and ends once its model call has stopped (202, F32).
+ * An archived run without an application that never finished leaves the list for good (204):
+ * its row's Delete, which the user confirmed (F26).
  */
 export async function DELETE(_request: Request, context: RouteContext<"/api/runs/[runId]">): Promise<Response> {
   const { runId } = await context.params;

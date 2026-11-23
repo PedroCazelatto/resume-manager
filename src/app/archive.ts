@@ -1,5 +1,5 @@
-import { archivedJob, restoredJob, type JobChange } from "@/core/application/archive";
-import { isApplicationId } from "@/core/application/folder";
+import { archivedJob, deletable, restoredJob, type JobChange } from "@/core/application/archive";
+import { APPLICATION_FILES, isApplicationId } from "@/core/application/folder";
 import type { ArchiveTarget } from "@/core/runs/queue";
 import { profileStore } from "@/app/profiles";
 import { runRegistry, selectedProfile } from "@/app/run";
@@ -7,7 +7,8 @@ import { runRegistry, selectedProfile } from "@/app/run";
 // Archiving and restoring a row (F48). An application keeps its archived state as `archived_at`
 // in its job.md, written through ProfileStore, atomically, for the selected profile only
 // (Art. III.7, IV.7, IV.8); a run without an application keeps it in memory. Nothing is deleted,
-// so no confirmation is asked. Every answer is 204 when it worked.
+// so no confirmation is asked. Deleting is only for an archived application that never finished,
+// once the user confirmed it (F26). Every answer is 204 when it worked.
 
 const unknownRun = () => Response.json({ error: "Unknown run." }, { status: 404 });
 const unknownApplication = () => Response.json({ error: "Unknown application." }, { status: 404 });
@@ -120,5 +121,45 @@ export async function restoreApplication(id: string): Promise<Response> {
   if (result instanceof Response) return result;
   if (result === "unchanged") return refused("This application isn't archived.");
   runRegistry().restore(selected.slug, { applicationId: id });
+  return done();
+}
+
+/**
+ * Deletes an archived application of the selected profile that never finished, once the user
+ * confirmed it in the dialog that says it can't be recovered (Art. IV.8, F26): its whole folder
+ * goes, job.md, analysis.md, resume.md, verification.md and archive/ included, and its runs leave
+ * the list. Only the selected profile's applications/ is touched, through ProfileStore, which
+ * refuses anything that isn't an application's name and a symlinked folder (Art. III.7). 404 for
+ * an unknown application; 409 when it isn't archived, finished, has a run waiting or running, or
+ * its job.md isn't valid (named with its path and problems, Art. IV.6).
+ */
+export async function deleteApplication(id: string): Promise<Response> {
+  const selected = await selectedProfile();
+  if ("error" in selected) return selected.error;
+  if (!isApplicationId(id)) return unknownApplication();
+
+  const store = profileStore();
+  const files = await Promise.all(
+    APPLICATION_FILES.map(async (file) => ({ file, source: await store.readApplicationFile(selected.slug, id, file) })),
+  );
+  const job = files.find(({ file }) => file === "job.md")?.source ?? null;
+  if (job === null) return unknownApplication();
+  const registry = runRegistry();
+  if (registry.busy(selected.slug, { applicationId: id })) return refused("This application has a run waiting or running.");
+  const present = files.filter(({ source }) => source !== null).map(({ file }) => file);
+  const allowed = deletable(job, `applications/${id}/job.md`, present);
+  if (!allowed.ok) {
+    if (allowed.reason === "invalid") return refused(`${allowed.error.file} has problems: ${allowed.error.problems.join("; ")}`);
+    return refused("Only an archived application that never finished can be deleted.");
+  }
+
+  try {
+    await store.deleteApplication(selected.slug, id);
+  } catch (error) {
+    // The error names the folder at most, never its content (Art. III.4).
+    console.error(error);
+    return refused(`Couldn't delete applications/${id}/. See the server console.`);
+  }
+  registry.forget(selected.slug, id);
   return done();
 }

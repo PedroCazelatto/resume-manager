@@ -7,6 +7,7 @@ import {
   cancelRun,
   canTryAgain,
   cancelNotFetched,
+  discardRun,
   enqueue,
   enqueueFetch,
   failFetch,
@@ -504,6 +505,25 @@ describe("run queue", () => {
 
     it("offers the archive button on cancelled, failed and finished runs only", () => {
       expect(archivable(everyKind())).toEqual(["a:true", "b:true", "c:true", "d:false", "e:false", "f:false"]);
+    });
+
+    it("deletes an archived run without an application that never finished, for its own profile only (F26)", () => {
+      const runs = archiveRuns(archiveRuns(archiveRuns(everyKind(), "jane-doe", { runId: "a" }, AT), "jane-doe", { runId: "b" }, AT), "jane-doe", { runId: "c" }, AT);
+      const unchanged = (result: { runs: QueuedRun[]; discarded: boolean }) => expect(result).toEqual({ runs, discarded: false });
+
+      const discarded = discardRun(runs, "jane-doe", "b");
+      expect(discarded.discarded).toBe(true);
+      expect(discarded.runs.map((run) => run.runId)).toEqual(["a", "c", "d", "e", "f"]);
+      expect(discardRun(runs, "jane-doe", "c").discarded).toBe(true);
+      // A finished run, one that isn't archived, another profile's and an unknown one stay.
+      unchanged(discardRun(runs, "jane-doe", "a"));
+      unchanged(discardRun(runs, "jane-doe", "d"));
+      expect(discardRun(everyKind(), "jane-doe", "b").discarded).toBe(false);
+      unchanged(discardRun(runs, "john-roe", "b"));
+      unchanged(discardRun(runs, "jane-doe", "nope"));
+      // A run with an application is deleted with its folder instead.
+      const withApplication = archiveRuns(madeApplication(everyKind(), "b", APP), "jane-doe", { applicationId: APP }, AT);
+      expect(discardRun(withApplication, "jane-doe", "b").discarded).toBe(false);
     });
 
     it("offers it on a failed fetch and an Indeed link's run too", () => {
