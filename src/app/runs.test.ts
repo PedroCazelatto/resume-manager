@@ -71,6 +71,7 @@ describe("run registry", () => {
         source: "jobs.example.com",
         fetchFailed: false,
         archivable: false,
+        stop: "cancel",
       },
       {
         runId: second,
@@ -82,6 +83,7 @@ describe("run registry", () => {
         retryable: false,
         fetchFailed: false,
         archivable: false,
+        stop: "cancel",
       },
     ]);
     expect(started.map((run) => run.runId)).toEqual([first]);
@@ -556,6 +558,7 @@ describe("run registry", () => {
           source: "jobs.example.com",
           fetchFailed: false,
           archivable: false,
+          stop: "cancel",
         },
         {
           runId,
@@ -568,6 +571,7 @@ describe("run registry", () => {
           source: "jobs.example.com",
           fetchFailed: false,
           archivable: false,
+          stop: "remove",
         },
       ]);
 
@@ -729,6 +733,7 @@ describe("run registry", () => {
           source: "jobs.example.com",
           fetchFailed: true,
           archivable: true,
+          stop: null,
         },
       ]);
     });
@@ -780,6 +785,7 @@ describe("run registry", () => {
         source: "jobs.example.com",
         fetchFailed: false,
         archivable: false,
+        stop: "cancel",
       });
 
       for (const id of [busy, waiting]) {
@@ -943,6 +949,7 @@ describe("run registry", () => {
             source: "Indeed",
             fetchFailed: true,
             archivable: true,
+            stop: "cancel",
           },
         ]);
         expect(registry.retry("jane-doe", runId)).toBe("refused");
@@ -1298,8 +1305,14 @@ describe("run registry", () => {
 
       expect(registry.remove("john-roe", failed)).toBe("unknown");
       expect(registry.remove("jane-doe", finished)).toBe("ended");
+      expect(registry.listArchived("jane-doe").map((run) => [run.runId, run.archivedAt, run.stop])).toEqual([
+        [finished, AT, null],
+        [failed, AT, null],
+      ]);
+      expect(registry.listArchived("john-roe")).toEqual([]);
       expect(registry.remove("jane-doe", failed)).toBe("removed");
       expect(registry.remove("jane-doe", failed)).toBe("unknown");
+      expect(registry.listArchived("jane-doe").map((run) => run.runId)).toEqual([finished]);
       expect(registry.restoreTarget("jane-doe", failed)).toBe("unknown");
       expect(registry.restoreTarget("jane-doe", finished)).toEqual({ runId: finished });
     });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addNotFetched,
   archiveRuns,
+  archivedRunsOf,
   archiveTarget,
   canArchive,
   cancelRun,
@@ -511,6 +512,8 @@ describe("run queue", () => {
       const runs = archiveRuns(archiveRuns(archiveRuns(everyKind(), "jane-doe", { runId: "a" }, AT), "jane-doe", { runId: "b" }, AT), "jane-doe", { runId: "c" }, AT);
       const unchanged = (result: { runs: QueuedRun[]; discarded: boolean }) => expect(result).toEqual({ runs, discarded: false });
 
+      expect(archivedRunsOf(runs, "jane-doe").map((run) => run.runId)).toEqual(["a", "b", "c"]);
+      expect(archivedRunsOf(runs, "john-roe")).toEqual([]);
       const discarded = discardRun(runs, "jane-doe", "b");
       expect(discarded.discarded).toBe(true);
       expect(discarded.runs.map((run) => run.runId)).toEqual(["a", "c", "d", "e", "f"]);

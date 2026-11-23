@@ -297,6 +297,11 @@ export function runsOf<I>(runs: readonly QueuedRun<I>[], profile: string): Queue
   ];
 }
 
+/** A profile's archived runs, which have left the Runs list, in the order they are kept (F48, F26). */
+export function archivedRunsOf<I>(runs: readonly QueuedRun<I>[], profile: string): QueuedRun<I>[] {
+  return runs.filter((run) => run.profile === profile && run.archivedAt !== undefined);
+}
+
 /** Whether a run got as far as saving its application's analysis, which its `saved` event tells (F50). */
 function analysisSaved(run: Pick<QueuedRun, "events">): boolean {
   return run.events.some((event) => event.type === "saved");

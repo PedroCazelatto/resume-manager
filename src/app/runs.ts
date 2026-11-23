@@ -6,6 +6,7 @@ import { fetchedStart, type PastedStart, type PostingStart } from "@/core/postin
 import {
   addNotFetched,
   archiveRuns,
+  archivedRunsOf,
   archiveTarget,
   canArchive,
   cancelNotFetched,
@@ -33,6 +34,7 @@ import {
   runSteps,
   startFetch,
   startRun,
+  stopAction,
   targetBusy,
   type ArchiveTarget,
   type QueueEvent,
@@ -133,6 +135,13 @@ export interface RunSummary {
   fetchFailed: boolean;
   /** The row has the archive button: the run was cancelled, failed or finished (F48). */
   archivable: boolean;
+  /**
+   * What the row's X does: a link of the fetch queue is removed, a waiting or running run is
+   * cancelled, and so is an Indeed link's run that needs its text (F48, F26); null without an X.
+   */
+  stop: "remove" | "cancel" | null;
+  /** When the run was archived, for the runs listed as archived (F48, F26). */
+  archivedAt?: string;
 }
 
 /** Receives a run's events; `close` is called once, after the last one. */
@@ -294,6 +303,33 @@ export function createRunRegistry(
     return runId;
   }
 
+  /** A run as the lists show it; never its posting (Art. III.4). */
+  function summary(run: AppRun): RunSummary {
+    const { start } = run.input;
+    const url = "url" in start ? start.url : undefined;
+    // The page's details come with the fetched posting; job.md's, once saved, come after (F46).
+    const job: JobSummary = { ...("details" in start && start.details ? detailsSummary(start.details) : {}), ...run.job };
+    return {
+      runId: run.runId,
+      kind: run.kind,
+      status: run.status,
+      startedAt: run.startedAt,
+      applicationId: run.applicationId,
+      title: job.title,
+      company: job.company,
+      companyUrl: job.companyUrl,
+      source: job.source ?? (url === undefined ? undefined : linkPlatform(url)),
+      error: run.error,
+      ...runSteps(run.events),
+      retryable: offersTryAgain(runs, run),
+      url,
+      fetchFailed: fetchFailed(run),
+      archivable: canArchive(runs, run),
+      stop: stopAction(run),
+      ...(run.archivedAt === undefined ? {} : { archivedAt: run.archivedAt }),
+    };
+  }
+
   return {
     enqueue(profile: string, kind: RunKind, input: RunRequest): string {
       return add(profile, kind, input);
@@ -328,29 +364,16 @@ export function createRunRegistry(
 
     /** The profile's own runs, in the order the Runs list shows them (Art. III.7). */
     list(profile: string): RunSummary[] {
-      return runsOf(runs, profile).map((run) => {
-        const { start } = run.input;
-        const url = "url" in start ? start.url : undefined;
-        // The page's details come with the fetched posting; job.md's, once saved, come after (F46).
-        const job: JobSummary = { ...("details" in start && start.details ? detailsSummary(start.details) : {}), ...run.job };
-        return {
-          runId: run.runId,
-          kind: run.kind,
-          status: run.status,
-          startedAt: run.startedAt,
-          applicationId: run.applicationId,
-          title: job.title,
-          company: job.company,
-          companyUrl: job.companyUrl,
-          source: job.source ?? (url === undefined ? undefined : linkPlatform(url)),
-          error: run.error,
-          ...runSteps(run.events),
-          retryable: offersTryAgain(runs, run),
-          url,
-          fetchFailed: fetchFailed(run),
-          archivable: canArchive(runs, run),
-        };
-      });
+      return runsOf(runs, profile).map(summary);
+    },
+
+    /**
+     * The profile's archived runs, which the Runs list leaves out: the home page's Archived tab
+     * shows a run without an application from here; an application's own row comes from its
+     * job.md (F48, F26).
+     */
+    listArchived(profile: string): RunSummary[] {
+      return archivedRunsOf(runs, profile).map(summary);
     },
 
     /**
