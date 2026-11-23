@@ -13,9 +13,10 @@ Resumes tailored to each job, written by a local AI model from your own data. No
 - **Verifies every claim.** Code checks employers, institutions, dates, and numbers against your profile, then the model reviews each claim against the files it cites. You fix what failed, or dismiss a false alarm.
 - **Lets you edit and print.** You edit the resume's content with a live preview and save it as a PDF through the browser's print dialog, once nothing is left to review.
 - **Saves every application** in its own folder, and a run that fails can be tried again from its last saved step.
+- **Lists every application on one page,** in three tabs: Ready, Generating (the queue, with the run in progress above it) and Archived. Each row has its main action as a button (View PDF, Try again, Cancel, …) and the others in a menu. Archiving deletes nothing; only an archived application that never finished can be deleted, after you confirm.
 - **Supports multiple profiles** on the same machine.
 
-Planned next: cancelling and archiving runs, the job's details (title, company, salary, …) read from the posting's page, and the home page as one table of every application. Later: one-click PDF, a profile editor, and CV import.
+Planned later: a browser extension that reads Indeed postings, editing a posting or adding a note before trying again, one-click PDF, a profile editor, and CV import.
 
 ## How it works
 
