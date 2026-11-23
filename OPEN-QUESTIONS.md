@@ -270,6 +270,59 @@ Asked 2026-11-22. F46 is now built and committed, the LinkedIn part included, fr
 2. On LinkedIn, the title, company and location shown at the top of the page, and the employment type from its "job criteria" list, win over the schema.org values. The schema.org data fills only what those don't show. On the real page, the location at the top ("Dublin, County Dublin, Ireland") said more than the schema.org one ("Dublin", "IE").
 3. LinkedIn's other job criteria (seniority level, job function, industries) aren't kept, since `job.md` has no field for them (see also question 18).
 
+### 36. Showing the application's date (F26 home-applications-table)
+Asked 2026-11-23, after building F26.
+
+The Ready tab is sorted newest first by `fetched_at`, the application's date since F50. The date itself isn't shown anywhere, since the table's columns in F26 don't list it. It is undecided whether the date should be shown, and where.
+
+### 37. A finished application with a "Verify again" (F26 home-applications-table)
+Asked 2026-11-23, after building F26.
+
+As built, any row with a run fetching, waiting or running goes to Generating, or above the tabs while it runs. So a finished application leaves Ready while a "Verify again" runs on it, and comes back when the run ends. Ready holds "only finished generations", but the row moves between tabs. It is undecided whether it should stay in Ready during a "Verify again".
+
+### 38. Steps and warnings of runs that ended (F26 home-applications-table, decision 5)
+Asked 2026-11-23, after building F26.
+
+Decision 5 says a run that ended keeps its steps and its context-size warning "in the Runs list, as it left them, while it stays listed". As built, they show only on rows in the Generating tab. A run that finished goes to Ready, where its steps and any context-size warning aren't shown. It is undecided whether Ready rows should show them too.
+
+### 39. View PDF opening the print dialog by itself (F26 home-applications-table)
+Asked 2026-11-23, after building F26.
+
+"View PDF" opens the printable resume on its own page (`/applications/<id>/pdf`). As built, that page opens the browser's print dialog by itself once the resume has loaded, and also has a "Print / Save as PDF" button. It is undecided whether the page should only show the resume and wait for the button.
+
+### 40. Small choices made while building F26 home-applications-table
+Asked 2026-11-23. F26 is built and committed. These are the choices it made that the docs didn't cover; they are in the code now. Do they stand?
+
+1. **Tabs.**
+   - The first tab shown is Generating while anything is fetching, waiting or running, otherwise Ready. Adding links from the modal also switches to Generating.
+   - Generating lists rows with no run in memory first, then ended rows in the order they ended, then waiting runs, then the fetch queue.
+   - The tab's two numbers are hidden at 0 / 0. "Waiting" counts queued runs only, not the running one. The red count is failed rows plus rows that need the posting's text; cancelled rows don't count.
+   - Empty tabs say: "No finished resumes yet.", "Nothing is waiting or being generated.", "Nothing is archived."
+2. **Rows.**
+   - A row shows its application's latest run.
+   - An application with an invalid file reads "has problems" in red, and its only action is "Open".
+   - The kind label ("Try again", "Verify again"), steps, warnings and errors show only in Generating and in the "In progress" card.
+3. **Actions.**
+   - The hamburger menu is a "More actions" button, hidden when the row has no other action. Its items, in order: Open, Cancel, Try again, Paste the text, Archive, Restore, Delete.
+   - The X stays for "Remove link" and "Cancel"; other main actions are small outline buttons, and Delete is red.
+   - An Indeed row without its text (cancelled, or after a restart) has "Paste the text" as its main action, never "Try again".
+4. **The glowing ball.** A 10 px dot in green, red, amber or grey, with a soft glow of the same colour, pulsing on the running row.
+5. **Layout.**
+   - The page is up to 1024 px wide, with a "Resumes" heading.
+   - The table sits in a bordered card with "Job" and "State" headers. Below 640 px, the state column folds under the job.
+   - The generation in progress is a card titled "In progress".
+   - The selected sidebar entry is green text on a light green background.
+6. **Add-links modal.** Opened by an "Add links" button with a plus icon. Its title is "Add links", with the text "Each job posting's link becomes its own application."; the rest is the old "From links" tab. It stays open to show its messages.
+7. **Paste dialog.** Its title is "Paste the posting's text", the Link field stays editable, and the button reads "Generate resume". After a restart, the text is pasted on the application itself through a new route.
+8. **Delete dialog.**
+   - Title: "Delete “<title or link>”?"
+   - Text: "This deletes everything about this job: its folder applications/<id>/, with the posting and anything saved for it. It can't be recovered." For a row without an application: "This job leaves the list for good. It can't be recovered."
+   - Buttons: "Keep it" and "Delete".
+9. **View PDF.**
+   - When the resume can't be printed yet, the button is disabled, with the tooltip "Printing unlocks when: …", the same rule as the application page's print button.
+   - Opened directly, the PDF page explains why and links to the application.
+10. **The runs list request.** `GET /api/runs` now also answers the whole table, reading every application's files each time. The home page asks for it every 2 seconds, and no other page does.
+
 <!--
 Format for a new question (numbered, no options, never erased once answered):
 
