@@ -20,6 +20,14 @@ export function jobTitle(job: Job): string | undefined {
   return job.title ?? job.role;
 }
 
+/**
+ * What names the job in a page's heading: its title and company, or its link, or the
+ * application's ID when neither is known (F46).
+ */
+export function jobHeading(job: Job, id: string): string {
+  return [jobTitle(job), job.company].filter(Boolean).join(" · ") || job.url || id;
+}
+
 /** The job platform; an older file's is named from its link, and one without a link has none. */
 export function jobPlatform(job: Job): string | undefined {
   if (job.source !== "url" && job.source !== "paste") return job.source;

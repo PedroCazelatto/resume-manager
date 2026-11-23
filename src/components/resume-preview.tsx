@@ -52,15 +52,18 @@ interface Measured {
 /**
  * The rendered resume at its printed width, scaled to fit (F20). The frame runs no
  * scripts; the app reads its layout to count pages and to open the print dialog (F22).
+ * `onLoaded` is told once the frame's document has loaded and been measured (F26).
  */
 export function ResumePreview({
   html,
   maxPages,
   frameRef,
+  onLoaded,
 }: {
   html: string;
   maxPages?: number;
   frameRef: RefObject<HTMLIFrameElement | null>;
+  onLoaded?: () => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -86,6 +89,7 @@ export function ResumePreview({
     const contentHeight = doc.body.getBoundingClientRect().height;
     const pages = Math.max(1, Math.ceil((contentHeight - 1) / (page.height - top - bottom)));
     setMeasured({ page, contentHeight, pages });
+    onLoaded?.();
   }
 
   const page = measured?.page ?? { ...A4, margin: { top: 0, right: 0, bottom: 0, left: 0 } };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detailsSummary, jobDetails, jobPlatform, jobSummary, jobTitle } from "./job";
+import { detailsSummary, jobDetails, jobHeading, jobPlatform, jobSummary, jobTitle } from "./job";
 import type { Job } from "./schemas";
 
 const NEW: Job = {
@@ -62,5 +62,16 @@ describe("reading job.md (F46)", () => {
       companyUrl: "https://globex.example/",
     });
     expect(detailsSummary({})).toEqual({});
+  });
+});
+
+describe("jobHeading", () => {
+  const ID = "3f2b8c1e-5a7d-4c9e-9b1a-2d6e8f0c4a73";
+
+  it("names the job by its title and company, its link, or the application's ID", () => {
+    expect(jobHeading(NEW, ID)).toBe("Senior Backend Engineer · Globex");
+    expect(jobHeading({ ...NEW, company: undefined }, ID)).toBe("Senior Backend Engineer");
+    expect(jobHeading({ url: NEW.url, source: "LinkedIn" }, ID)).toBe(NEW.url);
+    expect(jobHeading({ source: "paste" }, ID)).toBe(ID);
   });
 });
