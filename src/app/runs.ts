@@ -8,6 +8,7 @@ import {
   archiveRuns,
   archiveTarget,
   canArchive,
+  cancelNotFetched,
   cancelRun,
   offersTryAgain,
   triedAgain,
@@ -446,7 +447,8 @@ export function createRunRegistry(
      * fetched, its fetch is stopped if it had begun, and nothing is kept (F10, F48). A waiting
      * run is cancelled at once and never starts; it stays listed as cancelled (F48). The running
      * one is told to stop: it ends as `cancelled` once its model call has stopped, and the next
-     * run starts then (F32).
+     * run starts then (F32). An Indeed link's run that needs its text is cancelled at once and
+     * stays listed, still taking the pasted text (F26).
      */
     remove(profile: string, runId: string): "removed" | "cancelled" | "cancelling" | "ended" | "unknown" {
       const run = findRun(runs, profile, runId);
@@ -459,6 +461,11 @@ export function createRunRegistry(
         runs = cancelRun(runs, runId);
         publish(runId);
         close(runId);
+        return "cancelled";
+      }
+      const notFetched = cancelNotFetched(runs, profile, runId);
+      if (notFetched.cancelled) {
+        runs = notFetched.runs;
         return "cancelled";
       }
       const result = removeLink(runs, profile, runId);

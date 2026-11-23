@@ -6,6 +6,7 @@ import {
   canArchive,
   cancelRun,
   canTryAgain,
+  cancelNotFetched,
   enqueue,
   enqueueFetch,
   failFetch,
@@ -155,6 +156,10 @@ describe("run queue", () => {
     expect(stopAction({ status: "running" })).toBe("cancel");
     // A failed run can't be cancelled: it has "Try again" and the archive button instead.
     expect(stopAction({ status: "failed" })).toBeNull();
+    // Except an Indeed link's run that needs its text, while it isn't archived (F26).
+    expect(stopAction({ status: "failed", notFetched: true })).toBe("cancel");
+    expect(stopAction({ status: "failed", notFetched: true, archivedAt: "2026-11-23T10:00:00.000Z" })).toBeNull();
+    expect(stopAction({ status: "cancelled", notFetched: true })).toBeNull();
     expect(stopAction({ status: "cancelled" })).toBeNull();
     expect(stopAction({ status: "done" })).toBeNull();
   });
@@ -437,6 +442,39 @@ describe("run queue", () => {
       const failed = finishRun(startRun(finishRun(startRun(pasted, "b", 0), "b", null), "a", 0), "a", "Can't reach Ollama.");
       expect(fetchFailed(findRun(failed, "jane-doe", "a")!)).toBe(false);
       expect(canTryAgain(findRun(failed, "jane-doe", "a")!)).toBe(true);
+    });
+
+    it("is cancelled where it stands, still taking its pasted text and never offering \"Try again\" (F26)", () => {
+      const runs = indeed(runNext(queued("a", "b")), "c");
+      const failedFetch = failFetch(enqueueFetch(runs, { runId: "d", profile: "jane-doe", kind: "new", input: null }), "d", "Not found.");
+
+      const result = cancelNotFetched(failedFetch, "jane-doe", "c");
+      // It keeps its place among the runs: nothing moves.
+
+      expect(result.cancelled).toBe(true);
+      expect(statuses(result.runs)).toEqual(["a:done", "b:queued", "c:cancelled", "d:failed"]);
+      const cancelled = findRun(result.runs, "jane-doe", "c")!;
+      expect(cancelled).toMatchObject({ error: INDEED_BLOCKED, notFetched: true });
+      expect(cancelled.events.at(-1)).toEqual({ type: "cancelled" });
+      expect(fetchFailed(cancelled)).toBe(true);
+      expect(canTryAgain(cancelled)).toBe(false);
+      expect(stopAction(cancelled)).toBeNull();
+      expect(canArchive(result.runs, cancelled)).toBe(true);
+      expect(pasteText(result.runs, "jane-doe", "c", { posting: "Globex is hiring." }).pasted).toBe(true);
+    });
+
+    it("cancels only an Indeed run of its own profile that needs its text and isn't archived (F26)", () => {
+      const runs = failFetch(enqueueFetch(indeed(queued("a"), "c"), { runId: "d", profile: "jane-doe", kind: "new", input: null }), "d", "Not found.");
+      const archived = archiveRuns(runs, "jane-doe", { runId: "c" }, "2026-11-23T10:00:00.000Z");
+      const unchanged = (result: { runs: QueuedRun[]; cancelled: boolean }) => expect(result).toEqual({ runs, cancelled: false });
+
+      unchanged(cancelNotFetched(runs, "john-roe", "c"));
+      unchanged(cancelNotFetched(runs, "jane-doe", "d"));
+      unchanged(cancelNotFetched(runs, "jane-doe", "a"));
+      unchanged(cancelNotFetched(runs, "jane-doe", "nope"));
+      expect(cancelNotFetched(archived, "jane-doe", "c")).toEqual({ runs: archived, cancelled: false });
+      // Once cancelled, it can't be cancelled again.
+      expect(cancelNotFetched(cancelNotFetched(runs, "jane-doe", "c").runs, "jane-doe", "c").cancelled).toBe(false);
     });
 
     it("is listed as the latest finished run, and counts among the finished runs it forgets", () => {

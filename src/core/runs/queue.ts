@@ -235,11 +235,31 @@ export function cancelRun<I>(runs: readonly QueuedRun<I>[], runId: string, maxFi
 /**
  * What the X on a run's row does, or null when the row has none (F48): a link of the fetch queue
  * is removed, a waiting or running run is cancelled, and a run that ended has no X, a failed one
- * included, since it can't be cancelled.
+ * included, since it can't be cancelled. The one exception is an Indeed link's run that needs its
+ * posting's text, while no browser extension can read the page: it is cancelled, unless it is
+ * archived (F26).
  */
-export function stopAction(run: Pick<QueuedRun, "status">): "remove" | "cancel" | null {
+export function stopAction(run: Pick<QueuedRun, "status" | "notFetched" | "archivedAt">): "remove" | "cancel" | null {
   if (run.status === "fetching") return "remove";
-  return run.status === "queued" || run.status === "running" ? "cancel" : null;
+  if (run.status === "queued" || run.status === "running") return "cancel";
+  return run.status === "failed" && run.notFetched === true && run.archivedAt === undefined ? "cancel" : null;
+}
+
+/**
+ * Cancels an Indeed link's run of this profile that needs its posting's text (F26). It stays
+ * where it is in the list, as cancelled, and still takes the pasted text: "Paste the text" moves
+ * it on like before. It never gets "Try again", which would request Indeed (F47). Any other run
+ * stays as it is.
+ */
+export function cancelNotFetched<I>(
+  runs: readonly QueuedRun<I>[],
+  profile: string,
+  runId: string,
+): { runs: QueuedRun<I>[]; cancelled: boolean } {
+  const run = findRun(runs, profile, runId);
+  if (!run || run.status !== "failed" || stopAction(run) !== "cancel") return { runs: [...runs], cancelled: false };
+  const cancelled = update(runs, runId, (failed) => ({ ...failed, status: "cancelled" }));
+  return { runs: recordEvent(cancelled, runId, { type: "cancelled" }), cancelled: true };
 }
 
 /** A profile's own run, or null: another profile's run is as good as unknown (Art. III.7). */

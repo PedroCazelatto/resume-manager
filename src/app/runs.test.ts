@@ -970,6 +970,26 @@ describe("run registry", () => {
         ]);
       });
 
+      it("is cancelled with its X and stays listed, taking its pasted text, without Try again (F26)", async () => {
+        const { execute, started } = manualRuns();
+        const { fetchPosting, asked } = manualFetches();
+        const registry = createRunRegistry(execute, fetchPosting);
+        const runId = registry.enqueue("jane-doe", "new", link(INDEED));
+
+        expect(registry.remove("john-roe", runId)).toBe("unknown");
+        expect(registry.remove("jane-doe", runId)).toBe("cancelled");
+
+        expect(registry.list("jane-doe")).toEqual([
+          expect.objectContaining({ runId, status: "cancelled", error: BLOCKED, fetchFailed: true, retryable: false, archivable: true }),
+        ]);
+        expect(registry.remove("jane-doe", runId)).toBe("ended");
+        expect(registry.retry("jane-doe", runId)).toBe("refused");
+        expect(registry.paste("jane-doe", runId, { posting: POSTING, url: INDEED })).toBe("queued");
+        await settled();
+        expect(started.map((run) => run.runId)).toEqual([runId]);
+        expect(asked).toEqual([]);
+      });
+
       it("moves on with its pasted text, which keeps the Indeed link, and never fetches it (F48)", async () => {
         const { execute, started, ends } = manualRuns();
         const { fetchPosting, asked } = manualFetches();
