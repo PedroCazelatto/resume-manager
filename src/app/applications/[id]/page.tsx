@@ -19,11 +19,12 @@ import { validateMarkdownFile, type FileError } from "@/core/markdown/validate";
 import { impliedSkillOptions, type SkillOptions } from "@/core/profile/add-skill";
 import { listProfileFiles, type Profile } from "@/core/profile/profile";
 import { contentYaml } from "@/core/resume/edit";
+import { printBlockers } from "@/core/resume/print";
 import { renderResume } from "@/core/resume/render";
 import { resumeFileSchema, type ResumeFile } from "@/core/resume/schema";
 import { citedFileTexts, listSourcedItems } from "@/core/resume/sources";
 import { activeRun } from "@/core/runs/reconnect";
-import { verificationSchema, type Verification } from "@/core/verification/schema";
+import { verificationSchema } from "@/core/verification/schema";
 import { profileStore, readSelectedProfile } from "@/app/profiles";
 import { runRegistry } from "@/app/run";
 import type { RunSummary } from "@/app/runs";
@@ -192,15 +193,4 @@ function skillOptions(resume: ResumeFile, profile: Profile): Record<string, Skil
     if (offered) options[skill] = offered;
   }
   return options;
-}
-
-/** Why the resume is still a draft, in the user's words (F24). */
-function printBlockers(resume: ResumeFile, verification: Verification | null): string[] {
-  const pending = resume.inferences.filter((i) => i.status === "pending").length;
-  const open = verification?.failures.filter((f) => !f.dismissed).length ?? 0;
-  return [
-    ...(pending > 0 ? [`you approve or reject ${pending} implied skill${pending === 1 ? "" : "s"}`] : []),
-    ...(open > 0 ? [`${open} failed check${open === 1 ? " is" : "s are"} fixed or dismissed`] : []),
-    ...(verification?.review?.current ? [] : ["the model review has run on the current content"]),
-  ];
 }
