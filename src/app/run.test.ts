@@ -8,7 +8,7 @@ import type { ListedLink } from "@/core/posting/links";
 import { isUuidApplicationId } from "@/core/application/folder";
 import { parseFrontmatter, patchFrontmatter } from "@/core/markdown/frontmatter";
 import { archiveRun } from "./archive";
-import { enqueueLinks, enqueueRun, pasteRun, retryApplication, runRegistry } from "./run";
+import { enqueueLinks, enqueueRun, pasteApplication, pasteRun, retryApplication, runRegistry } from "./run";
 
 // enqueueLinks runs against a scratch copy of the fictional profile (Art. III.5). The fetcher
 // is answered by hand and the model is never reached, so no test touches the network (Art. IX.2).
@@ -205,6 +205,75 @@ describe("pasteRun (F48)", () => {
       [fetching, "fetching"],
       [indeed, "failed"],
     ]);
+  });
+});
+
+describe("pasteApplication (F26)", () => {
+  const POSTING = "Globex is hiring a Backend Engineer.";
+
+  async function paste(id: string, body: { posting?: string; url?: string }) {
+    const response = await pasteApplication(id, body);
+    return { status: response.status, body: (await response.json()) as { runId?: string; error?: string } };
+  }
+
+  /** An Indeed application waiting for its text, after a restart: no run of it in memory. */
+  async function afterRestart(): Promise<string> {
+    await send(listed(INDEED));
+    const [id] = await made();
+    delete (globalThis as { resumeRuns?: unknown }).resumeRuns;
+    return id;
+  }
+
+  it("writes the text into job.md, keeping its link, and starts the application again, with no request to Indeed", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = await afterRestart();
+
+    const answer = await paste(id, { posting: POSTING, url: INDEED });
+
+    expect(answer.status).toBe(202);
+    const pasted = await job(id);
+    expect(pasted.data).toEqual({ url: INDEED, source: "Indeed", fetched_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) });
+    expect(pasted.body).toBe(`${POSTING}\n`);
+    // No model in these tests, so the run fails at once; it worked on the same application.
+    await vi.waitFor(() => expect(runRegistry().list("jane-doe")[0].status).toBe("failed"));
+    expect(runRegistry().list("jane-doe")).toMatchObject([{ runId: answer.body.runId, kind: "retry", applicationId: id, fetchFailed: false }]);
+    expect(await made()).toEqual([id]);
+    expect(app.asked).toEqual([]);
+    expect(JSON.stringify(error.mock.calls)).not.toContain(POSTING);
+  });
+
+  it("refuses text without its link, an unknown application, one with its text, an archived one and a busy one", async () => {
+    const id = await afterRestart();
+    const before = await readFile(path.join(profileDir, "applications", id, "job.md"), "utf8");
+
+    expect(await paste(id, { posting: POSTING })).toEqual({ status: 400, body: { error: "Give the posting's link with its text: every posting keeps its link." } });
+    expect(await paste("2026-11-12-initech-dev", { posting: POSTING, url: A })).toEqual({ status: 404, body: { error: "Unknown application." } });
+    expect(await paste("../john-roe", { posting: POSTING, url: A })).toEqual({ status: 404, body: { error: "Unknown application." } });
+    expect(await paste(SAVED, { posting: POSTING, url: A })).toEqual({ status: 409, body: { error: "This application doesn't need the posting's text." } });
+
+    const file = path.join(profileDir, "applications", id, "job.md");
+    await writeFile(file, patchFrontmatter(before, { archived_at: "2026-11-23T10:00:00.000Z" }));
+    expect(await paste(id, { posting: POSTING, url: INDEED })).toEqual({ status: 409, body: { error: "This application is archived. Restore it first." } });
+    await writeFile(file, before);
+
+    // A run of it waits behind one that uses the model.
+    app.modelHangs = true;
+    runRegistry().enqueue("jane-doe", "retry", { start: { id: SAVED } });
+    runRegistry().enqueue("jane-doe", "retry", { start: { id } });
+    expect(await paste(id, { posting: POSTING, url: INDEED })).toEqual({ status: 409, body: { error: "This application has a run waiting or running." } });
+    expect(await readFile(file, "utf8")).toBe(before);
+  });
+
+  it("names a job.md that isn't valid and leaves it as it is (Art. IV.6)", async () => {
+    const id = await afterRestart();
+    await writeFile(path.join(profileDir, "applications", id, "job.md"), "no frontmatter");
+
+    expect(await paste(id, { posting: POSTING, url: INDEED })).toEqual({
+      status: 409,
+      body: { error: `applications/${id}/job.md has problems: missing YAML frontmatter: the file must start with a \`---\` line` },
+    });
+    expect(await readFile(path.join(profileDir, "applications", id, "job.md"), "utf8")).toBe("no frontmatter");
+    expect(runRegistry().list("jane-doe")).toEqual([]);
   });
 });
 

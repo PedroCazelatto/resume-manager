@@ -1,5 +1,5 @@
 import { restoredJob } from "@/core/application/archive";
-import { APPLICATION_FILES, generationFinished } from "@/core/application/folder";
+import { APPLICATION_FILES, generationFinished, isApplicationId } from "@/core/application/folder";
 import { hasPostingText } from "@/core/application/job-file";
 import { jobSchema } from "@/core/application/schemas";
 import { LlmError } from "@/core/llm";
@@ -135,6 +135,40 @@ export async function pasteRun(runId: string, body: { posting?: unknown; url?: u
   if (result === "unknown") return Response.json({ error: "Unknown run." }, { status: 404 });
   if (result === "refused") return refused("This run doesn't need the posting's text.");
   return Response.json({ runId }, { status: 202 });
+}
+
+/**
+ * The posting's text, pasted with its link, for an application of the selected profile whose
+ * text never arrived and that has no run in memory to take it, as after a restart (F26): the
+ * text becomes the body of its job.md, every other field kept, its link included (F50), and the
+ * application starts again from its analysis, as "Try again" does; the answer is the new run's
+ * `{ runId }` with 202. 400 when the text or its link is missing; 404 for an unknown
+ * application; 409 when it has its text already, is archived, has a run fetching, waiting or
+ * running, or its job.md isn't valid (named with its path and problems, Art. IV.6).
+ */
+export async function pasteApplication(id: string, body: { posting?: unknown; url?: unknown } | null): Promise<Response> {
+  const profile = await readyProfile();
+  if ("error" in profile) return profile.error;
+  const read = readNewRunStart(body);
+  if ("error" in read) return Response.json({ error: read.error }, { status: 400 });
+
+  const unknown = () => Response.json({ error: "Unknown application." }, { status: 404 });
+  const refused = (error: string) => Response.json({ error }, { status: 409 });
+  if (!isApplicationId(id)) return unknown();
+  const file = `applications/${id}/job.md`;
+  const source = await profileStore().readApplicationFile(profile.slug, id, "job.md");
+  if (source === null) return unknown();
+  const job = validateMarkdownFile(jobSchema, file, source);
+  if (!job.ok) return refused(`${job.error.file} has problems: ${job.error.problems.join("; ")}`);
+  if (runRegistry().busy(profile.slug, { applicationId: id })) return refused("This application has a run waiting or running.");
+  if (job.data.archived_at !== undefined) return refused("This application is archived. Restore it first.");
+  if (hasPostingText(job.body)) return refused("This application doesn't need the posting's text.");
+
+  const problem = await folders.pasted(profile.slug, id, read.start.posting);
+  if (problem !== null) return refused(problem);
+  const started = await startAgain(profile.slug, id, false);
+  if ("error" in started) return refused(`${started.error.file} has problems: ${started.error.problems.join("; ")}`);
+  return Response.json(started, { status: 202 });
 }
 
 /**
