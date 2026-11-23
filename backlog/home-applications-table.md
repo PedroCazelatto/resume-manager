@@ -1,72 +1,87 @@
 ---
 title: Home page as one table of all applications, with the queue in tabs
 id: F26
-version: next version
+version: implemented
 reported: 2026-11-15
 ---
 
-## Problem
+## What it does
 
-Past applications can only be found as folders on disk or by their URL, and the home page is a form with a Runs list under it. The user wants the home page reimagined as one table of all the applications, with the queue in tabs. This task was "Application history" (a list under the form) until 2026-11-17, when the user replaced it with this design.
-
-## Behaviour
-
-- The sidebar has one entry for the home page, "Resumes" (it replaces "New application" and "Runs").
-- The home page is one table of the selected profile's applications, in three tabs:
-  - **Ready**: only applications whose generation finished and that aren't archived, newest first. Each row opens the application's page. This is the tab shown first when no resume is being generated.
-  - **Generating** (the resume queue): the runs waiting for the model, the links still in the fetch queue, and the runs that failed or were cancelled, in queue order, none of them archived.
-  - **Archived**: the archived rows ([runs-list-changes](runs-list-changes.md)), finished or not, newest archived first (by `archived_at`), with the same columns. Each row has "Restore": an unfinished one goes back to Generating as cancelled, with "Try again"; a finished one goes back to Ready.
-- After a restart, runs in memory are gone (Art. IV.1). An application whose generation never finished (it was fetching, waiting, running, failed or cancelled) and that isn't archived is listed in Generating as cancelled, with "Try again", "Paste the text" when it has no posting text, and the archive button. Nothing starts again by itself. ("Edit" comes later, with [edit-before-restart](edit-before-restart.md).)
-- The Generating tab's label shows two numbers: valid runs waiting for the model / links still being fetched (for example "3 / 2"). When some runs have problems (a failed fetch, a link that needs its text, a failed generation), a red circle with their count is added.
-- The generation in progress, if there is one, is shown on its own above the tabs, with its steps, timer, token counts and its X ([runs-list-changes](runs-list-changes.md)).
-- Failed generations stay at their position in the list.
-- A button at the top right opens a modal to add links (one per line), as the "From links" tab does today ([list-of-posting-urls](list-of-posting-urls.md)). It replaces the form on the page, and the form's "Paste text" tab goes: pasting is offered only on rows whose fetch failed ([runs-list-changes](runs-list-changes.md)). There is no language field ([english-only-resumes](english-only-resumes.md)).
-- The table's columns, from left to right:
+- **One sidebar entry, "Resumes",** for the home page. It replaces "New application" and "Runs", and the runs count left the sidebar for the Generating tab. The selected sidebar entry and the keyboard focus ring use the green accent.
+- **The home page is one table** of the selected profile's applications, read from their files and from the runs in memory. It reads `GET /api/runs` every 2 seconds, and at once after an action of the same tab ([runs-list-push](runs-list-push.md) comes later). Another profile's applications and runs never appear (Art. III.7). The page's heading is "Resumes", with the "Add links" button at the top right. The update card of [application-uuids](application-uuids.md), the profile's state and the template stay above the table.
+- **The generation in progress** is shown on its own above the tabs, in an "In progress" card: its job, state and source, then its steps, timer, token counts and the X that cancels it ([runs-list-changes](runs-list-changes.md)). It is in no tab.
+- **Three tabs:**
+  - **Ready**: the applications whose generation finished (`resume.md` and `verification.md` exist, the rule of [application-uuids](application-uuids.md)) and that aren't archived, newest first by `job.md`'s `fetched_at`.
+  - **Generating**: the links in the fetch queue, the runs waiting for the model, and the failed and cancelled rows, none of them archived. An application whose generation never finished and that has no run in memory (after a restart) is listed here as cancelled, with "Try again", "Paste the text" when its `job.md` has no posting text, and the archive button. Nothing starts again by itself.
+  - **Archived**: the archived rows, finished or not, newest archived first (by `archived_at`), with the same columns.
+- **The Generating tab's label** shows two numbers while either is above zero: runs waiting for the model / links still in the fetch queue (for example "1 / 2"). A red circle counts the rows that need attention: a failed fetch, a link that needs its text, a failed generation.
+- **The tab shown first** is Generating while a run is being fetched, waits for the model or runs; otherwise Ready.
+- **Columns**, from left to right:
   1. the status, as a glowing ball in the status colour: running and finished green, failed red, needing the posting's text amber, the others grey;
-  2. the job's title, with the company under it in a smaller font, the company being a link to its website when the posting gives it; the URL while the title isn't known ([job-posting-details](job-posting-details.md));
-  3. the state, with the source under it, and the run's kind as a small label ("Try again", "Verify again");
-  4. the row's actions: its main action as a visible button, and a hamburger button that opens a menu with the row's other actions (open, cancel, try again, paste the text, archive, restore, as the row allows; edit is added later by [edit-before-restart](edit-before-restart.md)). The main action of each kind of row: a link waiting to fetch or being fetched, and a run waiting for the model: cancel (the X); an Indeed link that needs its text, while no browser extension exists: cancel, which makes it a cancelled row that stays listed with "Paste the text"; a failed fetch, a failed generation and a cancelled run: try again; a finished application in Ready, and a finished one in Archived: view PDF; an archived row that never finished: delete.
-- **Delete** (on an archived row that never finished) first opens a confirmation dialog that says plainly the application can't be recovered. Confirming deletes everything about the job: the application's whole folder (`job.md`, and any `analysis.md`, `resume.md`, `verification.md` and `archive/`), and its runs leave the list. The dialog is the explicit confirmation Art. IV.8 asks for. Only the selected profile's `applications/` is touched (Art. III.7).
-- **View PDF** opens the printable resume, either in a new page or as the real PDF: the same HTML the application page's preview and "Print / Save as PDF" use (Art. V.9). It is part of this task, not of [one-click-pdf](one-click-pdf.md). Art. VI.7 still applies: a resume that can't be printed yet (an undismissed verification failure, an implied skill still pending, or a model review older than the last edit) can't be opened as a printable PDF.
-- A finished application's state is draft or ready, or "has problems" when one of its files is invalid (Art. IV.6).
-- The runs count leaves the sidebar, since it is on the tab now.
-- The selected sidebar entry and the keyboard focus ring use the green accent.
-- Another profile's applications and runs never appear (Art. III.7).
+  2. the job's title (its link while the title isn't known), linked to the application's page, with the company under it in a smaller font, linked to its website when the posting gives one ([job-posting-details](job-posting-details.md));
+  3. the state, with the run's kind as a small label ("Try again", "Verify again") and the source under it;
+  4. the actions: the main action as a visible button, and a hamburger button whose menu holds the row's other actions.
+- **States:** "waiting to fetch", "fetching the posting", "waiting", "running", "needs the posting's text", "failed", "cancelled", and for a finished application "draft" or "ready" (its `resume.md` status), or "has problems" when one of its files isn't valid (Art. IV.6). A row in Generating keeps its run's steps, context-size warnings and error, as the Runs list did.
+- **Main actions:**
+  - a link waiting to fetch or being fetched: the X, "Remove link";
+  - a run waiting for the model: the X, "Cancel";
+  - an Indeed link that needs its text, while no browser extension exists: the X, "Cancel". It makes the row a cancelled row that stays listed with "Paste the text", which becomes its main action. Other rows whose fetch failed still can't be cancelled. Archive and restore work on it as before;
+  - a failed fetch, a failed generation and a cancelled run: "Try again";
+  - a finished application, in Ready or in Archived: "View PDF";
+  - an archived row that never finished: "Delete".
+- **The menu** holds the row's other actions, as the row allows, in this order: Open, Cancel, Try again, Paste the text, Archive, Restore, Delete.
+- **Add links** opens a modal that queues links exactly as the form's "From links" tab did, with its messages ([list-of-posting-urls](list-of-posting-urls.md)). The form, its "Paste text" tab and the language field are gone: pasting is offered only on rows that need the posting's text.
+- **Paste the text** opens a dialog with the posting's text and its link. The text goes to the row's own run, which moves on with it ([runs-list-changes](runs-list-changes.md)), or, when no run of the application is in memory (after a restart), into the application's `job.md`, and the application starts again.
+- **View PDF** opens the printable resume in a new page, `/applications/<id>/pdf`: the same HTML as the application page's preview and its "Print / Save as PDF" (Art. V.9), which opens the browser's print dialog as soon as it has loaded. A resume that can't be printed yet (an undismissed verification failure, an implied skill still pending, or a model review older than the last edit) can't be opened as a printable PDF (Art. VI.7).
+- **Delete** opens a confirmation dialog that says plainly the application can't be recovered. Confirming deletes everything about the job: the application's whole folder (`job.md`, and any `analysis.md`, `resume.md`, `verification.md` and `archive/`), and its runs leave the list; a row without an application only leaves the list. The dialog is the explicit confirmation Art. IV.8 asks for. Only the selected profile's `applications/` is touched (Art. III.7).
 
-## Acceptance criteria
+## Where it lives
 
-- [ ] Every finished application under the profile's `applications/` appears once in "Ready"; a folder with an invalid `job.md` is listed as "has problems" instead of breaking the page; with none, the tab says so.
-- [ ] The Generating tab lists waiting runs and fetch-queue links in order, with the two counts and the red problem count.
-- [ ] Archived rows appear only in the Archived tab, newest archived first; "Restore" puts an unfinished one back in Generating as cancelled and a finished one back in Ready.
-- [ ] After a restart, an unfinished application that isn't archived is in Generating as cancelled, with "Try again" and the archive button, plus "Paste the text" when it has no posting text; no run starts by itself.
-- [ ] The generation in progress appears above the tabs, and only while there is one; the first tab shown follows the rule above.
-- [ ] The modal queues links exactly as the "From links" tab does today, including its messages.
-- [ ] Nothing that works on the home page today is lost: remove, cancel, archive, restore, "Try again", pasting the text on a failed fetch, notifications.
-- [ ] Light and dark mode, 1440 px and 390 px wide, checked with screenshots.
-- [ ] Deriving a row (title, company, source, date, status, tab) from an application's files and the runs in memory, and the counts, are pure functions in `src/core/` with unit tests; `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` pass.
-- [ ] This file says `version: implemented` in the implemented format, `backlog/index.md` lists it under Implemented, and [run-queue](run-queue.md), [visual-pass](visual-pass.md) and [list-of-posting-urls](list-of-posting-urls.md) describe the new home page.
+- `src/core/application/summary.ts` (new): `summarizeApplication(id, files)`, what a row needs of one application's files (its job's details, `fetched_at`, `archived_at`, whether it has its text, is an Indeed link and finished, its `resume.md` status, why it can't be printed yet, and its invalid files named with their paths), or null for a folder that holds none of them.
+- `src/core/home/table.ts` (new): `homeTable(applications, runs, archivedRuns)` (the rows, their place, state, colour, main action and menu, and the order of each tab), `generatingCounts`, `firstTab`; `HomeRun`, `HomeRow`, `RowAction`.
+- `src/core/resume/print.ts` (new): `printBlockers`, moved from the application page, so "View PDF" and "Print / Save as PDF" read one rule.
+- `src/core/runs/queue.ts`: `stopAction` also cancels an Indeed link's run that needs its text and isn't archived; `cancelNotFetched` (cancelled where it stands, still taking its pasted text); `discardRun` (an archived run without an application that never finished leaves for good); `archivedRunsOf`.
+- `src/core/application/archive.ts`: `deletable` (only an archived application that never finished, with a valid `job.md`). `src/core/application/job.ts`: `jobHeading`.
+- `src/app/runs.ts`: `RunSummary.stop` and `archivedAt`; `listArchived`; `remove` cancels an Indeed link's run that needs its text and deletes an archived run without an application.
+- `src/app/home.ts` (new): `readHome(slug)`, the profile's runs and table, read through `ProfileStore.listApplications` and `readApplicationFile`.
+- `src/app/archive.ts`: `deleteApplication`. `src/app/run.ts`: `pasteApplication`.
+- Routes:
+  - `GET /api/runs` answers `{ runs, table }`.
+  - `DELETE /api/applications/[id]` (new): deletes an archived application that never finished, folder and all; 204; 404 for an unknown application or a name that isn't one; 409 when it isn't archived, finished, has a run waiting or running, or its `job.md` isn't valid (named with its path and problems), and when the folder couldn't be deleted.
+  - `DELETE /api/runs/[runId]` also cancels an Indeed link's run that needs its text (204) and deletes an archived run without an application that never finished (204).
+  - `POST /api/applications/[id]/posting` (new): `{ posting, url }` for an application whose text never arrived; the text becomes `job.md`'s body, with `fetched_at`, every other field kept, and the application starts again as "Try again" does; 202 `{ runId }`; 400 without the text or its link; 404 for an unknown application; 409 when it has its text already, is archived, has a run waiting or running, or its `job.md` isn't valid.
+- Pages: `src/app/page.tsx`; `src/app/applications/[id]/pdf/page.tsx` (new), the printable resume.
+- Components: `src/components/home-table.tsx` (new: the table, the tabs, the "In progress" card, the row's actions, the paste and delete dialogs), `src/components/add-links-dialog.tsx` (new), `src/components/printable-resume.tsx` (new), `src/components/ui/table.tsx` and `src/components/ui/dropdown-menu.tsx` (new, shadcn/ui), `resume-preview.tsx` (`onLoaded`), `app-sidebar.tsx`, `nav-link.tsx`, `icon.tsx` (`plus`), `src/app/globals.css` (`--ring` and `--sidebar-ring`).
+- Removed: `src/components/runs-list.tsx`, `runs-indicator.tsx` and `new-application-form.tsx`.
 
-## Technical notes
+## Tests
 
-- `ProfileStore` gains `listApplications(slug)`, returning the folder names; reading each row's `job.md` and `resume.md` goes through it too.
-- The table and tabs: shadcn/ui `table` and `tabs` (the tabs component already exists in `src/components/ui/tabs.tsx`); the modal is the existing `src/components/ui/dialog.tsx`.
-- The Runs list today is `src/components/runs-list.tsx` on `src/app/page.tsx`, fed by `GET /api/runs` every 2 seconds; the sidebar's count is `src/components/runs-indicator.tsx`; the form is `src/components/new-application-form.tsx`.
-- Use the job details of [job-posting-details](job-posting-details.md) and the UUID IDs of [application-uuids](application-uuids.md) for the rows.
-- "Which tab is shown first" while a resume is being generated: Generating.
+- `src/core/application/summary.test.ts`: a finished, printable application; a draft and why it can't be printed; not finished without both files; an application without its text, an Indeed one, an archived one; an older `job.md`; every invalid file and a missing `job.md` named with its path; an empty folder skipped.
+- `src/core/home/table.test.ts`: Ready (finished only, newest first, draft or ready, View PDF with why it can't print, has problems, an invalid `job.md` not archivable); Generating (cancelled after a restart with Try again and Paste the text, an Indeed application never tried again, the fetch queue, a waiting run with its label, the generation in progress above the tabs only, a failed fetch, an Indeed link cancelled and then pasting, a failed generation, a restored failed fetch, a run without an application, the queue's order with a failed generation where it stood, an application's latest run); Archived (newest first, Restore, View PDF or Delete, an archived application with a run going); the counts and the first tab.
+- `src/core/resume/print.test.ts`, `src/core/application/archive.test.ts` ("deletable"), `src/core/application/job.test.ts` ("jobHeading").
+- `src/core/runs/queue.test.ts`: the X on an Indeed run that needs its text, not once archived or cancelled; `cancelNotFetched` keeps its place, its text and its archive button, for its own profile only; `discardRun` and `archivedRunsOf`.
+- `src/app/runs.test.ts`: an Indeed row cancelled with its X stays listed, refuses "Try again" and moves on with its text; `stop` on every listed run; an archived run without an application deleted, listed archived until then.
+- `src/app/archive.test.ts`, on a scratch copy of `example-profiles/`: deleting an archived unfinished application removes its folder with `archive/` and nothing else, and its runs; refused when not archived, finished, busy, with an invalid `job.md`, or for a name that isn't an application's; another profile's folder of the same name untouched.
+- `src/app/run.test.ts` ("pasteApplication"): the text written into `job.md` with its link kept and the application started again without any request to Indeed; refusals; an invalid `job.md` left as it is.
+- `src/app/home.test.ts` (new), on a scratch copy of `example-profiles/`: the example applications after a restart; an Indeed link with its count; an archived application; an invalid `job.md` and an empty folder; another profile's applications and runs never listed.
+- Checked on 2026-11-23 against `next dev` on port 3101 with a scratch copy of `example-profiles` holding fictional UUID applications, and a local listener in place of Ollama that either closed every connection (so runs failed) or held it open (so a run kept running); no request left the machine. In headless Chrome at 1440 px and 390 px, light and dark: the "In progress" card with its steps, timer and X; the three tabs and their empty and full states; the Generating label with "1 / 0" and the red circle; the menu; the add-links modal; the paste dialog; the delete dialog. Through the page: the X cancelled an Indeed row, which stayed with "Paste the text"; Archive from the menu wrote `archived_at`; text pasted on an application after a restart went into its `job.md` and queued it; Delete, confirmed, removed the archived folder; Restore brought a finished application back to Ready; the update card still showed for an old dated folder. The printable page showed a ready resume and refused a draft with its blockers. Against `next start` the home page, `GET /api/runs`, an application page and the printable page answered 200, and after the restart the unfinished applications were listed in Generating as cancelled. The server log held no posting text, and the browser console no errors.
+- Not seen: the print dialog itself (headless Chrome shows none) and a real model; a link waiting to fetch or being fetched on a real server (the tests cover it with a fake fetcher).
 
-## Depends on
+## Rules it follows
 
-- [runs-list-changes](runs-list-changes.md) (the X and archive buttons, archiving and restoring, the states) and [link-handling-changes](link-handling-changes.md).
-- [job-posting-details](job-posting-details.md), for the row's title, company and source; [application-uuids](application-uuids.md); [english-only-resumes](english-only-resumes.md).
+- Art. III.7 (only the selected profile's applications and runs are read, archived, restored, pasted on and deleted; `ProfileStore` refuses names that aren't an application's and symlinked folders), III.4 (no posting text is listed, streamed or logged), III.2 (an Indeed link is never requested, also after its row is cancelled or its text pasted after a restart).
+- Art. IV.1 (after a restart nothing runs again: unfinished applications are read from their files as cancelled), IV.6 (every file of a row is validated; an invalid one makes the row "has problems" and is named on the application's page), IV.7 and IV.8 (pasted text keeps every field of `job.md`, written atomically; deleting happens only after the dialog's confirmation, which says it can't be recovered; archiving deletes nothing).
+- Art. V.3 (deriving a row, its actions and the counts is pure core code; the app reads the files and the runs), V.9 and VI.7 ("View PDF" shows the same HTML as the preview and prints through the browser's dialog, and refuses a resume that can't be printed yet).
+- Art. IX.2 (the model and the fetcher are mocked; no test opens a socket), IX.4 (no new dependency: the table and the menu are shadcn/ui files on `@base-ui/react`).
 
-## Decisions
+## Notes
 
 - Decided 2026-11-15: the history is on the home page, not a separate page.
 - Decided 2026-11-17 (the user): "Lets reimagine the screen as one table list of all the applications, with tabs separating the finished resumes (primary tab if there is no resumes being generated) and the awaiting generation ones (the resume-queue). One button on the top right to add more links through a modal. The ongoing generation should be separated from the list, above the tabs (if there is one). Failed generations just stay on their position."
 - Decided 2026-11-17: "Now on the new screen, the number of active runs are on the tab, and it should be two numbers: valid runs waiting for the model / links still being fetched. If there is some runs with problems, add a red circle with the count of it inside."
 - Decided 2026-11-17: the status badge colours stay as built by [visual-pass](visual-pass.md); the selected sidebar entry and the focus ring may use the green accent ("You can use.").
 - Decided 2026-11-17: how the application page scrolls on wide screens is reviewed after this new design.
-- Decided 2026-11-17 (the details): the sidebar entry is "Resumes", the tabs "Ready" and "Generating"; columns as listed under Behaviour ("On the second column, lets put the title of the job, the company under it (with a smaller font, and it being a link for the company website if the posting has it). On the left side (first column) lets place the status as a glowing ball. The third column can be the state with the source below. The fourth column may be the actions button."); "On the finished tab put only finished generations."; one entry in the sidebar, since "Today the 'Runs' is the same as the Applications".
+- Decided 2026-11-17 (the details): the sidebar entry is "Resumes", the tabs "Ready" and "Generating"; columns as listed above ("On the second column, lets put the title of the job, the company under it (with a smaller font, and it being a link for the company website if the posting has it). On the left side (first column) lets place the status as a glowing ball. The third column can be the state with the source below. The fourth column may be the actions button."); "On the finished tab put only finished generations."; one entry in the sidebar, since "Today the 'Runs' is the same as the Applications".
 - Decided 2026-11-17: the form's "Paste text" tab is removed.
 - Decided 2026-11-21 (the archived list): "Now the archived applications can go to a new tab instead of the sidebar." Archived rows are sorted newest archived first (chosen the same day). Cancelled runs, failed runs and finished applications can be archived. Restoring: "Put the row back in Generating" for an unfinished one; a finished one goes back to Ready (chosen the same day).
 - Decided 2026-11-21: after a restart, an unfinished application is listed in Generating as cancelled; nothing starts again by itself (chosen over saving the queue to disk).
@@ -78,3 +93,32 @@ Past applications can only be found as folders on disk or by their URL, and the 
 - Decided 2026-11-23 (the user, cancelling an Indeed row): "Make it a cancelled row that stays listed with 'Paste the text'." This changes [runs-list-changes](runs-list-changes.md), where a row whose fetch failed, Indeed included, had no X.
 - Decided 2026-11-23 (the user, Delete): "Create a dialog for confirmation, and explicity tell the user that it cannot be recovered. Delete everything about the job."
 - Decided 2026-11-21 (the user): [edit-before-restart](edit-before-restart.md) moves to the future version, so this task is built without the "Edit" button; that task adds it to the table's rows when it is built. [runs-list-push](runs-list-push.md) moves to the future version too, so the table is still fed by `GET /api/runs` every 2 seconds.
+- Built on 2026-11-23 with the smallest behaviour where the task said nothing:
+  - the table: the shadcn/ui `table`, in a bordered card, with a header row "Job" and "State" (the ball's and the actions' headers are for screen readers only, "Status" and "Actions"); the page is up to 1024 px wide; below 640 px the state column is hidden and the state and source go under the job;
+  - the glowing ball: a 10 px dot in Tailwind's green, red, amber or zinc 500 (zinc 400 in light mode), with a 6 px glow of the same colour; the ball of the generation in progress pulses; it is hidden from screen readers, since the state says it in words;
+  - a row's place: a run fetching, waiting or running puts the row in Generating (or above the tabs), even when its application is finished (a "Verify again") or archived (a run started from its page, as the Runs list listed it); otherwise an archived application is in Archived, a finished one in Ready, the rest in Generating; the row shows its application's latest run;
+  - "has problems" is red; its main action is "Open", where the application page names the files; a row whose `job.md` isn't valid has no other action, and is in Ready when its `resume.md` and `verification.md` exist, otherwise in Generating;
+  - a finished application's ball is green whether it is a draft or ready;
+  - the kind label is shown while the row shows its run (in Generating and above the tabs), not in Ready or Archived; a row's steps, warnings and error are shown in Generating only;
+  - the order of Generating: rows with no run in memory first (oldest `fetched_at` first, those without one last), then the rows whose run ended in the order they ended, then the runs waiting for the model in queue order, then the fetch queue in fetch order; Ready rows without `fetched_at` come last;
+  - the Generating label: the two numbers are hidden while both are zero; the first counts runs waiting for the model only (the running one is above the tabs); the red circle counts failed and "needs the posting's text" rows, not cancelled ones (a cancelled Indeed row or a restored failed fetch); screen readers hear "N waiting for the model, N being fetched" and "N with problems";
+  - the tab shown first is Generating while any run is fetching, waiting or running; links added from the modal switch the table to Generating; otherwise the tab stays where the user left it;
+  - empty tabs say "No finished resumes yet.", "Nothing is waiting or being generated." and "Nothing is archived.";
+  - the menu: a ghost icon button with Phosphor's `list` icon, named "More actions", hidden when the row has no other action; its items read "Open", "Cancel", "Try again", "Paste the text", "Archive", "Restore", "Delete", in that order;
+  - the buttons: the X for "Remove link" and "Cancel" as before; "Try again", "Paste the text", "View PDF" and "Open" as small outline buttons; "Delete" in the destructive style; "Open" in the menu goes to the application's page, as the title does;
+  - "Try again" on a row with an application is the application page's ("POST /api/applications/[id]"), so a run whose analysis was saved is tried again from the table too; a run without an application uses its own; archiving and restoring go through the application's routes, or the run's without one; an Indeed application without its text never gets "Try again", and its main action is "Paste the text";
+  - "View PDF" opens `/applications/<id>/pdf` in a new tab; the page shows the job's heading, a "Print / Save as PDF" button and the preview, and opens the print dialog once, when the resume has loaded; while the resume can't be printed the table's button is disabled with the tooltip "Printing unlocks when: …", and the page shows "This resume can't be printed yet. Printing unlocks when: …. Open the application" instead of the resume (or "This application has no resume yet." without one); no PDF library or headless browser;
+  - the add-links button: the primary style with Phosphor's `plus` icon, "Add links"; the modal's title is "Add links", its description "Each job posting's link becomes its own application.", and the rest is the "From links" tab's: the text area, its placeholder, "Generate resume" and the messages; the modal stays open to show them, and empties when closed;
+  - the paste dialog: the title "Paste the posting's text", the description "Paste the posting's text here. Its link is kept with the application.", the text area and the "Link" field as the form had them, the link editable, and "Generate resume"; it closes once the text was taken, and shows a refusal inside;
+  - the delete dialog: the title "Delete “<the job's title, or its link>”?", the text "This deletes everything about this job: its folder applications/<id>/, with the posting and anything saved for it. It can't be recovered." (for a row without an application: "This job leaves the list for good. It can't be recovered."), and the buttons "Keep it" and "Delete" ("Deleting…" while it works); a refusal is shown inside;
+  - deleting is `DELETE /api/applications/[id]` for an application and `DELETE /api/runs/[runId]` for an archived run without one; the server checks again that the application is archived and never finished, and refuses it while a run of it is waiting or running; its messages: "Only an archived application that never finished can be deleted.", "This application has a run waiting or running.", "Couldn't delete applications/<id>/. See the server console.";
+  - pasting after a restart is `POST /api/applications/[id]/posting`; the run it starts is a "Try again"; `job.md`'s link stays as it is; its messages: "This application doesn't need the posting's text." and "This application is archived. Restore it first.";
+  - the "In progress" card is a section card titled "In progress", holding the job, its state and source, then the run's progress;
+  - the sidebar's selected entry: the green accent at 10% behind green text; the focus ring: the green accent in both modes;
+  - shadcn/ui `dropdown-menu` was added with its submenu, checkbox and radio parts left out, since they need icons through a placeholder this project doesn't have; neither file brings a dependency;
+  - a folder that holds none of the application's files is skipped (it is being made or deleted at that moment); the profile's runs are read from the same answer as before, so the notifications are unchanged.
+- Left for the user's answer on 2026-11-23:
+  - the application's date (`fetched_at`) sorts Ready but isn't shown in any column, since the columns don't list it: should a row show it, and where?
+  - a finished application with a "Verify again" waiting or running leaves Ready for Generating until it ends: should it stay in Ready?
+  - an ended run's steps and context-size warning are shown in Generating only, not under a finished application in Ready (decision 5 of `decisions.md` keeps them in the Runs list): should Ready show them?
+  - "View PDF" opens the print dialog by itself as the page loads: should it only show the resume and wait for the button?

@@ -7,15 +7,15 @@ reported: 2026-11-14
 
 ## What it does
 
-- The "From links" tab is a text area that takes several links, one per line. Blank lines and the spaces around a link are ignored.
+- The "Add links" button at the top right of the home page opens a modal with a text area that takes several links, one per line ([home-applications-table](home-applications-table.md)); it was the form's "From links" tab until then. Blank lines and the spaces around a link are ignored.
 - Each link becomes its own run, in the order given. Every resume is written in English ([english-only-resumes](english-only-resumes.md)). Every link enters the fetch queue at once and joins the run queue when its fetch worked ([posting-by-url](posting-by-url.md)), so the runs use the model one after another without further action, each saving its own application folder.
 - A link given twice is queued once, where it came first. Two lines are the same link when they read as the same address (`https://Jobs.Example.com` and `https://jobs.example.com/`), or name the same LinkedIn job (`?currentJobId=<id>`, `/jobs/view/<id>`, `/jobs/view/<words>-<id>`) ([link-handling-changes](link-handling-changes.md)).
 - Every line is checked before anything starts. A line that is not an http or https link, or that leads to this computer or a private network, refuses the whole list: nothing is queued, and the message names each such line by its number and text, with the reason. The form checks first; the server checks again.
 - An Indeed link, alone or in the list, refuses nothing: it becomes a row that needs its text, with "Paste the text" and no "Try again", and is never requested; the other links are queued as usual ([link-handling-changes](link-handling-changes.md)).
 - A link the profile already has is skipped: a row of the Runs list with the same job that is fetching, waiting, running or finished, or a saved application whose `job.md` has the same `url`. A failed or cancelled row doesn't count, so its link is queued again ([link-handling-changes](link-handling-changes.md)).
-- Until its application exists, a run from a link shows its link in the Runs list, so it is clear which link is fetching, waiting, running or failed.
+- Until its title is known, a run from a link shows its link in the home page's table, so it is clear which link is fetching, waiting, running or failed.
 - A link whose fetch fails is listed as "needs the posting's text" with the reason, "Paste the text" and "Try again"; the fetch queue goes on with the next link. A link run that fails later is listed as failed with its reason and "Try again", and the run queue goes on too.
-- After queueing, the form says how many runs were added, then each skipped line with why, one per line (`Line 2 (…): Skipped: it is already in the Runs list.`). A list where every link was skipped adds nothing and says so ("Nothing was added: every link is already there."); that is not an error. A saved `job.md` that isn't valid is named, since its link couldn't be checked ([link-handling-changes](link-handling-changes.md)).
+- After queueing, the modal says how many runs were added, then each skipped line with why, one per line (`Line 2 (…): Skipped: it is already in the Runs list.`). A list where every link was skipped adds nothing and says so ("Nothing was added: every link is already there."); that is not an error. A saved `job.md` that isn't valid is named, since its link couldn't be checked ([link-handling-changes](link-handling-changes.md)).
 
 ## Where it lives
 
@@ -25,7 +25,7 @@ reported: 2026-11-14
 - `src/app/api/applications/route.ts`: `{ urls: string[] }` queues one run per link that isn't skipped and answers `{ runIds, skipped, problems }` with 202, or 400 with the message and nothing queued. `{ posting, url, … }` answers `{ runId }`; a lone `{ url }` is refused.
 - `src/app/run.ts`: `enqueueLinks`, which reads the selected profile's runs and saved `job.md` files (`ProfileStore.listApplications`), skips, and calls `enqueue` once per remaining link.
 - `src/components/use-run.tsx`: `enqueueRuns`, which `enqueueRun` now goes through, and which returns the skipped lines; every queued run is watched for its end ([notify-when-run-ends](notify-when-run-ends.md)).
-- `src/components/new-application-form.tsx` (the text area, the check before sending, the count and the skipped lines), `src/components/runs-list.tsx` (the link on a run without an application).
+- `src/components/add-links-dialog.tsx` (the modal: the text area, the check before sending, the count and the skipped lines), `src/components/home-table.tsx` (the link of a row whose title isn't known); they replaced `new-application-form.tsx` and `runs-list.tsx` ([home-applications-table](home-applications-table.md)).
 - The queues themselves are unchanged: `src/core/runs/queue.ts` and `src/app/runs.ts` already fetched links in order and kept a failed run's link for "Try again".
 
 ## Tests
@@ -58,6 +58,6 @@ reported: 2026-11-14
   - a link that is already in the Runs list is skipped, and the form says so: "There is no need to generate more than one resume for the same link without passing additional arguments." ([link-handling-changes](link-handling-changes.md), built on 2026-11-21); a link counts as already there when a row of the Runs list with the same job didn't fail and wasn't cancelled, or a saved application has the same `url`;
   - no maximum number of links (as built);
   - what a row shows comes from the job posting's details: title, company, source and state, with the link while the title isn't known ([job-posting-details](job-posting-details.md));
-  - the form's "From links" tab becomes a modal opened from the home page's new table ([home-applications-table](home-applications-table.md)).
+  - the form's "From links" tab becomes a modal opened from the home page's new table ([home-applications-table](home-applications-table.md), built on 2026-11-23: "Add links" at the top right; the modal keeps the text area, "Generate resume" and the messages, and switches the table to its Generating tab once links were queued).
   - the single-link request `{ url }` is removed ([link-handling-changes](link-handling-changes.md), built on 2026-11-21).
 - Decided 2026-11-17: the language choice is removed, so a list's runs carry no language and every resume is written in English ([english-only-resumes](english-only-resumes.md), built on 2026-11-21).
